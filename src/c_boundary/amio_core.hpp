@@ -29,11 +29,50 @@
 
 #include "c_boundary/handle_table.hpp"
 #include "factory/backend_driver.hpp"
+#include "prefetch/prefetch_queue.hpp"
 
 namespace amio::detail {
 
 // Forward declarations.
 class WorkerPool;
+class PrefetchQueue;
+class StagingPool;
+struct StagingBuffer;
+struct AMIO_Core;
+
+// ---------------------------------------------------------------
+// IoRecord -- internal state for a pending asynchronous I/O op.
+//
+// Created by write() and tracked in the handle table as an Io
+// handle.  The worker pool signals completion or failure.
+// ---------------------------------------------------------------
+struct IoRecord {
+    std::uint64_t                   dataset_id = 0;
+    std::uint64_t                   dv_seq = 0;       // per-(dataset,variable) sequence
+    HandleTable::Token              token = 0;
+    StagingBuffer*                  staging_buf = nullptr;  // non-owning; pool owns the buffer
+    AMIO_Core*                      core = nullptr;         // back-pointer for pool release
+
+    // Completion state.
+    std::atomic<bool>               completed{false};
+    std::atomic<bool>               failed{false};
+    amio_err_t                      failure_code = AMIO_OK;
+};
+
+// ---------------------------------------------------------------
+// ViewRecord -- internal state for an outstanding read view.
+//
+// Created by amio_read when a prefetched buffer is returned to the
+// host.  The view holds a reference to the staging buffer (via
+// ref_count) and is released by amio_release_view.
+// ---------------------------------------------------------------
+struct ViewRecord {
+    StagingBuffer*                  staging_buf = nullptr;  // non-owning; pool owns the buffer
+    HandleTable::Token              token = 0;
+    AMIO_Core*                      core = nullptr;         // back-pointer for pool release
+    std::uint64_t                   dataset_id = 0;
+    std::int64_t                    timestep = -1;
+};
 
 // ---------------------------------------------------------------
 // DatasetRecord -- internal state for an open dataset.
@@ -48,11 +87,36 @@ struct DatasetRecord {
     HandleTable::Token              token = 0;
     std::uint64_t                   dataset_id = 0;
 
+    // Back-pointer to the owning AMIO_Core (non-owning).
+    AMIO_Core*                      core = nullptr;
+
     // Pending write tracking for flush/close.
     mutable std::mutex              pending_mu;
     std::atomic<std::uint64_t>      pending_writes{0};
     std::atomic<bool>               has_failure{false};
     amio_err_t                      first_failure_code = AMIO_OK;
+
+    // Next variable ID counter for ordering.
+    std::atomic<std::uint64_t>      next_variable_id{1};
+
+    // ---- Read path state (task 9.2) ----
+
+    // Prefetch queue for read-mode datasets.  Created during
+    // open_dataset when mode == AMIO_MODE_READ.  Null for write
+    // datasets.
+    std::unique_ptr<PrefetchQueue>  prefetch_queue;
+
+    // Total timesteps in the dataset (from config, for read mode).
+    std::int64_t                    total_timesteps = 0;
+
+    // Read timeout in seconds (from config).
+    std::int64_t                    read_timeout_s = 60;
+
+    // Prefetch depth N (from config).
+    std::size_t                     prefetch_depth = 4;
+
+    // Outstanding view count for close-time validation (R5.10).
+    std::atomic<std::uint64_t>      outstanding_views{0};
 };
 
 // ---------------------------------------------------------------
@@ -68,6 +132,12 @@ struct AMIO_Core {
     mutable std::mutex              datasets_mu;
     std::unordered_map<std::uint64_t, std::unique_ptr<DatasetRecord>> datasets;
     std::atomic<std::uint64_t>      next_dataset_id{1};
+
+    // Staging pool (owned by AMIO_Core, may be null in stub mode).
+    StagingPool*                    staging_pool = nullptr;
+
+    // Staging timeout from config (milliseconds).
+    std::int64_t                    staging_timeout_ms = 5000;
 
     // Worker pool (owned by AMIO_Core, may be null in stub mode).
     // TODO: Replace with real WorkerPool* when task 9.x lands.

@@ -402,18 +402,14 @@ set_tests_properties(unit.config_loader PROPERTIES
 #
 # Tests the dataset open/close lifecycle through the Backend_Factory
 # (task 6.3).  Links against AMIO::amio_core for the real extern "C"
-# entry points and compiles private sources for test setup (factory
-# registration of a mock driver).
+# entry points.  Compiles backend_factory.cpp directly to register
+# a mock driver for testing.
 #
 # Validates: R4.1, R4.6, R6.4, R6.5
 ####################################################################
 add_executable(test_dataset_lifecycle
     test_dataset_lifecycle.cpp
     ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core_stubs.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
 )
 
 target_include_directories(test_dataset_lifecycle
@@ -424,6 +420,7 @@ target_include_directories(test_dataset_lifecycle
 target_link_libraries(test_dataset_lifecycle
     PRIVATE
         AMIO::public_headers
+        AMIO::amio_core
 )
 if(Threads_FOUND)
     target_link_libraries(test_dataset_lifecycle PRIVATE Threads::Threads)
@@ -436,4 +433,95 @@ add_test(
 set_tests_properties(unit.dataset_lifecycle PROPERTIES
     LABELS  "unit;factory;dataset;lifecycle"
     TIMEOUT 30
+)
+
+####################################################################
+# test_write_snapshot
+#
+# Tests the synchronous snapshot write path (task 9.1).  Exercises
+# input validation, snapshot semantics, and io_handle creation
+# through the installed extern "C" entry points.
+#
+# Validates: R2.1, R2.2, R2.3, R2.4, R2.5, R2.7, R2.8, R2.10, R6.1
+####################################################################
+add_executable(test_write_snapshot
+    test_write_snapshot.cpp
+    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_api.cpp
+    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
+    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
+    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
+    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core_stubs.cpp
+    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
+    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp
+)
+
+target_include_directories(test_write_snapshot
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_write_snapshot
+    PRIVATE
+        AMIO::public_headers
+)
+if(Threads_FOUND)
+    target_link_libraries(test_write_snapshot PRIVATE Threads::Threads)
+endif()
+
+add_test(
+    NAME    unit.write_snapshot
+    COMMAND test_write_snapshot
+)
+set_tests_properties(unit.write_snapshot PROPERTIES
+    LABELS  "unit;write;snapshot;staging"
+    TIMEOUT 60
+)
+
+####################################################################
+# test_read_prefetch
+#
+# Tests the read prefetch path (task 9.2).  Exercises the
+# PrefetchQueue, amio_read wiring, and view lifecycle through
+# direct unit tests of the PrefetchQueue class.
+#
+# Validates: R5.1, R5.2, R5.3, R5.4, R5.5, R5.7, R5.8
+####################################################################
+add_executable(test_read_prefetch
+    test_read_prefetch.cpp
+    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp
+    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
+)
+
+target_include_directories(test_read_prefetch
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_read_prefetch
+    PRIVATE
+        AMIO::public_headers
+)
+if(Threads_FOUND)
+    target_link_libraries(test_read_prefetch PRIVATE Threads::Threads)
+endif()
+
+add_test(
+    NAME    unit.read_prefetch
+    COMMAND test_read_prefetch
+)
+set_tests_properties(unit.read_prefetch PROPERTIES
+    LABELS  "unit;prefetch;read"
+    TIMEOUT 60
 )

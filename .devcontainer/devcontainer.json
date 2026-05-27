@@ -1,16 +1,37 @@
 {
-    "name": "JCSDA GNU OpenMPI Dev",
-    "image": "jcsda/docker-gnu-openmpi-dev:latest",
-    // Ensures you don't run as root to avoid MPI test failures
-    "containerUser": "nonroot",
-    "remoteUser": "nonroot",
-    // Installs necessary C++ and Fortran tooling into the container
+    "name": "AMIO Development (Full Integration)",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "workspaceFolder": "/workspace",
     "customizations": {
         "vscode": {
             "extensions": [
                 "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
                 "fortran-lang.linter-gfortran"
-            ]
+            ],
+            "settings": {
+                "cmake.configureArgs": [
+                    "-DAMIO_HAS_ECKIT=ON",
+                    "-DAMIO_HAS_NETCDF=ON",
+                    "-DAMIO_HAS_G2C=ON",
+                    "-DAMIO_HAS_TENSORSTORE=OFF",
+                    "-DAMIO_FORCE_NCZARR=ON",
+                    "-DCMAKE_BUILD_TYPE=Debug",
+                    "-GNinja"
+                ]
+            }
         }
-    }
+    },
+    "remoteEnv": {
+        "CMAKE_PREFIX_PATH": "/opt/ecbuild;/opt/eckit;/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck",
+        "LD_LIBRARY_PATH": "/opt/eckit/lib:/opt/jasper/lib:/opt/g2c/lib",
+        "CC": "gcc",
+        "CXX": "g++",
+        "FC": "gfortran"
+    },
+    "postCreateCommand": "cmake --version && g++ --version && mpirun --version && echo 'NCZarr:' && nc-config --has-nczarr 2>/dev/null || echo 'nc-config not in PATH (check /opt/netcdf-c/bin)'"
 }

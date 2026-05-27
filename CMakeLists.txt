@@ -115,6 +115,22 @@ find_package(MPI QUIET COMPONENTS C CXX Fortran)
 find_package(netCDF       CONFIG QUIET)
 find_package(netCDFCxx    CONFIG QUIET)
 
+# On Ubuntu, the MPI-enabled netCDF headers (including netcdf_par.h)
+# live in a non-standard path. Detect and expose them.
+set(AMIO_NETCDF_MPI_INCLUDE_DIR "")
+if(netCDF_FOUND AND MPI_C_FOUND)
+    find_path(_netcdf_par_inc netcdf_par.h
+        HINTS
+            /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/netcdf/mpi/include
+            /usr/include/netcdf-mpi
+            ${netCDF_INCLUDE_DIRS}
+    )
+    if(_netcdf_par_inc)
+        set(AMIO_NETCDF_MPI_INCLUDE_DIR "${_netcdf_par_inc}")
+    endif()
+    unset(_netcdf_par_inc CACHE)
+endif()
+
 ####################################################################
 # TensorStore discovery + NCZarr fallback (R13.3, R13.4, R13.5, R8.6)
 #
@@ -195,7 +211,45 @@ include(AMIOZarrBackend)
 amio_select_zarr_backend()
 
 # nceplibs-g2c - GRIB2 encoder/decoder.
-find_package(g2c CONFIG QUIET)
+# The installed config file is lowercase (g2c-config.cmake).
+find_package(g2c CONFIG QUIET NAMES g2c)
+if(g2c_FOUND AND TARGET g2c::g2c)
+    # g2c's exported target may not include INTERFACE_INCLUDE_DIRECTORIES.
+    # Add it explicitly if missing.
+    get_target_property(_g2c_inc g2c::g2c INTERFACE_INCLUDE_DIRECTORIES)
+    if(NOT _g2c_inc)
+        get_filename_component(_g2c_prefix "${g2c_DIR}/../../.." ABSOLUTE)
+        if(EXISTS "${_g2c_prefix}/include/grib2.h")
+            set_target_properties(g2c::g2c PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${_g2c_prefix}/include"
+            )
+        endif()
+        unset(_g2c_prefix)
+    endif()
+    unset(_g2c_inc)
+    message(STATUS "Found g2c: ${g2c_DIR}")
+elseif(NOT g2c_FOUND)
+    # Fallback: look for g2c manually
+    find_path(G2C_INCLUDE_DIR grib2.h
+        HINTS /opt/g2c/include ENV G2C_ROOT
+        PATH_SUFFIXES include
+    )
+    find_library(G2C_LIBRARY NAMES g2c
+        HINTS /opt/g2c/lib ENV G2C_ROOT
+        PATH_SUFFIXES lib lib64
+    )
+    if(G2C_INCLUDE_DIR AND G2C_LIBRARY)
+        set(g2c_FOUND TRUE)
+        if(NOT TARGET g2c::g2c)
+            add_library(g2c::g2c UNKNOWN IMPORTED)
+            set_target_properties(g2c::g2c PROPERTIES
+                IMPORTED_LOCATION "${G2C_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${G2C_INCLUDE_DIR}"
+            )
+        endif()
+        message(STATUS "Found g2c: ${G2C_LIBRARY} (manual discovery)")
+    endif()
+endif()
 
 ####################################################################
 # Target 1: amio_public_headers (INTERFACE, C99-only)
@@ -260,14 +314,17 @@ elseif(netCDF_FOUND)
     target_link_libraries(driver_netcdf PRIVATE netCDF::netcdf)
     target_compile_definitions(driver_netcdf PRIVATE AMIO_HAS_NETCDF=1)
 endif()
+if(AMIO_NETCDF_MPI_INCLUDE_DIR)
+    target_include_directories(driver_netcdf PRIVATE ${AMIO_NETCDF_MPI_INCLUDE_DIR})
+endif()
 if(MPI_CXX_FOUND)
     target_link_libraries(driver_netcdf PRIVATE MPI::MPI_CXX)
 endif()
 
 # ---- driver_zarr -----------------------------------------------------
 add_library(driver_zarr STATIC
-    src/drivers/zarr/zarr_driver_stub.cpp
     src/drivers/zarr/zarr_driver.cpp
+    src/drivers/zarr/zarr_nczarr_fallback.cpp
 )
 add_library(AMIO::driver_zarr ALIAS driver_zarr)
 
@@ -338,6 +395,9 @@ add_library(amio_core SHARED
     src/workers/worker_pool.cpp
     src/workers/thread_pinning.cpp
     src/workers/comm_split.cpp
+    src/workers/exception_bridge.cpp
+    src/workers/mpi_threading.cpp
+    src/prefetch/prefetch_queue.cpp
     src/config/config_loader.cpp
     src/factory/backend_factory.cpp
 )
@@ -427,7 +487,7 @@ endif()
 ####################################################################
 
 add_library(amio_fortran STATIC
-    fortran/amio_mod_stub.f90
+    fortran/amio_mod.f90
 )
 add_library(AMIO::amio_fortran ALIAS amio_fortran)
 

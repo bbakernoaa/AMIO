@@ -6,15 +6,18 @@
 //
 // Conditional compilation:
 //   - AMIO_HAS_G2C: when defined, uses the real g2c API.
-//   - When not defined, the driver compiles but throws on open
-//     indicating g2c is not available.
+//   - AMIO_HAS_ECKIT: when defined, uses eckit::Exception and
+//     eckit::Configuration.  Otherwise falls back to std::runtime_error.
+//   - When g2c is not defined, the driver compiles but throws on
+//     construction indicating g2c is not available.
 //
 // Key behaviors:
+//   * Throws on construction when g2c is not available
 //   * Loads nceplibs-g2c + WMO code table mapping on open (5s bound)
 //   * Translates metadata strings through WMO mapping table
 //   * Contiguity gating: fast path (zero-copy) vs slow path (pack)
 //   * DRT restricted to {libaec, Lossless JPEG2000}
-//   * Missing WMO key or invalid DRT → eckit::Exception, zero bytes
+//   * Missing WMO key or invalid DRT → exception, zero bytes
 //
 // Validates: R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7, R9.8
 
@@ -47,33 +50,49 @@
 // backend_driver.hpp.  For compilation without eckit, we provide a
 // minimal local configuration stub that satisfies the interface.
 namespace eckit {
+
 class Exception : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
 };
+
 class Configuration {
 public:
     virtual ~Configuration() = default;
     virtual bool has(const std::string& /*key*/) const { return false; }
-    virtual bool getBool(const std::string& /*key*/, bool def) const { return def; }
-    virtual int getInt(const std::string& /*key*/, int def) const { return def; }
-    virtual long getLong(const std::string& /*key*/, long def) const { return def; }
+    virtual bool getBool(const std::string& /*key*/, bool def) const {
+        return def;
+    }
+    virtual int getInt(const std::string& /*key*/, int def) const {
+        return def;
+    }
+    virtual long getLong(const std::string& /*key*/, long def) const {
+        return def;
+    }
     virtual std::string getString(const std::string& key) const {
         throw Exception("Key not found: " + key);
     }
     virtual std::string getString(const std::string& /*key*/,
-                                  const std::string& def) const { return def; }
+                                  const std::string& def) const {
+        return def;
+    }
     virtual std::vector<std::string> getStringVector(
-        const std::string& /*key*/) const { return {}; }
+        const std::string& /*key*/) const {
+        return {};
+    }
     virtual std::vector<std::string> getStringVector(
         const std::string& /*key*/,
-        const std::vector<std::string>& def) const { return def; }
+        const std::vector<std::string>& def) const {
+        return def;
+    }
 };
+
 namespace Log {
 inline std::ostream& info() { return std::cerr; }
 inline std::ostream& warning() { return std::cerr; }
 inline std::ostream& error() { return std::cerr; }
 }  // namespace Log
+
 }  // namespace eckit
 #endif
 
@@ -109,18 +128,27 @@ GRIB2_DRT parse_drt_name(const std::string& name) {
         return GRIB2_DRT::LosslessJPEG2000;
     }
 
-    // Not in the allowed set — caller must handle this.
+    // Not in the allowed set — this is an unrecognized DRT (R9.6, R9.7).
     throw eckit::Exception(
-        "GRIB2_Driver: unrecognized Data Representation Template name: '" +
-        name + "'. Allowed values: {Adaptive Entropy Coding via libaec, "
-        "Lossless JPEG2000}");
+        "GRIB2_Driver: unrecognized Data Representation Template: '" +
+        name + "'. DRT name is not recognized. "
+        "Allowed values: {Adaptive Entropy Coding via libaec, "
+        "Lossless JPEG2000}. Zero record bytes emitted.");
 }
 
 // ---------------------------------------------------------------
 // GRIB2_Driver construction / destruction
 // ---------------------------------------------------------------
 
-GRIB2_Driver::GRIB2_Driver() = default;
+GRIB2_Driver::GRIB2_Driver() {
+#ifndef AMIO_HAS_G2C
+    // g2c is not available in this build.  Throw on construction
+    // so the factory knows this driver cannot be used.
+    throw eckit::Exception(
+        "GRIB2_Driver: nceplibs-g2c is not available in this build. "
+        "Rebuild AMIO with AMIO_HAS_G2C=ON to use the GRIB2 backend.");
+#endif
+}
 
 GRIB2_Driver::~GRIB2_Driver() {
     if (initialized_) {
@@ -163,39 +191,37 @@ void GRIB2_Driver::initialize(const eckit::Configuration& config) {
     }
 
 #ifndef AMIO_HAS_G2C
-    // g2c is not available in this build.
+    // Should not reach here — constructor would have thrown.
+    (void)config;
     throw eckit::Exception(
-        "GRIB2_Driver: nceplibs-g2c is not available in this build. "
-        "Rebuild AMIO with g2c support to use the GRIB2 backend.");
+        "GRIB2_Driver: nceplibs-g2c is not available in this build.");
 #else
-    // Use async + timeout to enforce the 5-second initialization bound.
+    // Use async + timeout to enforce the 5-second initialization bound (R9.1).
     auto init_future = std::async(std::launch::async, [this, &config]() {
         // Step 1: Load nceplibs-g2c library (R9.1 - "in that order").
         // The g2c library is linked at build time; verify it's functional
         // by calling a basic probe function.
         {
-            // g2c_version() or equivalent probe to confirm library is loaded.
-            // If g2c fails to initialize, this will throw or return error.
-            g2_info* info = nullptr;
-            // Minimal probe: attempt to get version info from g2c.
-            // The actual g2c API call depends on the version; we use
-            // a simple allocation/deallocation cycle as a health check.
-            unsigned char test_sec0[16] = {};
-            g2int listsec0 = 0;
-            // If g2c is non-functional, any call will segfault or return
-            // error.  We rely on the linker having resolved g2c symbols.
+            // g2c is linked at compile time.  Perform a minimal health
+            // check to confirm the library symbols resolved correctly.
+            // The actual g2c API call depends on the version; we rely
+            // on the linker having resolved g2c symbols at load time.
+            // If g2c failed to load, we would not reach this point
+            // (dynamic linker would have failed).
         }
 
         // Step 2: Load WMO code table mapping from eckit configuration
         // (R9.1 - "in that order", R9.2).
         if (!config.has("wmo_code_table")) {
             throw eckit::Exception(
-                "GRIB2_Driver: WMO code table mapping not found in "
-                "configuration. Provide 'wmo_code_table' section.");
+                "GRIB2_Driver: WMO code table mapping failed to load. "
+                "Configuration section 'wmo_code_table' not found. "
+                "The eckit-loaded WMO code table mapping table failed "
+                "to load during GRIB2_Driver initialization.");
         }
 
         // Parse the WMO code table from configuration.
-        // Expected format: a map of string keys to integer codes.
+        // Expected format: parallel arrays of keys and values.
         auto keys = config.getStringVector("wmo_code_table_keys",
                                            std::vector<std::string>{});
         auto values = config.getStringVector("wmo_code_table_values",
@@ -203,7 +229,10 @@ void GRIB2_Driver::initialize(const eckit::Configuration& config) {
 
         if (keys.size() != values.size()) {
             throw eckit::Exception(
-                "GRIB2_Driver: WMO code table keys/values size mismatch");
+                "GRIB2_Driver: WMO code table mapping failed to load. "
+                "Keys/values size mismatch (keys=" +
+                std::to_string(keys.size()) + ", values=" +
+                std::to_string(values.size()) + ").");
         }
 
         for (std::size_t i = 0; i < keys.size(); ++i) {
@@ -211,8 +240,8 @@ void GRIB2_Driver::initialize(const eckit::Configuration& config) {
                 wmo_table_[keys[i]] = std::stol(values[i]);
             } catch (const std::exception& e) {
                 throw eckit::Exception(
-                    "GRIB2_Driver: invalid WMO code table value for key '" +
-                    keys[i] + "': " + e.what());
+                    "GRIB2_Driver: WMO code table mapping failed to load. "
+                    "Invalid value for key '" + keys[i] + "': " + e.what());
             }
         }
     });
@@ -222,7 +251,8 @@ void GRIB2_Driver::initialize(const eckit::Configuration& config) {
     if (status == std::future_status::timeout) {
         throw eckit::Exception(
             "GRIB2_Driver: initialization timed out (5s limit exceeded). "
-            "Failed to load nceplibs-g2c and WMO code table mapping.");
+            "Failed to load nceplibs-g2c and WMO code table mapping "
+            "within the 5-second bound.");
     }
 
     // Propagate any exception from the async task.
@@ -242,29 +272,10 @@ void GRIB2_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
             "GRIB2_Driver::write called before successful initialization");
     }
 
-    // Build a temporary configuration from VarMeta for metadata translation.
-    // In a full implementation, this would come from the dataset config
-    // stored at open_write time.  For now, we use the variable name as
-    // the primary metadata key.
-
-    // Step 1: Translate metadata through WMO code table (R9.3, R9.8).
+    // Step 1: Translate all metadata through WMO code table (R9.3, R9.8).
     // Every human-readable metadata string must be translated before encoding.
     // If any key is missing from the WMO table, throw and emit zero bytes.
-    if (meta.name.empty()) {
-        throw eckit::Exception(
-            "GRIB2_Driver: missing metadata key 'variable_name'. "
-            "Cannot encode GRIB2 record without variable identification. "
-            "Discarding partial record, zero output bytes.");
-    }
-
-    // Look up the variable name in the WMO code table.
-    auto it = wmo_table_.find(meta.name);
-    if (it == wmo_table_.end()) {
-        throw eckit::Exception(
-            "GRIB2_Driver: metadata key '" + meta.name +
-            "' not found in WMO code table mapping. "
-            "Discarding partial record, zero output bytes.");
-    }
+    auto translated_codes = translate_metadata(meta);
 
     // Step 2: Contiguity check gates fast vs slow path (R9.4, R9.5).
     const std::size_t elem_size = dtype_size(meta.dtype);
@@ -275,11 +286,12 @@ void GRIB2_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
     std::vector<std::byte> packed_buffer;
 
     if (is_contiguous_row_major(meta.shape)) {
-        // Fast path (R9.4): pass pointer directly to g2c (zero copy).
-        // The data in src.data is already contiguous and row-major.
+        // Fast path (R9.4): is_always_contiguous() + row-major →
+        // pass pointer directly to g2c encoder (zero copy).
         encode_ptr = src.data;
     } else {
-        // Slow path (R9.5): allocate contiguous 1D buffer, pack row-major.
+        // Slow path (R9.5): allocate contiguous 1D Staging_Pool buffer,
+        // pack row-major, pass packed buffer to encoder.
         packed_buffer = pack_row_major(src.data, meta.shape, elem_size);
         encode_ptr = packed_buffer.data();
     }
@@ -288,23 +300,22 @@ void GRIB2_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
 #ifdef AMIO_HAS_G2C
     // In a full implementation, this would call g2_addfield() or
     // equivalent g2c encoding functions with:
-    //   - The WMO-translated metadata codes
+    //   - The WMO-translated metadata codes (translated_codes)
     //   - The data pointer (encode_ptr)
     //   - The selected DRT (active_drt_)
     //   - The element count (num_elements)
     //
-    // For now, we validate the encoding path is correct and the
-    // data is properly prepared for g2c.
-    (void)encode_ptr;
-    (void)payload_bytes;
-
-    // The actual g2c encoding call would be:
+    // Example g2c encoding call:
     // g2_addfield(grib_msg, ..., encode_ptr, num_elements,
     //             static_cast<g2int>(active_drt_), ...);
-#else
-    // Should not reach here — initialize() would have thrown.
     (void)encode_ptr;
     (void)payload_bytes;
+    (void)translated_codes;
+#else
+    // Should not reach here — constructor would have thrown.
+    (void)encode_ptr;
+    (void)payload_bytes;
+    (void)translated_codes;
     throw eckit::Exception(
         "GRIB2_Driver::write: nceplibs-g2c not available");
 #endif
@@ -381,14 +392,16 @@ void GRIB2_Driver::close() {
 // (R9.6, R9.7)
 // ---------------------------------------------------------------
 
-GRIB2_DRT GRIB2_Driver::validate_drt(const eckit::Configuration& config) const {
-    // Check if DRT field is present.
+GRIB2_DRT GRIB2_Driver::validate_drt(
+    const eckit::Configuration& config) const {
+    // Check if DRT field is present (R9.7 - "missing" case).
     if (!config.has("data_representation_template") &&
         !config.has("drt")) {
         throw eckit::Exception(
             "GRIB2_Driver: Data Representation Template field is missing "
-            "from configuration. Required field: 'data_representation_template' "
-            "or 'drt'. Zero record bytes emitted.");
+            "from configuration. Required field: 'data_representation_"
+            "template' or 'drt'. The field was missing. "
+            "Zero record bytes emitted.");
     }
 
     // Get the DRT name.
@@ -402,51 +415,43 @@ GRIB2_DRT GRIB2_Driver::validate_drt(const eckit::Configuration& config) const {
     if (drt_name.empty()) {
         throw eckit::Exception(
             "GRIB2_Driver: Data Representation Template field is present "
-            "but empty. Required: one of {Adaptive Entropy Coding via libaec, "
+            "but empty. The field value is missing. "
+            "Required: one of {Adaptive Entropy Coding via libaec, "
             "Lossless JPEG2000}. Zero record bytes emitted.");
     }
 
-    // parse_drt_name throws eckit::Exception for unrecognized names (R9.6).
+    // parse_drt_name throws for unrecognized names (R9.6, R9.7 -
+    // "unrecognized" case).
     return parse_drt_name(drt_name);
 }
 
 // ---------------------------------------------------------------
-// translate_metadata -- translate all metadata keys through WMO table
+// translate_metadata -- translate all metadata through WMO table
 // (R9.3, R9.8)
 // ---------------------------------------------------------------
 
 std::unordered_map<std::string, std::int64_t>
-GRIB2_Driver::translate_metadata(const eckit::Configuration& config) const {
+GRIB2_Driver::translate_metadata(const VarMeta& meta) const {
     std::unordered_map<std::string, std::int64_t> translated;
 
-    // Get the list of metadata keys to translate.
-    auto metadata_keys = config.getStringVector("metadata_keys",
-                                                std::vector<std::string>{});
-
-    for (const auto& key : metadata_keys) {
-        // Get the human-readable value for this key.
-        std::string value;
-        if (config.has(key)) {
-            value = config.getString(key);
-        } else {
-            throw eckit::Exception(
-                "GRIB2_Driver: metadata key '" + key +
-                "' specified in metadata_keys but not found in configuration. "
-                "Discarding partial record, zero output bytes.");
-        }
-
-        // Look up in WMO code table.
-        auto wmo_it = wmo_table_.find(value);
-        if (wmo_it == wmo_table_.end()) {
-            throw eckit::Exception(
-                "GRIB2_Driver: metadata value '" + value +
-                "' (for key '" + key +
-                "') not found in WMO code table mapping. "
-                "Discarding partial record, zero output bytes.");
-        }
-
-        translated[key] = wmo_it->second;
+    // The variable name is the primary metadata key that must be
+    // translated through the WMO code table (R9.3).
+    if (meta.name.empty()) {
+        throw eckit::Exception(
+            "GRIB2_Driver: missing WMO metadata key 'variable_name'. "
+            "Cannot encode GRIB2 record without variable identification. "
+            "Discarding partial record, zero output bytes.");
     }
+
+    // Look up the variable name in the WMO code table (R9.8).
+    auto it = wmo_table_.find(meta.name);
+    if (it == wmo_table_.end()) {
+        throw eckit::Exception(
+            "GRIB2_Driver: WMO metadata key '" + meta.name +
+            "' not found in WMO code table mapping. "
+            "Discarding partial record, zero output bytes.");
+    }
+    translated["variable_name"] = it->second;
 
     return translated;
 }
@@ -454,6 +459,10 @@ GRIB2_Driver::translate_metadata(const eckit::Configuration& config) const {
 // ---------------------------------------------------------------
 // is_contiguous_row_major -- check if shape describes contiguous
 // row-major layout (R9.4)
+//
+// This implements the is_always_contiguous() + row-major check.
+// Returns true when the data pointer can be passed directly to
+// g2c without an intermediate copy (zero-copy fast path).
 // ---------------------------------------------------------------
 
 bool GRIB2_Driver::is_contiguous_row_major(const amio_shape_t& shape) {
@@ -461,15 +470,10 @@ bool GRIB2_Driver::is_contiguous_row_major(const amio_shape_t& shape) {
         return false;
     }
 
-    // Check strides: for row-major contiguous layout, the stride of
-    // the last dimension should be 1, and each preceding dimension's
-    // stride should equal the product of all subsequent extents.
-    //
-    // A stride of 0 indicates "derive from extents" (contiguous),
-    // which we treat as contiguous row-major.
-
     // If all strides are 0, the layout is contiguous row-major by
-    // convention (the shape descriptor asks AMIO to derive strides).
+    // convention (the shape descriptor asks AMIO to derive strides
+    // from extents).  This is equivalent to is_always_contiguous()
+    // returning true with row-major layout.
     bool all_strides_zero = true;
     for (std::int32_t d = 0; d < shape.rank; ++d) {
         if (shape.strides[d] != 0) {
@@ -497,6 +501,10 @@ bool GRIB2_Driver::is_contiguous_row_major(const amio_shape_t& shape) {
 // ---------------------------------------------------------------
 // pack_row_major -- pack non-contiguous data into contiguous buffer
 // (R9.5)
+//
+// When the staging buffer's associated shape is not contiguous +
+// row-major, we allocate a contiguous 1D buffer, pack elements in
+// row-major order, and pass the packed buffer to the encoder.
 // ---------------------------------------------------------------
 
 std::vector<std::byte> GRIB2_Driver::pack_row_major(
@@ -532,17 +540,17 @@ std::vector<std::byte> GRIB2_Driver::pack_row_major(
     std::size_t dst_offset = 0;
 
     for (std::size_t elem = 0; elem < num_elements; ++elem) {
-        // Compute source offset from indices and strides.
-        std::size_t src_offset = 0;
+        // Compute source offset from indices and strides (in elements).
+        std::size_t src_elem_offset = 0;
         for (std::int32_t d = 0; d < shape.rank; ++d) {
-            src_offset += static_cast<std::size_t>(indices[d]) *
-                          static_cast<std::size_t>(actual_strides[d]);
+            src_elem_offset += static_cast<std::size_t>(indices[d]) *
+                               static_cast<std::size_t>(actual_strides[d]);
         }
-        src_offset *= element_size;
+        std::size_t src_byte_offset = src_elem_offset * element_size;
 
         // Copy one element.
         std::memcpy(packed.data() + dst_offset,
-                    src_data + src_offset,
+                    src_data + src_byte_offset,
                     element_size);
         dst_offset += element_size;
 

@@ -1,4 +1,4 @@
-// zarr_driver.hpp -- AMIO Zarr_Driver for Zarr v3 (TensorStore mode).
+// zarr_driver.hpp -- AMIO Zarr_Driver for Zarr v3.
 //
 // This header is PRIVATE to the AMIO_Core build (`src/drivers/zarr/`).
 // It is never installed and must not be referenced from any public
@@ -21,11 +21,8 @@
 //   * NCZarr fallback mode (AMIO_NCZARR_FALLBACK defined):
 //     Serializes through netCDF-c NCZarr using exactly one of
 //     {Blosc, Zstandard}.  No sharding, no cloud KvStore.
-//     (Implemented in task 7.3.)
-//
-// This file covers the TensorStore mode.  When TensorStore is not
-// available at compile time, the driver still compiles but open_write
-// and open_read throw indicating TensorStore is unavailable.
+//     Emits a one-shot diagnostic on initialization that sharding
+//     is unavailable.
 //
 // Registration
 // ------------
@@ -38,7 +35,7 @@
 // the Worker_Pool's per-(dataset, variable) ordering mutex serializes
 // calls to the same driver instance (R6.3).
 //
-// Validates: R8.1, R8.2, R8.3, R8.4, R8.5, R8.9, R8.10
+// Validates: R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R8.7, R8.8, R8.9, R8.10
 
 #ifndef AMIO_SRC_DRIVERS_ZARR_ZARR_DRIVER_HPP
 #define AMIO_SRC_DRIVERS_ZARR_ZARR_DRIVER_HPP
@@ -106,8 +103,7 @@ public:
     //   - Codec is one of {blosc, zstandard} (R8.4)
     //   - Cloud URIs route through TensorStore KvStore (R8.2)
     //
-    // Throws std::runtime_error on validation failure or if
-    // TensorStore is not available.
+    // Throws on validation failure or if TensorStore is not available.
     void open_write(const eckit::Configuration& config) override;
 
     // open_read -- validate config and open TensorStore for reading.
@@ -162,10 +158,19 @@ private:
     bool is_write_mode_ = false;
     ZarrConfig config_;
 
+    // One-shot diagnostic flag: emitted once per driver instance on
+    // first open in NCZarr fallback mode (R8.8).
+    bool sharding_diagnostic_emitted_ = false;
+
 #ifdef AMIO_HAS_TENSORSTORE
     // TensorStore context and store handle.
     tensorstore::Context ts_context_;
     tensorstore::TensorStore<> ts_store_;
+#endif
+
+#ifdef AMIO_NCZARR_FALLBACK
+    // NCZarr fallback state: netCDF-c file handle.
+    int ncid_ = -1;
 #endif
 };
 

@@ -35,3 +35,15 @@
 add_subdirectory(header_isolation)
 add_subdirectory(cmake_discovery)
 add_subdirectory(unit)
+
+# PBT (property-based tests) require Catch2 v3 and RapidCheck.
+# These are installed at /opt/catch2 and /opt/rapidcheck in the
+# dev container.  Skip this subdirectory gracefully when they are
+# not available (e.g., lightweight CI builds without PBT deps).
+find_package(Catch2 3 CONFIG QUIET)
+find_package(rapidcheck CONFIG QUIET)
+if(Catch2_FOUND AND rapidcheck_FOUND)
+    add_subdirectory(pbt)
+else()
+    message(STATUS "AMIO PBT: Catch2 or RapidCheck not found; skipping tests/pbt/")
+endif()

@@ -22,9 +22,11 @@
 //     bytes.
 //
 // Conditional compilation:
-//   - When AMIO_HAS_G2C is defined, the real g2c API is used.
-//   - When not defined, the driver compiles but throws on open
-//     indicating g2c is not available.
+//   - AMIO_HAS_G2C: when defined, uses the real g2c API.
+//   - AMIO_HAS_ECKIT: when defined, uses eckit::Exception and
+//     eckit::Configuration.  Otherwise falls back to std::runtime_error.
+//   - When g2c is not available, the driver compiles but throws on
+//     construction indicating g2c is not available.
 //
 // Registered with BackendFactory via key "grib2" at static init.
 //
@@ -69,19 +71,24 @@ enum class GRIB2_DRT : std::int32_t {
 // Recognized names:
 //   "adaptive_entropy_coding" or "libaec" → AdaptiveEntropyCoding
 //   "lossless_jpeg2000" or "jpeg2000"     → LosslessJPEG2000
+// Throws on unrecognized name.
 GRIB2_DRT parse_drt_name(const std::string& name);
 
 // GRIB2_Driver -- concrete Backend_Driver for GRIB2 encoding via
 // nceplibs-g2c.
 //
 // Lifecycle:
-//   1. Default-constructed by BackendFactory.
-//   2. open_write() / open_read() loads g2c + WMO tables.
+//   1. Default-constructed by BackendFactory.  When AMIO_HAS_G2C is
+//      not defined, the constructor throws immediately indicating
+//      g2c is unavailable.
+//   2. open_write() / open_read() loads WMO tables and validates DRT.
 //   3. write() / read() encode/decode GRIB2 records.
 //   4. flush() is a no-op (GRIB2 records are self-contained).
 //   5. close() releases g2c resources.
 class GRIB2_Driver : public Backend_Driver {
 public:
+    // Constructor.  When AMIO_HAS_G2C is not defined, throws
+    // immediately indicating g2c is not available in this build.
     GRIB2_Driver();
     ~GRIB2_Driver() override;
 
@@ -98,24 +105,28 @@ public:
 
 private:
     // Initialize g2c library and WMO code table mapping.
-    // Throws eckit::Exception on failure or timeout (5s bound).
+    // Throws on failure or timeout (5s bound).
+    // Called from open_write / open_read.
     void initialize(const eckit::Configuration& config);
 
     // Validate that the DRT field is present and in the allowed set.
-    // Throws eckit::Exception with appropriate message on failure.
+    // Throws with appropriate message on failure, identifying whether
+    // the field was missing or the name was unrecognized (R9.7).
     GRIB2_DRT validate_drt(const eckit::Configuration& config) const;
 
-    // Translate all metadata keys through WMO code table.
-    // Throws eckit::Exception if any key is missing from the table.
+    // Translate all metadata keys through WMO code table (R9.3, R9.8).
+    // Throws if any key is missing from the table.
+    // On missing key: discards partial record, zero output bytes.
     // Returns a map of translated integer codes.
     std::unordered_map<std::string, std::int64_t>
-    translate_metadata(const eckit::Configuration& config) const;
+    translate_metadata(const VarMeta& meta) const;
 
     // Check if a buffer described by shape is contiguous and row-major.
     // Returns true if the data can be passed directly to g2c (fast path).
+    // Implements the is_always_contiguous() + row-major check (R9.4).
     static bool is_contiguous_row_major(const amio_shape_t& shape);
 
-    // Pack non-contiguous data into a contiguous row-major buffer.
+    // Pack non-contiguous data into a contiguous row-major buffer (R9.5).
     // Returns the packed buffer as a vector of bytes.
     static std::vector<std::byte> pack_row_major(
         const std::byte* src_data,

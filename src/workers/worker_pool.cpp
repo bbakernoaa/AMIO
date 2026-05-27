@@ -42,6 +42,10 @@
 
 #include <cassert>
 
+#ifdef AMIO_HAS_ECKIT
+#include <eckit/exception/Exceptions.h>
+#endif
+
 namespace amio::detail {
 
 WorkerPool::WorkerPool(std::size_t thread_count)

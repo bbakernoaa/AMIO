@@ -14,6 +14,7 @@
 
 #include "drivers/netcdf/netcdf_driver.hpp"
 #include "factory/backend_factory.hpp"
+#include "staging/staging_pool.hpp"
 
 #ifdef AMIO_HAS_NETCDF
 #include <netcdf.h>
