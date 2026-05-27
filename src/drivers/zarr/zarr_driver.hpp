@@ -129,6 +129,20 @@ public:
     // close -- close TensorStore handles.
     void close() override;
 
+    // ----- Static utility methods (public for testability) -----
+
+    // Determine if a URI is a cloud URI (s3://, gs://, https://).
+    static bool is_cloud_uri(const std::string& uri);
+
+    // Categorize a network/auth error for proper error reporting (R8.9).
+    static std::string categorize_error(const std::string& message);
+
+    // Convert amio_dtype_t to TensorStore dtype string.
+    static std::string dtype_to_string(amio_dtype_t dtype);
+
+    // Convert amio_dtype_t to element size in bytes.
+    static std::size_t dtype_size(amio_dtype_t dtype);
+
 private:
     // Parse and validate Zarr-specific configuration from eckit config.
     // Returns the parsed ZarrConfig.
@@ -142,18 +156,6 @@ private:
     // Validate codec selection (must be blosc or zstandard).
     // Throws on invalid codec (R8.4).
     void validate_codec(const ZarrConfig& cfg);
-
-    // Determine if a URI is a cloud URI (s3://, gs://, https://).
-    static bool is_cloud_uri(const std::string& uri);
-
-    // Categorize a network/auth error for proper error reporting (R8.9).
-    static std::string categorize_error(const std::string& message);
-
-    // Convert amio_dtype_t to TensorStore dtype string.
-    static std::string dtype_to_string(amio_dtype_t dtype);
-
-    // Convert amio_dtype_t to element size in bytes.
-    static std::size_t dtype_size(amio_dtype_t dtype);
 
     // State.
     bool is_open_ = false;

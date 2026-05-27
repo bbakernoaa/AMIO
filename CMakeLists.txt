@@ -238,7 +238,7 @@ target_compile_features(amio_public_headers
 
 # ---- driver_netcdf ----------------------------------------------------
 add_library(driver_netcdf STATIC
-    src/drivers/netcdf/netcdf_driver_stub.cpp
+    src/drivers/netcdf/netcdf_driver.cpp
 )
 add_library(AMIO::driver_netcdf ALIAS driver_netcdf)
 
@@ -255,8 +255,10 @@ if(eckit_FOUND)
 endif()
 if(netCDFCxx_FOUND)
     target_link_libraries(driver_netcdf PRIVATE netCDF::netcdf-cxx4)
+    target_compile_definitions(driver_netcdf PRIVATE AMIO_HAS_NETCDF=1)
 elseif(netCDF_FOUND)
     target_link_libraries(driver_netcdf PRIVATE netCDF::netcdf)
+    target_compile_definitions(driver_netcdf PRIVATE AMIO_HAS_NETCDF=1)
 endif()
 if(MPI_CXX_FOUND)
     target_link_libraries(driver_netcdf PRIVATE MPI::MPI_CXX)
@@ -265,6 +267,7 @@ endif()
 # ---- driver_zarr -----------------------------------------------------
 add_library(driver_zarr STATIC
     src/drivers/zarr/zarr_driver_stub.cpp
+    src/drivers/zarr/zarr_driver.cpp
 )
 add_library(AMIO::driver_zarr ALIAS driver_zarr)
 
@@ -296,7 +299,7 @@ endif()
 
 # ---- driver_grib2 ----------------------------------------------------
 add_library(driver_grib2 STATIC
-    src/drivers/grib2/grib2_driver_stub.cpp
+    src/drivers/grib2/grib2_driver.cpp
 )
 add_library(AMIO::driver_grib2 ALIAS driver_grib2)
 
@@ -313,6 +316,7 @@ if(eckit_FOUND)
 endif()
 if(g2c_FOUND)
     target_link_libraries(driver_grib2 PRIVATE g2c::g2c)
+    target_compile_definitions(driver_grib2 PRIVATE AMIO_HAS_G2C=1)
 endif()
 
 ####################################################################
