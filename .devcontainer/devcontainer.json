@@ -1,0 +1,16 @@
+{
+    "name": "JCSDA GNU OpenMPI Dev",
+    "image": "jcsda/docker-gnu-openmpi-dev:latest",
+    // Ensures you don't run as root to avoid MPI test failures
+    "containerUser": "nonroot",
+    "remoteUser": "nonroot",
+    // Installs necessary C++ and Fortran tooling into the container
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "fortran-lang.linter-gfortran"
+            ]
+        }
+    }
+}

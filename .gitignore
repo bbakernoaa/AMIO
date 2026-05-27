@@ -1,3 +1,15 @@
 *~
 .sw[a-p]
 .DS_Store
+.kiro/
+
+# CMake out-of-tree build directories
+build/
+build-*/
+cmake-build-*/
+
+# Installed/exported package artifacts
+*.mod
+
+
+build*/
