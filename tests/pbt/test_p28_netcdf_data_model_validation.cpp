@@ -125,10 +125,7 @@ TEST_CASE("P28: NetCDF data model validation - invalid models rejected", "[pbt][
         bool threw = false;
         try {
             NetCDF_Driver::parse_data_model(model_str);
-        } catch (const eckit::Exception &) {
-            threw = true;
         } catch (const std::runtime_error &) {
-            // eckit::Exception inherits from std::runtime_error
             threw = true;
         }
 

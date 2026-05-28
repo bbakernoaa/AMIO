@@ -150,7 +150,9 @@ TEST_CASE("P23: Driver failure recorded - failure surfaces on flush", "[pbt][p23
         HandleKind kind;
         void* payload = nullptr;
         table.lookup(HandleTable::from_ptr(ctx.dataset), kind, &payload);
-        if (!payload || kind != HandleKind::Dataset) { RC_DISCARD("invalid handle"); }
+        if (!payload || kind != HandleKind::Dataset) {
+            RC_DISCARD("invalid handle");
+        }
 
         auto* record = static_cast<DatasetRecord*>(payload);
 
@@ -184,7 +186,9 @@ TEST_CASE("P23: Driver failure recorded - failure retained until flush", "[pbt][
         HandleKind kind;
         void* payload = nullptr;
         table.lookup(HandleTable::from_ptr(ctx.dataset), kind, &payload);
-        if (!payload || kind != HandleKind::Dataset) { RC_DISCARD("invalid handle"); }
+        if (!payload || kind != HandleKind::Dataset) {
+            RC_DISCARD("invalid handle");
+        }
 
         auto* record = static_cast<DatasetRecord*>(payload);
 
@@ -257,7 +261,9 @@ TEST_CASE("P23: Driver failure recorded - error code preserved", "[pbt][p23][dri
         HandleKind kind;
         void* payload = nullptr;
         table.lookup(HandleTable::from_ptr(ctx.dataset), kind, &payload);
-        if (!payload || kind != HandleKind::Dataset) { RC_DISCARD("invalid handle"); }
+        if (!payload || kind != HandleKind::Dataset) {
+            RC_DISCARD("invalid handle");
+        }
 
         auto* record = static_cast<DatasetRecord*>(payload);
 

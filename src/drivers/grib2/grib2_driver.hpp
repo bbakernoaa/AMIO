@@ -117,7 +117,7 @@ class GRIB2_Driver : public Backend_Driver {
     // Returns a map of translated integer codes.
     std::unordered_map<std::string, std::int64_t> translate_metadata(const VarMeta& meta) const;
 
-public:
+   public:
     // ----- Static utility methods (public for testability) -----
 
     // Check if a buffer described by shape is contiguous and row-major.
@@ -135,7 +135,7 @@ public:
     // Compute element size in bytes from dtype.
     static std::size_t dtype_size(amio_dtype_t dtype);
 
-private:
+   private:
     // State
     bool initialized_ = false;
     WmoCodeTable wmo_table_;
