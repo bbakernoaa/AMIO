@@ -140,7 +140,7 @@ TEST_CASE("P25: GRIB2 metadata invariant - invalid DRT names rejected", "[pbt][p
         bool threw = false;
         try {
             parse_drt_name(drt_name);
-        } catch (const eckit::Exception&) {
+        } catch (const std::runtime_error&) {
             threw = true;
         } catch (const std::runtime_error&) {
             // eckit::Exception inherits from std::runtime_error

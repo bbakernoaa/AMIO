@@ -462,7 +462,21 @@ set_tests_properties(pbt.p22_synchronous_wait_totality PROPERTIES LABELS "pbt;p2
 #
 # Validates: R6.6
 # ####################################################################################################################################################
-add_executable(pbt_p23_driver_failure_recorded test_p23_driver_failure_recorded.cpp)
+add_executable(pbt_p23_driver_failure_recorded
+    test_p23_driver_failure_recorded.cpp
+    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
+    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core_stubs.cpp
+    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
+    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
+    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
+    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp
+)
 
 target_link_libraries(pbt_p23_driver_failure_recorded PRIVATE AMIO::pbt_common)
 
@@ -478,7 +492,11 @@ set_tests_properties(pbt.p23_driver_failure_recorded PROPERTIES LABELS "pbt;p23;
 #
 # Validates: R9.4, R9.5
 # ####################################################################################################################################################
-add_executable(pbt_p24_grib2_contiguity_gating test_p24_grib2_contiguity_gating.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp)
+add_executable(pbt_p24_grib2_contiguity_gating
+    test_p24_grib2_contiguity_gating.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
+    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
+)
 
 target_link_libraries(pbt_p24_grib2_contiguity_gating PRIVATE AMIO::pbt_common)
 
@@ -493,7 +511,11 @@ set_tests_properties(pbt.p24_grib2_contiguity_gating PROPERTIES LABELS "pbt;p24;
 #
 # Validates: R9.3, R9.6, R9.7, R9.8
 # ####################################################################################################################################################
-add_executable(pbt_p25_grib2_metadata_invariant test_p25_grib2_metadata_invariant.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp)
+add_executable(pbt_p25_grib2_metadata_invariant
+    test_p25_grib2_metadata_invariant.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
+    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
+)
 
 target_link_libraries(pbt_p25_grib2_metadata_invariant PRIVATE AMIO::pbt_common)
 
@@ -510,7 +532,8 @@ set_tests_properties(pbt.p25_grib2_metadata_invariant PROPERTIES LABELS "pbt;p25
 # ####################################################################################################################################################
 add_executable(
     pbt_p26_zarr_cloud_failure_idempotence test_p26_zarr_cloud_failure_idempotence.cpp ${CMAKE_SOURCE_DIR}/src/drivers/zarr/zarr_driver.cpp
-                                           ${CMAKE_SOURCE_DIR}/src/drivers/zarr/zarr_nczarr_fallback.cpp)
+                                           ${CMAKE_SOURCE_DIR}/src/drivers/zarr/zarr_nczarr_fallback.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp)
 
 target_link_libraries(pbt_p26_zarr_cloud_failure_idempotence PRIVATE AMIO::pbt_common)
 

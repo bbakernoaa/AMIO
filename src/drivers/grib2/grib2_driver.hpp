@@ -117,6 +117,9 @@ class GRIB2_Driver : public Backend_Driver {
     // Returns a map of translated integer codes.
     std::unordered_map<std::string, std::int64_t> translate_metadata(const VarMeta& meta) const;
 
+public:
+    // ----- Static utility methods (public for testability) -----
+
     // Check if a buffer described by shape is contiguous and row-major.
     // Returns true if the data can be passed directly to g2c (fast path).
     // Implements the is_always_contiguous() + row-major check (R9.4).
@@ -132,6 +135,7 @@ class GRIB2_Driver : public Backend_Driver {
     // Compute element size in bytes from dtype.
     static std::size_t dtype_size(amio_dtype_t dtype);
 
+private:
     // State
     bool initialized_ = false;
     WmoCodeTable wmo_table_;

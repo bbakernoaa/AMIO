@@ -206,7 +206,7 @@ TEST_CASE("P1: Round_Trip_Equivalence - netcdf4 backend", "[pbt][p1][round_trip]
                                           nullptr,  // no bounding box (full read)
                                           &view);
         RC_ASSERT(rc_read == AMIO_OK);
-        RC_ASSERT(view);
+        if (!view) { RC_FAIL("view handle is null"); }
 
         // ---- Compare read-back bytes with original payload ----
         // The view handle gives us access to the staging buffer.
@@ -319,7 +319,7 @@ TEST_CASE("P1: Round_Trip_Equivalence - zarr3 backend", "[pbt][p1][round_trip][z
                                           nullptr,  // no bounding box (full read)
                                           &view);
         RC_ASSERT(rc_read == AMIO_OK);
-        RC_ASSERT(view);
+        if (!view) { RC_FAIL("view handle is null"); }
 
         // ---- Release view and close read dataset ----
         amio_status_t rc_release = amio_release_view(view);

@@ -80,12 +80,15 @@ class NetCDF_Driver : public Backend_Driver {
     void flush() override;
     void close() override;
 
-   private:
-    // Verify that the linked netCDF library has Parallel HDF5 + MPI-IO.
-    static void verify_parallel_support();
+   public:
+    // ----- Static utility methods (public for testability) -----
 
     // Validate the data model string from configuration.
     static NetCDF4DataModel parse_data_model(const std::string& model_str);
+
+   private:
+    // Verify that the linked netCDF library has Parallel HDF5 + MPI-IO.
+    static void verify_parallel_support();
 
     // Validate that a codec is on the lossless allow-list.
     static void validate_codec(const std::string& codec, const std::vector<std::string>& allow_list);

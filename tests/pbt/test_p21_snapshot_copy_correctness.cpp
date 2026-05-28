@@ -180,7 +180,7 @@ TEST_CASE("P21: Snapshot copy correctness - amio_write end-to-end", "[pbt][p21][
         amio_status_t rc_val = amio_write(ctx.dataset, "snapshot_var", host_data.data(), dtype, &shape, &io);
 
         RC_ASSERT(rc_val == AMIO_OK);
-        RC_ASSERT(io);
+        if (!io) { RC_FAIL("io handle is null"); }
 
         // After amio_write returns, the host pointer is no longer
         // referenced by AMIO (R2.3).  Mutate the host buffer to
