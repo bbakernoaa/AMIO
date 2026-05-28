@@ -128,8 +128,9 @@ std::uint64_t WorkerPool::submit_write(DatasetVariableKey dv_key, std::uint64_t 
     // Backpressure handling (same as primary overload).
     if (backpressure_.enabled) {
         if (write_queue_.size() >= backpressure_.high_watermark) {
-            backpressure_cv_.wait(
-                lock, [this]() { return write_queue_.size() < backpressure_.low_watermark || shutdown_.load(std::memory_order_acquire); });
+            backpressure_cv_.wait_for(lock, std::chrono::seconds(10), [this]() {
+                return write_queue_.size() < backpressure_.low_watermark || shutdown_.load(std::memory_order_acquire);
+            });
         }
         if (shutdown_.load(std::memory_order_acquire)) {
             return 0;
@@ -167,8 +168,9 @@ amio_err_t WorkerPool::submit_write(DatasetVariableKey dv_key, std::function<voi
     if (backpressure_.enabled) {
         // If queue depth >= high_watermark, block until depth < low_watermark.
         if (write_queue_.size() >= backpressure_.high_watermark) {
-            backpressure_cv_.wait(
-                lock, [this]() { return write_queue_.size() < backpressure_.low_watermark || shutdown_.load(std::memory_order_acquire); });
+            backpressure_cv_.wait_for(lock, std::chrono::seconds(10), [this]() {
+                return write_queue_.size() < backpressure_.low_watermark || shutdown_.load(std::memory_order_acquire);
+            });
         }
 
         if (shutdown_.load(std::memory_order_acquire)) {

@@ -27,28 +27,27 @@ jobs:
         build_type: [Debug, Release]
     steps:
       - uses: actions/checkout@v4
-      - name: Build dev container
-        run: docker build -t amio-dev:latest -f .devcontainer/Dockerfile .
-      - name: Configure
+      - uses: docker/setup-buildx-action@v3
+      - name: Build dev container (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          load: true
+          tags: amio-dev:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build and Test
         run: |
           docker run --rm -v ${{ github.workspace }}:/src:ro -w /tmp/build amio-dev:latest \
-            cmake /src -GNinja \
+            bash -c "cmake /src -GNinja \
               -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
               -DAMIO_BUILD_TESTING=ON \
               -DAMIO_BUILD_EXAMPLES=ON \
-              -DAMIO_FORCE_NCZARR=ON
-      - name: Build
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/src:ro -w /tmp/build amio-dev:latest \
-            bash -c "cmake /src -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DAMIO_BUILD_TESTING=ON -DAMIO_BUILD_EXAMPLES=ON -DAMIO_FORCE_NCZARR=ON && ninja -j\$(nproc)"
-      - name: Unit Tests
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/src:ro -w /tmp/build amio-dev:latest \
-            bash -c "cmake /src -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DAMIO_BUILD_TESTING=ON -DAMIO_FORCE_NCZARR=ON && ninja -j\$(nproc) && ctest --output-on-failure -L unit --timeout 60"
-      - name: PBT Tests
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/src:ro -w /tmp/build amio-dev:latest \
-            bash -c "cmake /src -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DAMIO_BUILD_TESTING=ON -DAMIO_FORCE_NCZARR=ON && ninja -j\$(nproc) && ctest --output-on-failure -L pbt --timeout 600"
+              -DAMIO_FORCE_NCZARR=ON \
+            && ninja -j\$(nproc) \
+            && ctest --output-on-failure -L unit --timeout 120 \
+            && ctest --output-on-failure -L pbt --timeout 600"
         env:
           RC_PARAMS: "max_success=100"
 
