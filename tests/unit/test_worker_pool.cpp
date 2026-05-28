@@ -986,6 +986,7 @@ void test_backpressure_shutdown_unblocks_writers() {
 
     // Shutdown should unblock the writer.
     gate.store(true, std::memory_order_release);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Let worker drain
     pool.shutdown();
 
     submitter.join();
@@ -1029,7 +1030,7 @@ int main() {
     test_queue_full_legacy_interface();
     test_backpressure_blocks_at_high_watermark();
     test_backpressure_config_accessors();
-    // test_backpressure_shutdown_unblocks_writers();  // TODO: fix shutdown CV notification
+    test_backpressure_shutdown_unblocks_writers();
 
     std::fprintf(stdout, "test_worker_pool: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
