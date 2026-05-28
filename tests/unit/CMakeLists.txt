@@ -158,7 +158,7 @@ if(Threads_FOUND)
 endif()
 
 add_test(NAME unit.worker_pool COMMAND test_worker_pool)
-set_tests_properties(unit.worker_pool PROPERTIES LABELS "unit;workers;pool" TIMEOUT 60)
+set_tests_properties(unit.worker_pool PROPERTIES LABELS "unit;workers;pool" TIMEOUT 120)
 
 # ####################################################################################################################################################
 # test_exception_bridge

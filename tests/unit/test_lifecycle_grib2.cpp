@@ -40,17 +40,17 @@ static void report_failure(const char *expr, const char *file, int line, const c
         }                                                     \
     } while (0)
 
-#define EXPECT_OK_OR_BACKEND(rc, ctx)                                                                                                  \
-    do {                                                                                                                               \
-        amio_status_t _rc = (rc);                                                                                                      \
-        if (_rc != AMIO_OK && _rc != AMIO_ERR_BACKEND_FAILURE && _rc != AMIO_ERR_MANIFEST_NOT_FOUND && _rc != AMIO_ERR_MANIFEST_INVALID \
-            && _rc != AMIO_ERR_UNKNOWN_BACKEND) {                                                                                      \
-            char buf[256];                                                                                                             \
-            snprintf(buf, sizeof(buf), "%s: unexpected error %d (%s)", (ctx), (int)_rc, amio_strerror(_rc));                           \
-            report_failure(#rc " == AMIO_OK or acceptable", __FILE__, __LINE__, buf);                                                  \
-        } else {                                                                                                                       \
-            ++g_passed;                                                                                                                \
-        }                                                                                                                              \
+#define EXPECT_OK_OR_BACKEND(rc, ctx)                                                                                                      \
+    do {                                                                                                                                   \
+        amio_status_t _rc = (rc);                                                                                                          \
+        if (_rc != AMIO_OK && _rc != AMIO_ERR_BACKEND_FAILURE && _rc != AMIO_ERR_MANIFEST_NOT_FOUND && _rc != AMIO_ERR_MANIFEST_INVALID && \
+            _rc != AMIO_ERR_UNKNOWN_BACKEND) {                                                                                             \
+            char buf[256];                                                                                                                 \
+            snprintf(buf, sizeof(buf), "%s: unexpected error %d (%s)", (ctx), (int)_rc, amio_strerror(_rc));                               \
+            report_failure(#rc " == AMIO_OK or acceptable", __FILE__, __LINE__, buf);                                                      \
+        } else {                                                                                                                           \
+            ++g_passed;                                                                                                                    \
+        }                                                                                                                                  \
     } while (0)
 
 /* ----------------------------------------------------------------
@@ -58,35 +58,35 @@ static void report_failure(const char *expr, const char *file, int line, const c
  * ---------------------------------------------------------------- */
 
 static const char *MANIFEST_PATH = "/tmp/amio_test_lifecycle_grib2.yaml";
-static const char *OUTPUT_PATH   = "/tmp/amio_test_output_grib2.grib2";
+static const char *OUTPUT_PATH = "/tmp/amio_test_output_grib2.grib2";
 
 static int write_manifest(void) {
     FILE *f = fopen(MANIFEST_PATH, "w");
     if (!f) return -1;
 
     fprintf(f,
-        "backend: grib2\n"
-        "path: %s\n"
-        "output_path: %s\n"
-        "drt: libaec\n"
-        "wmo_code_table:\n"
-        "  discipline: 0\n"
-        "  category: 3\n"
-        "  parameter: 5\n"
-        "staging_pool:\n"
-        "  buffer_count: 4\n"
-        "  buffer_capacity_bytes: 65536\n"
-        "worker_pool:\n"
-        "  threads: 1\n"
-        "prefetch:\n"
-        "  depth: 4\n"
-        "  read_timeout_s: 60\n"
-        "staging_timeout_ms: 5000\n"
-        "codec:\n"
-        "  active_codec: libaec\n"
-        "  lossless_allow_list:\n"
-        "    - libaec\n",
-        OUTPUT_PATH, OUTPUT_PATH);
+            "backend: grib2\n"
+            "path: %s\n"
+            "output_path: %s\n"
+            "drt: libaec\n"
+            "wmo_code_table:\n"
+            "  discipline: 0\n"
+            "  category: 3\n"
+            "  parameter: 5\n"
+            "staging_pool:\n"
+            "  buffer_count: 4\n"
+            "  buffer_capacity_bytes: 65536\n"
+            "worker_pool:\n"
+            "  threads: 1\n"
+            "prefetch:\n"
+            "  depth: 4\n"
+            "  read_timeout_s: 60\n"
+            "staging_timeout_ms: 5000\n"
+            "codec:\n"
+            "  active_codec: libaec\n"
+            "  lossless_allow_list:\n"
+            "    - libaec\n",
+            OUTPUT_PATH, OUTPUT_PATH);
 
     fclose(f);
     return 0;
@@ -136,8 +136,7 @@ int main(void) {
     EXPECT_OK_OR_BACKEND(rc, "amio_init");
 
     if (rc != AMIO_OK) {
-        fprintf(stdout, "NOTE: amio_init returned %d (%s), skipping write path\n",
-                (int)rc, amio_strerror(rc));
+        fprintf(stdout, "NOTE: amio_init returned %d (%s), skipping write path\n", (int)rc, amio_strerror(rc));
         lifecycle_ok = 0;
     }
 
@@ -147,8 +146,7 @@ int main(void) {
         EXPECT_OK_OR_BACKEND(rc, "amio_open_dataset(WRITE)");
 
         if (rc != AMIO_OK) {
-            fprintf(stdout, "NOTE: amio_open_dataset returned %d (%s), skipping write\n",
-                    (int)rc, amio_strerror(rc));
+            fprintf(stdout, "NOTE: amio_open_dataset returned %d (%s), skipping write\n", (int)rc, amio_strerror(rc));
             lifecycle_ok = 0;
         }
     }
@@ -173,8 +171,7 @@ int main(void) {
         EXPECT_OK_OR_BACKEND(rc, "amio_write(geopotential_height 10x10 F32)");
 
         if (rc != AMIO_OK) {
-            fprintf(stdout, "NOTE: amio_write returned %d (%s)\n",
-                    (int)rc, amio_strerror(rc));
+            fprintf(stdout, "NOTE: amio_write returned %d (%s)\n", (int)rc, amio_strerror(rc));
         }
     }
 
@@ -184,8 +181,7 @@ int main(void) {
         EXPECT_OK_OR_BACKEND(rc, "amio_flush");
 
         if (rc != AMIO_OK) {
-            fprintf(stdout, "NOTE: amio_flush returned %d (%s)\n",
-                    (int)rc, amio_strerror(rc));
+            fprintf(stdout, "NOTE: amio_flush returned %d (%s)\n", (int)rc, amio_strerror(rc));
         }
     }
 
@@ -196,8 +192,7 @@ int main(void) {
         ds = NULL;
 
         if (rc != AMIO_OK) {
-            fprintf(stdout, "NOTE: amio_close_dataset returned %d (%s)\n",
-                    (int)rc, amio_strerror(rc));
+            fprintf(stdout, "NOTE: amio_close_dataset returned %d (%s)\n", (int)rc, amio_strerror(rc));
         }
     }
 
