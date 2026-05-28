@@ -334,7 +334,8 @@ void WorkerPool::worker_loop() {
         std::unique_lock<std::mutex> lock(mu_);
 
         // Wait until there's work or shutdown is signaled.
-        cv_.wait(lock, [this]() { return shutdown_.load(std::memory_order_acquire) || !write_queue_.empty() || !prefetch_queue_.empty(); });
+        cv_.wait_for(lock, std::chrono::seconds(5),
+                     [this]() { return shutdown_.load(std::memory_order_acquire) || !write_queue_.empty() || !prefetch_queue_.empty(); });
 
         // Try to execute a task.
         if (!try_execute_one(lock)) {
