@@ -112,8 +112,8 @@ program example_netcdf4_write
     ! This is much simpler than manually constructing amio_shape_t.
     ! -------------------------------------------------------------------
     write (*, '(A)') 'Step 4: Writing temperature field...'
-    call amio_write_array(dataset, 'temperature'//c_null_char, &
-                          temperature, io_handle, rc)
+    call amio_write_f32_3d(dataset, 'temperature'//c_null_char, &
+                           temperature, io_handle, rc)
     call check_amio(rc, 'amio_write_array(temperature)')
     write (*, '(A)') '  Write enqueued (async I/O handle obtained).'
 

@@ -103,8 +103,8 @@ program example_grib2_write
     ! amio_write_array detects real(c_float) rank-2 and uses AMIO_DTYPE_F32.
     ! -------------------------------------------------------------------
     write (*, '(A)') 'Step 4: Writing geopotential height field...'
-    call amio_write_array(dataset, 'geopotential_height'//c_null_char, &
-                          hgt, io_handle, rc)
+    call amio_write_f32_2d(dataset, 'geopotential_height'//c_null_char, &
+                           hgt, io_handle, rc)
     call check_amio(rc, 'amio_write_array(geopotential_height)')
     write (*, '(A)') '  Write enqueued.'
 

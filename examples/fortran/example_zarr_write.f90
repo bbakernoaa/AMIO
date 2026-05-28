@@ -91,8 +91,8 @@ program example_zarr_write
     ! amio_write_array detects real(c_double) and uses AMIO_DTYPE_F64.
     ! -------------------------------------------------------------------
     write (*, '(A)') 'Step 4: Writing SST field...'
-    call amio_write_array(dataset, 'sea_surface_temperature'//c_null_char, &
-                          sst, io_handle, rc)
+    call amio_write_f64_2d(dataset, 'sea_surface_temperature'//c_null_char, &
+                           sst, io_handle, rc)
     call check_amio(rc, 'amio_write_array(sst)')
     write (*, '(A)') '  Write enqueued.'
 
