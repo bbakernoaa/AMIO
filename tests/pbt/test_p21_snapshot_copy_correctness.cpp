@@ -120,7 +120,7 @@ TEST_CASE("P21: Snapshot copy correctness - staging pool memcpy", "[pbt][p21][sn
         // Create a staging pool and acquire a buffer.
         StagingPool pool(4, 65536, 5000);
         StagingBuffer* buf = pool.acquire(byte_count);
-        RC_ASSERT(buf != nullptr);
+        RC_ASSERT(buf);
 
         // Perform the deep copy (same as amio_write does).
         buf->used_bytes = byte_count;
@@ -180,7 +180,7 @@ TEST_CASE("P21: Snapshot copy correctness - amio_write end-to-end", "[pbt][p21][
         amio_status_t rc_val = amio_write(ctx.dataset, "snapshot_var", host_data.data(), dtype, &shape, &io);
 
         RC_ASSERT(rc_val == AMIO_OK);
-        RC_ASSERT(io != nullptr);
+        RC_ASSERT(io);
 
         // After amio_write returns, the host pointer is no longer
         // referenced by AMIO (R2.3).  Mutate the host buffer to
@@ -219,7 +219,7 @@ TEST_CASE("P21: Snapshot copy correctness - byte-exact verification", "[pbt][p21
         // Create staging pool and acquire buffer.
         StagingPool pool(2, 65536, 5000);
         StagingBuffer* buf = pool.acquire(byte_count);
-        RC_ASSERT(buf != nullptr);
+        RC_ASSERT(buf);
 
         // Perform deep copy.
         buf->used_bytes = byte_count;

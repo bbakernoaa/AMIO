@@ -150,7 +150,7 @@ TEST_CASE("P5: exact-match returns correct driver for registered keys", "[pbt][f
         auto driver = factory.build(lookup_key, err);
 
         RC_ASSERT(err == AMIO_OK);
-        RC_ASSERT(driver != nullptr);
+        RC_ASSERT(driver);
     });
 }
 
@@ -176,7 +176,7 @@ TEST_CASE("P5: non-match returns AMIO_ERR_UNKNOWN_BACKEND, zero state mutation",
 
         // Must return error, no driver.
         RC_ASSERT(err == AMIO_ERR_UNKNOWN_BACKEND);
-        RC_ASSERT(driver == nullptr);
+        RC_ASSERT(!driver);
 
         // Zero state mutation: registry unchanged.
         auto keys_after = factory.registered_keys();
@@ -218,7 +218,7 @@ TEST_CASE("P5: wrong case is a non-match (case-sensitive)", "[pbt][factory]") {
         auto driver = factory.build(flipped, err);
 
         RC_ASSERT(err == AMIO_ERR_UNKNOWN_BACKEND);
-        RC_ASSERT(driver == nullptr);
+        RC_ASSERT(!driver);
     });
 }
 
@@ -237,7 +237,7 @@ TEST_CASE("P5: empty string returns AMIO_ERR_UNKNOWN_BACKEND", "[pbt][factory]")
         auto driver = factory.build("", err);
 
         RC_ASSERT(err == AMIO_ERR_UNKNOWN_BACKEND);
-        RC_ASSERT(driver == nullptr);
+        RC_ASSERT(!driver);
     });
 }
 
@@ -276,8 +276,8 @@ TEST_CASE("P5: concurrent read+write datasets resolve independently", "[pbt][fac
         // Both should succeed.
         RC_ASSERT(err1 == AMIO_OK);
         RC_ASSERT(err2 == AMIO_OK);
-        RC_ASSERT(driver1 != nullptr);
-        RC_ASSERT(driver2 != nullptr);
+        RC_ASSERT(driver1);
+        RC_ASSERT(driver2);
 
         // They must be independent instances (different pointers).
         RC_ASSERT(driver1.get() != driver2.get());

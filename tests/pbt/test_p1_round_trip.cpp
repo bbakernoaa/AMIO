@@ -168,7 +168,7 @@ TEST_CASE("P1: Round_Trip_Equivalence - netcdf4 backend", "[pbt][p1][round_trip]
         amio_dataset_handle write_ds = nullptr;
         amio_status_t rc_open = amio_open_dataset(guard.handle(), dataset_config_path.c_str(), AMIO_MODE_WRITE, &write_ds);
         RC_ASSERT(rc_open == AMIO_OK);
-        RC_ASSERT(write_ds != nullptr);
+        RC_ASSERT(write_ds);
 
         // ---- Write the payload ----
         // Make a mutable copy for the host buffer.
@@ -197,7 +197,7 @@ TEST_CASE("P1: Round_Trip_Equivalence - netcdf4 backend", "[pbt][p1][round_trip]
         amio_dataset_handle read_ds = nullptr;
         amio_status_t rc_open_r = amio_open_dataset(guard.handle(), dataset_read_config_path.c_str(), AMIO_MODE_READ, &read_ds);
         RC_ASSERT(rc_open_r == AMIO_OK);
-        RC_ASSERT(read_ds != nullptr);
+        RC_ASSERT(read_ds);
 
         // ---- Read back the variable ----
         amio_view_handle view = nullptr;
@@ -206,7 +206,7 @@ TEST_CASE("P1: Round_Trip_Equivalence - netcdf4 backend", "[pbt][p1][round_trip]
                                           nullptr,  // no bounding box (full read)
                                           &view);
         RC_ASSERT(rc_read == AMIO_OK);
-        RC_ASSERT(view != nullptr);
+        RC_ASSERT(view);
 
         // ---- Compare read-back bytes with original payload ----
         // The view handle gives us access to the staging buffer.
@@ -282,7 +282,7 @@ TEST_CASE("P1: Round_Trip_Equivalence - zarr3 backend", "[pbt][p1][round_trip][z
         amio_dataset_handle write_ds = nullptr;
         amio_status_t rc_open = amio_open_dataset(guard.handle(), dataset_config_path.c_str(), AMIO_MODE_WRITE, &write_ds);
         RC_ASSERT(rc_open == AMIO_OK);
-        RC_ASSERT(write_ds != nullptr);
+        RC_ASSERT(write_ds);
 
         // ---- Write the payload ----
         std::vector<uint8_t> host_buffer(original_payload);
@@ -310,7 +310,7 @@ TEST_CASE("P1: Round_Trip_Equivalence - zarr3 backend", "[pbt][p1][round_trip][z
         amio_dataset_handle read_ds = nullptr;
         amio_status_t rc_open_r = amio_open_dataset(guard.handle(), dataset_read_config_path.c_str(), AMIO_MODE_READ, &read_ds);
         RC_ASSERT(rc_open_r == AMIO_OK);
-        RC_ASSERT(read_ds != nullptr);
+        RC_ASSERT(read_ds);
 
         // ---- Read back the variable ----
         amio_view_handle view = nullptr;
@@ -319,7 +319,7 @@ TEST_CASE("P1: Round_Trip_Equivalence - zarr3 backend", "[pbt][p1][round_trip][z
                                           nullptr,  // no bounding box (full read)
                                           &view);
         RC_ASSERT(rc_read == AMIO_OK);
-        RC_ASSERT(view != nullptr);
+        RC_ASSERT(view);
 
         // ---- Release view and close read dataset ----
         amio_status_t rc_release = amio_release_view(view);

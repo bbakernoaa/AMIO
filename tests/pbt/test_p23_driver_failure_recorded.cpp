@@ -148,8 +148,8 @@ TEST_CASE("P23: Driver failure recorded - failure surfaces on flush", "[pbt][p23
         // throws during serialization.
         auto& table = process_handle_table();
         HandleKind kind;
-        void* payload = table.lookup(HandleTable::from_ptr(ctx.dataset), kind);
-        RC_PRE(payload != nullptr && kind == HandleKind::Dataset);
+        void* payload = nullptr; table.lookup(HandleTable::from_ptr(ctx.dataset), kind, &payload);
+        RC_PRE(payload && kind == HandleKind::Dataset);
 
         auto* record = static_cast<DatasetRecord*>(payload);
 
@@ -181,8 +181,8 @@ TEST_CASE("P23: Driver failure recorded - failure retained until flush", "[pbt][
 
         auto& table = process_handle_table();
         HandleKind kind;
-        void* payload = table.lookup(HandleTable::from_ptr(ctx.dataset), kind);
-        RC_PRE(payload != nullptr && kind == HandleKind::Dataset);
+        void* payload = nullptr; table.lookup(HandleTable::from_ptr(ctx.dataset), kind, &payload);
+        RC_PRE(payload && kind == HandleKind::Dataset);
 
         auto* record = static_cast<DatasetRecord*>(payload);
 
@@ -253,8 +253,8 @@ TEST_CASE("P23: Driver failure recorded - error code preserved", "[pbt][p23][dri
 
         auto& table = process_handle_table();
         HandleKind kind;
-        void* payload = table.lookup(HandleTable::from_ptr(ctx.dataset), kind);
-        RC_PRE(payload != nullptr && kind == HandleKind::Dataset);
+        void* payload = nullptr; table.lookup(HandleTable::from_ptr(ctx.dataset), kind, &payload);
+        RC_PRE(payload && kind == HandleKind::Dataset);
 
         auto* record = static_cast<DatasetRecord*>(payload);
 
