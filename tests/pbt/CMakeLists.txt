@@ -557,9 +557,9 @@ set_tests_properties(pbt.p27_abi_stability PROPERTIES LABELS "pbt;p27;abi;stabil
 #
 # Validates: R7.2, R7.3
 # ####################################################################################################################################################
-add_executable(pbt_p28_netcdf_data_model_validation test_p28_netcdf_data_model_validation.cpp
-                                                    ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp
-                                                    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp)
+add_executable(
+    pbt_p28_netcdf_data_model_validation test_p28_netcdf_data_model_validation.cpp ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp)
 
 target_link_libraries(pbt_p28_netcdf_data_model_validation PRIVATE AMIO::pbt_common)
 
