@@ -57,10 +57,12 @@ namespace amio::detail {
 //             the exception what() string, and stack_trace contains
 //             the parallel stack trace (if available).
 struct TaskOutcome {
-    amio_err_t  error_code  = AMIO_OK;
-    std::string message;        // Exception what() or description
-    std::string stack_trace;    // Parallel stack trace (R12.10)
-    bool        is_failure() const noexcept { return error_code != AMIO_OK; }
+    amio_err_t error_code = AMIO_OK;
+    std::string message;      // Exception what() or description
+    std::string stack_trace;  // Parallel stack trace (R12.10)
+    bool is_failure() const noexcept {
+        return error_code != AMIO_OK;
+    }
 };
 
 // translate_exception_to_error -- maps a caught exception to an
@@ -96,9 +98,7 @@ amio_err_t translate_exception_to_error(std::string* out_message = nullptr);
 //   message     - the exception message
 //
 // Returns: the formatted stack trace string (retained for R12.10).
-std::string emit_parallel_stacktrace(const IOCommunicator& io_comm,
-                                     amio_err_t error_code,
-                                     const std::string& message);
+std::string emit_parallel_stacktrace(const IOCommunicator& io_comm, amio_err_t error_code, const std::string& message);
 
 // OutcomeRegistry -- thread-safe registry of task outcomes keyed by
 // opaque handle identifier.
@@ -110,7 +110,7 @@ std::string emit_parallel_stacktrace(const IOCommunicator& io_comm,
 // Outcomes are retained for the AMIO_Core lifetime (R12.10) and
 // released on finalization.
 class OutcomeRegistry {
-public:
+   public:
     // Record a task outcome against a handle identifier.
     //
     // If the handle already has a recorded failure, the new outcome
@@ -137,7 +137,7 @@ public:
     // Count of handles with at least one recorded failure.
     std::size_t failure_count() const;
 
-private:
+   private:
     mutable std::mutex mu_;
     std::unordered_map<std::uint64_t, std::vector<TaskOutcome>> outcomes_;
 };
@@ -159,11 +159,8 @@ private:
 //   registry   - the outcome registry to record against
 //
 // Returns: the TaskOutcome (AMIO_OK on success, error code on failure)
-TaskOutcome execute_with_exception_cordon(
-    const std::function<void()>& callback,
-    std::uint64_t handle_id,
-    const IOCommunicator& io_comm,
-    OutcomeRegistry& registry);
+TaskOutcome execute_with_exception_cordon(const std::function<void()>& callback, std::uint64_t handle_id, const IOCommunicator& io_comm,
+                                          OutcomeRegistry& registry);
 
 }  // namespace amio::detail
 

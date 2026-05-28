@@ -19,15 +19,15 @@
 // lightweight, with no transitive C++ standard-library surface beyond
 // what the implementation already uses.
 
-#include "amio/amio.h"
-#include "amio/amio_errors.h"
-
 #include <cassert>
 #include <cstdio>
 #include <cstring>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "amio/amio.h"
+#include "amio/amio_errors.h"
 
 namespace {
 
@@ -42,21 +42,18 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char *expr, const char *file, int line, const std::string &context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
 // ---------------------------------------------------------------------------
@@ -70,24 +67,24 @@ void test_defined_codes_return_non_null_strings() {
     };
 
     constexpr Case cases[] = {
-        {AMIO_OK,                        "AMIO_OK"},
-        {AMIO_ERR_NULL_HANDLE,           "AMIO_ERR_NULL_HANDLE"},
-        {AMIO_ERR_INVALID_HANDLE,        "AMIO_ERR_INVALID_HANDLE"},
-        {AMIO_ERR_MANIFEST_NOT_FOUND,    "AMIO_ERR_MANIFEST_NOT_FOUND"},
-        {AMIO_ERR_MANIFEST_INVALID,      "AMIO_ERR_MANIFEST_INVALID"},
-        {AMIO_ERR_ALREADY_INITIALIZED,   "AMIO_ERR_ALREADY_INITIALIZED"},
-        {AMIO_ERR_FINALIZE_TIMEOUT,      "AMIO_ERR_FINALIZE_TIMEOUT"},
-        {AMIO_ERR_STAGING_BACKPRESSURE,  "AMIO_ERR_STAGING_BACKPRESSURE"},
-        {AMIO_ERR_INVALID_BINDING,       "AMIO_ERR_INVALID_BINDING"},
-        {AMIO_ERR_COMM_SPLIT_FAILED,     "AMIO_ERR_COMM_SPLIT_FAILED"},
+        {AMIO_OK, "AMIO_OK"},
+        {AMIO_ERR_NULL_HANDLE, "AMIO_ERR_NULL_HANDLE"},
+        {AMIO_ERR_INVALID_HANDLE, "AMIO_ERR_INVALID_HANDLE"},
+        {AMIO_ERR_MANIFEST_NOT_FOUND, "AMIO_ERR_MANIFEST_NOT_FOUND"},
+        {AMIO_ERR_MANIFEST_INVALID, "AMIO_ERR_MANIFEST_INVALID"},
+        {AMIO_ERR_ALREADY_INITIALIZED, "AMIO_ERR_ALREADY_INITIALIZED"},
+        {AMIO_ERR_FINALIZE_TIMEOUT, "AMIO_ERR_FINALIZE_TIMEOUT"},
+        {AMIO_ERR_STAGING_BACKPRESSURE, "AMIO_ERR_STAGING_BACKPRESSURE"},
+        {AMIO_ERR_INVALID_BINDING, "AMIO_ERR_INVALID_BINDING"},
+        {AMIO_ERR_COMM_SPLIT_FAILED, "AMIO_ERR_COMM_SPLIT_FAILED"},
         {AMIO_ERR_THREADING_UNSUPPORTED, "AMIO_ERR_THREADING_UNSUPPORTED"},
-        {AMIO_ERR_UNKNOWN_BACKEND,       "AMIO_ERR_UNKNOWN_BACKEND"},
+        {AMIO_ERR_UNKNOWN_BACKEND, "AMIO_ERR_UNKNOWN_BACKEND"},
         {AMIO_ERR_LOSSY_CODEC_FORBIDDEN, "AMIO_ERR_LOSSY_CODEC_FORBIDDEN"},
-        {AMIO_ERR_VIEWS_OUTSTANDING,     "AMIO_ERR_VIEWS_OUTSTANDING"},
-        {AMIO_ERR_QUEUE_FULL,            "AMIO_ERR_QUEUE_FULL"},
-        {AMIO_ERR_TIMEOUT,               "AMIO_ERR_TIMEOUT"},
-        {AMIO_ERR_BACKEND_FAILURE,       "AMIO_ERR_BACKEND_FAILURE"},
-        {AMIO_ERR_INVALID_INPUT,         "AMIO_ERR_INVALID_INPUT"},
+        {AMIO_ERR_VIEWS_OUTSTANDING, "AMIO_ERR_VIEWS_OUTSTANDING"},
+        {AMIO_ERR_QUEUE_FULL, "AMIO_ERR_QUEUE_FULL"},
+        {AMIO_ERR_TIMEOUT, "AMIO_ERR_TIMEOUT"},
+        {AMIO_ERR_BACKEND_FAILURE, "AMIO_ERR_BACKEND_FAILURE"},
+        {AMIO_ERR_INVALID_INPUT, "AMIO_ERR_INVALID_INPUT"},
     };
 
     for (const auto &c : cases) {
@@ -117,8 +114,8 @@ void test_defined_codes_return_non_null_strings() {
 // for any other defined code must remain unchanged.
 // ---------------------------------------------------------------------------
 void test_defined_codes_are_stable() {
-    const char *first_ok       = amio_strerror(AMIO_OK);
-    const char *first_invalid  = amio_strerror(AMIO_ERR_INVALID_INPUT);
+    const char *first_ok = amio_strerror(AMIO_OK);
+    const char *first_invalid = amio_strerror(AMIO_ERR_INVALID_INPUT);
 
     // Hammer the table with many repeated lookups, including
     // interleaving distinct codes, to flush out any accidental
@@ -127,14 +124,11 @@ void test_defined_codes_are_stable() {
         const char *p1 = amio_strerror(AMIO_OK);
         const char *p2 = amio_strerror(AMIO_ERR_INVALID_INPUT);
         EXPECT_TRUE(p1 == first_ok, "AMIO_OK pointer drifted");
-        EXPECT_TRUE(p2 == first_invalid,
-                    "AMIO_ERR_INVALID_INPUT pointer drifted");
+        EXPECT_TRUE(p2 == first_invalid, "AMIO_ERR_INVALID_INPUT pointer drifted");
         // Bytes-equal in addition to pointer-equal -- guards against
         // a future implementation that copies into a static buffer.
-        EXPECT_TRUE(std::strcmp(p1, first_ok) == 0,
-                    "AMIO_OK string content drifted");
-        EXPECT_TRUE(std::strcmp(p2, first_invalid) == 0,
-                    "AMIO_ERR_INVALID_INPUT string content drifted");
+        EXPECT_TRUE(std::strcmp(p1, first_ok) == 0, "AMIO_OK string content drifted");
+        EXPECT_TRUE(std::strcmp(p2, first_invalid) == 0, "AMIO_ERR_INVALID_INPUT string content drifted");
     }
 
     // A side-effect-free function must not change the answer for
@@ -142,7 +136,7 @@ void test_defined_codes_are_stable() {
     // entire defined range and verify each description is unchanged
     // after the loop above.
     constexpr int kFirstDefined = 0;
-    constexpr int kLastDefined  = AMIO_ERR_INVALID_INPUT;
+    constexpr int kLastDefined = AMIO_ERR_INVALID_INPUT;
     for (int code = kFirstDefined; code <= kLastDefined; ++code) {
         const char *a = amio_strerror(code);
         const char *b = amio_strerror(code);
@@ -161,10 +155,8 @@ void test_undefined_codes_return_unknown_string() {
     // table: negative ints, INT_MIN, large positive ints just above
     // the highest defined enumerator, and INT_MAX.
     const int probes[] = {
-        -1, -2, -42, -100000, -2147483647 - 1 /* INT_MIN */,
-         AMIO_ERR_INVALID_INPUT + 1,
-         AMIO_ERR_INVALID_INPUT + 2,
-         100, 1000, 1 << 20, 2147483647 /* INT_MAX */
+        -1,  -2,   -42,     -100000,   -2147483647 - 1 /* INT_MIN */, AMIO_ERR_INVALID_INPUT + 1, AMIO_ERR_INVALID_INPUT + 2,
+        100, 1000, 1 << 20, 2147483647 /* INT_MAX */
     };
 
     for (int code : probes) {
@@ -198,7 +190,7 @@ void test_unknown_lookup_does_not_mutate_table() {
     // before the unknown-lookup hammering.
     const int last = AMIO_ERR_INVALID_INPUT;
     std::vector<const char *> before_ptrs;
-    std::vector<std::string>  before_strs;
+    std::vector<std::string> before_strs;
     before_ptrs.reserve(static_cast<std::size_t>(last) + 1);
     before_strs.reserve(static_cast<std::size_t>(last) + 1);
     for (int code = 0; code <= last; ++code) {
@@ -211,8 +203,8 @@ void test_unknown_lookup_does_not_mutate_table() {
     // thread_local scratch buffer; none should touch the constexpr
     // defined-code table.
     for (int i = -500; i <= 500; ++i) {
-        if (i >= 0 && i <= last) continue;       // skip defined codes
-        (void) amio_strerror(i);
+        if (i >= 0 && i <= last) continue;  // skip defined codes
+        (void)amio_strerror(i);
     }
 
     // Verify that every defined-code description is bit-for-bit
@@ -221,11 +213,8 @@ void test_unknown_lookup_does_not_mutate_table() {
         const char *now = amio_strerror(code);
         std::string ctx = "code=" + std::to_string(code);
         EXPECT_TRUE(now != nullptr, ctx);
-        EXPECT_TRUE(now == before_ptrs[static_cast<std::size_t>(code)],
-                    ctx + " (pointer changed)");
-        EXPECT_TRUE(std::strcmp(now,
-                                before_strs[static_cast<std::size_t>(code)].c_str()) == 0,
-                    ctx + " (content changed)");
+        EXPECT_TRUE(now == before_ptrs[static_cast<std::size_t>(code)], ctx + " (pointer changed)");
+        EXPECT_TRUE(std::strcmp(now, before_strs[static_cast<std::size_t>(code)].c_str()) == 0, ctx + " (content changed)");
     }
 }
 
@@ -248,7 +237,7 @@ void test_thread_safety_smoke() {
             int local_failures = 0;
             for (int i = 0; i < kIterations; ++i) {
                 // Mix defined and undefined codes per iteration.
-                int defined_code   = (t + i) % 18;       // 0..17
+                int defined_code = (t + i) % 18;  // 0..17
                 int undefined_code = -(t * 1000 + i + 1);
 
                 const char *d = amio_strerror(defined_code);
@@ -275,10 +264,7 @@ void test_thread_safety_smoke() {
 
     int total_failures = 0;
     for (int f : failures) total_failures += f;
-    EXPECT_TRUE(total_failures == 0,
-                "concurrent amio_strerror produced "
-                + std::to_string(total_failures)
-                + " malformed results");
+    EXPECT_TRUE(total_failures == 0, "concurrent amio_strerror produced " + std::to_string(total_failures) + " malformed results");
 }
 
 }  // namespace
@@ -290,9 +276,7 @@ int main() {
     test_unknown_lookup_does_not_mutate_table();
     test_thread_safety_smoke();
 
-    std::fprintf(stdout,
-                 "test_amio_strerror: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_amio_strerror: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

@@ -49,7 +49,7 @@ namespace amio::detail {
 //                "unknown / MPI not initialized".
 struct CommConfig {
     std::vector<int> io_ranks;
-    int              world_size = 0;
+    int world_size = 0;
 
     // Returns true if no communicator split is requested.
     bool is_default() const noexcept {
@@ -72,10 +72,10 @@ struct CommConfig {
 //                 (MPI_Comm value when MPI is available, or 0)
 //   compute_comm_id - opaque identifier for the compute communicator
 struct IOCommunicator {
-    bool     valid          = false;
-    bool     is_io_rank     = false;
-    int64_t  io_comm_id     = 0;
-    int64_t  compute_comm_id = 0;
+    bool valid = false;
+    bool is_io_rank = false;
+    int64_t io_comm_id = 0;
+    int64_t compute_comm_id = 0;
 };
 
 // split_communicator -- split the world communicator into compute
@@ -112,9 +112,7 @@ struct IOCommunicator {
 //   AMIO_OK on success.
 //   AMIO_ERR_COMM_SPLIT_FAILED if the split fails or the I/O rank
 //   set is invalid.
-amio_err_t split_communicator(const CommConfig& config,
-                              int my_rank,
-                              IOCommunicator& result);
+amio_err_t split_communicator(const CommConfig& config, int my_rank, IOCommunicator& result);
 
 // validate_comm_config -- check that the CommConfig is internally
 // consistent without performing the actual MPI split.

@@ -16,18 +16,19 @@
 
 // Platform detection for CPU affinity APIs.
 #if defined(__linux__)
-#  define AMIO_HAS_PTHREAD_AFFINITY 1
-#  include <pthread.h>
-#  include <sched.h>
-#  include <unistd.h>
-#  include <fstream>
-#  include <string>
-#  include <sstream>
+#define AMIO_HAS_PTHREAD_AFFINITY 1
+#include <pthread.h>
+#include <sched.h>
+#include <unistd.h>
+
+#include <fstream>
+#include <sstream>
+#include <string>
 #elif defined(__APPLE__)
-#  include <unistd.h>
-#  define AMIO_HAS_PTHREAD_AFFINITY 0
+#include <unistd.h>
+#define AMIO_HAS_PTHREAD_AFFINITY 0
 #else
-#  define AMIO_HAS_PTHREAD_AFFINITY 0
+#define AMIO_HAS_PTHREAD_AFFINITY 0
 #endif
 
 namespace amio::detail {
@@ -70,8 +71,7 @@ std::vector<int> get_numa_domain_cpus(int domain) {
         return {};
     }
 
-    std::string path = "/sys/devices/system/node/node" +
-                       std::to_string(domain) + "/cpulist";
+    std::string path = "/sys/devices/system/node/node" + std::to_string(domain) + "/cpulist";
     std::ifstream f(path);
     if (!f.is_open()) {
         return {};
@@ -91,7 +91,7 @@ std::vector<int> get_numa_domain_cpus(int domain) {
         auto dash = token.find('-');
         if (dash != std::string::npos) {
             int start = std::stoi(token.substr(0, dash));
-            int end   = std::stoi(token.substr(dash + 1));
+            int end = std::stoi(token.substr(dash + 1));
             for (int i = start; i <= end; ++i) {
                 cpus.push_back(i);
             }
@@ -141,8 +141,7 @@ amio_err_t apply_thread_pinning(const ThreadConfig& config) {
 
     // NUMA domain binding: resolve domain to its CPU list, then pin.
     if (config.numa_domain >= 0) {
-        std::vector<int> domain_cpus =
-            get_numa_domain_cpus(config.numa_domain);
+        std::vector<int> domain_cpus = get_numa_domain_cpus(config.numa_domain);
         if (domain_cpus.empty()) {
             // Domain doesn't exist or can't be read.
             return AMIO_ERR_INVALID_BINDING;
@@ -188,8 +187,7 @@ amio_err_t validate_thread_config(const ThreadConfig& config) {
 
     // NUMA domain binding: check that the domain exists and has CPUs.
     if (config.numa_domain >= 0) {
-        std::vector<int> domain_cpus =
-            get_numa_domain_cpus(config.numa_domain);
+        std::vector<int> domain_cpus = get_numa_domain_cpus(config.numa_domain);
         if (domain_cpus.empty()) {
             return AMIO_ERR_INVALID_BINDING;
         }

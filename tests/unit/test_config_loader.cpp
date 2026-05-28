@@ -6,8 +6,6 @@
 //
 // Validates: R1.2, R1.3, R1.5, R11.3, R11.4, R11.5, R11.6, R11.7
 
-#include "config/config_loader.hpp"
-
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -15,19 +13,19 @@
 #include <iostream>
 #include <string>
 
+#include "config/config_loader.hpp"
+
 using namespace amio::detail;
 
 // ===================================================================
 // Helper: write a temporary file and return its path.
 // ===================================================================
 
-static std::string write_temp_file(const std::string& content,
-                                   const std::string& suffix = ".yaml") {
+static std::string write_temp_file(const std::string& content, const std::string& suffix = ".yaml") {
     std::string path = "/tmp/amio_test_config_XXXXXX" + suffix;
     // Use a simple unique name based on address.
     char buf[256];
-    std::snprintf(buf, sizeof(buf), "/tmp/amio_test_config_%p%s",
-                  static_cast<const void*>(content.c_str()), suffix.c_str());
+    std::snprintf(buf, sizeof(buf), "/tmp/amio_test_config_%p%s", static_cast<const void*>(content.c_str()), suffix.c_str());
     path = buf;
 
     std::ofstream f(path);
@@ -557,8 +555,7 @@ static void test_round_trip() {
 static void test_missing_file() {
     Config config;
     ValidationError err;
-    amio_err_t rc = ConfigLoader::parse("/nonexistent/path/manifest.yaml",
-                                        config, err);
+    amio_err_t rc = ConfigLoader::parse("/nonexistent/path/manifest.yaml", config, err);
 
     assert(rc == AMIO_ERR_MANIFEST_NOT_FOUND);
 

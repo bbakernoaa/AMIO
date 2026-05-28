@@ -14,19 +14,11 @@
 
 namespace amio::detail {
 
-StagingPool::StagingPool(std::size_t buffer_count,
-                         std::size_t buffer_capacity,
-                         std::int64_t timeout_ms)
-    : buffer_count_(buffer_count),
-      buffer_capacity_(buffer_capacity),
-      timeout_ms_(timeout_ms)
-{
-    assert(buffer_count >= kMinBufferCount &&
-           buffer_count <= kMaxBufferCount);
-    assert(buffer_capacity >= kMinBufferCapacity &&
-           buffer_capacity <= kMaxBufferCapacity);
-    assert(timeout_ms >= kMinTimeoutMs &&
-           timeout_ms <= kMaxTimeoutMs);
+StagingPool::StagingPool(std::size_t buffer_count, std::size_t buffer_capacity, std::int64_t timeout_ms)
+    : buffer_count_(buffer_count), buffer_capacity_(buffer_capacity), timeout_ms_(timeout_ms) {
+    assert(buffer_count >= kMinBufferCount && buffer_count <= kMaxBufferCount);
+    assert(buffer_capacity >= kMinBufferCapacity && buffer_capacity <= kMaxBufferCapacity);
+    assert(timeout_ms >= kMinTimeoutMs && timeout_ms <= kMaxTimeoutMs);
 
     // Pre-allocate all buffers and their backing storage.
     buffers_.resize(buffer_count);
@@ -35,11 +27,11 @@ StagingPool::StagingPool(std::size_t buffer_count,
 
     for (std::size_t i = 0; i < buffer_count; ++i) {
         auto mem = std::make_unique<std::byte[]>(buffer_capacity);
-        buffers_[i].data           = mem.get();
+        buffers_[i].data = mem.get();
         buffers_[i].capacity_bytes = buffer_capacity;
-        buffers_[i].used_bytes     = 0;
-        buffers_[i].ref_count      = 0;
-        buffers_[i].seq            = 0;
+        buffers_[i].used_bytes = 0;
+        buffers_[i].ref_count = 0;
+        buffers_[i].seq = 0;
         storage_.push_back(std::move(mem));
 
         // All buffers start on the free list.
@@ -49,10 +41,7 @@ StagingPool::StagingPool(std::size_t buffer_count,
     // Sort free list by capacity (all equal here, but the structure
     // supports heterogeneous capacities if needed in the future).
     std::sort(free_list_.begin(), free_list_.end(),
-              [this](std::size_t a, std::size_t b) {
-                  return buffers_[a].capacity_bytes <
-                         buffers_[b].capacity_bytes;
-              });
+              [this](std::size_t a, std::size_t b) { return buffers_[a].capacity_bytes < buffers_[b].capacity_bytes; });
 }
 
 StagingPool::~StagingPool() {
@@ -64,8 +53,7 @@ StagingPool::~StagingPool() {
 StagingBuffer* StagingPool::acquire(std::size_t required_bytes) {
     std::unique_lock<std::mutex> lock(mu_);
 
-    auto deadline = std::chrono::steady_clock::now() +
-                    std::chrono::milliseconds(timeout_ms_);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms_);
 
     while (true) {
         std::size_t idx = find_best_fit(required_bytes);
@@ -108,12 +96,8 @@ void StagingPool::release(StagingBuffer* buf) {
         assert(buf_idx < buffers_.size());
 
         // Insert into free list maintaining sorted order by capacity.
-        auto it = std::lower_bound(
-            free_list_.begin(), free_list_.end(), buf_idx,
-            [this](std::size_t a, std::size_t b) {
-                return buffers_[a].capacity_bytes <
-                       buffers_[b].capacity_bytes;
-            });
+        auto it = std::lower_bound(free_list_.begin(), free_list_.end(), buf_idx,
+                                   [this](std::size_t a, std::size_t b) { return buffers_[a].capacity_bytes < buffers_[b].capacity_bytes; });
         free_list_.insert(it, buf_idx);
 
         // Notify one waiting thread that a buffer is available.
@@ -161,8 +145,7 @@ StagingBuffer* StagingPool::remove_from_free_list(std::size_t free_idx) {
     assert(free_idx < free_list_.size());
 
     std::size_t buf_idx = free_list_[free_idx];
-    free_list_.erase(free_list_.begin() +
-                     static_cast<std::ptrdiff_t>(free_idx));
+    free_list_.erase(free_list_.begin() + static_cast<std::ptrdiff_t>(free_idx));
 
     StagingBuffer* buf = &buffers_[buf_idx];
     buf->ref_count = 1;

@@ -16,8 +16,8 @@
 #include <string_view>
 
 #ifdef AMIO_HAS_ECKIT
-#include <eckit/config/YAMLConfiguration.h>
 #include <eckit/config/JSONConfiguration.h>
+#include <eckit/config/YAMLConfiguration.h>
 #include <eckit/filesystem/PathName.h>
 #endif
 
@@ -28,12 +28,7 @@ namespace amio::detail {
 // ===================================================================
 
 const std::vector<std::string>& ConfigLoader::valid_codecs() {
-    static const std::vector<std::string> codecs = {
-        "blosc",
-        "zstandard",
-        "libaec",
-        "lossless_jpeg2000"
-    };
+    static const std::vector<std::string> codecs = {"blosc", "zstandard", "libaec", "lossless_jpeg2000"};
     return codecs;
 }
 
@@ -46,61 +41,48 @@ bool ConfigLoader::is_valid_codec(const std::string& name) {
 // Validation
 // ===================================================================
 
-amio_err_t ConfigLoader::validate(const Config& config,
-                                  ValidationError& error_out) {
+amio_err_t ConfigLoader::validate(const Config& config, ValidationError& error_out) {
     // Single-pass validation: report first failing rule (R11.4).
 
     // staging_pool.buffer_count [1, 4096]
-    if (config.staging_pool.buffer_count < kMinBufferCount ||
-        config.staging_pool.buffer_count > kMaxBufferCount) {
+    if (config.staging_pool.buffer_count < kMinBufferCount || config.staging_pool.buffer_count > kMaxBufferCount) {
         error_out.field_path = "staging_pool.buffer_count";
-        error_out.message = "buffer_count must be in [1, 4096], got " +
-                            std::to_string(config.staging_pool.buffer_count);
+        error_out.message = "buffer_count must be in [1, 4096], got " + std::to_string(config.staging_pool.buffer_count);
         return AMIO_ERR_MANIFEST_INVALID;
     }
 
     // staging_pool.buffer_capacity_bytes [1, 1 GiB]
-    if (config.staging_pool.buffer_capacity_bytes < kMinBufferCapacity ||
-        config.staging_pool.buffer_capacity_bytes > kMaxBufferCapacity) {
+    if (config.staging_pool.buffer_capacity_bytes < kMinBufferCapacity || config.staging_pool.buffer_capacity_bytes > kMaxBufferCapacity) {
         error_out.field_path = "staging_pool.buffer_capacity_bytes";
-        error_out.message = "buffer_capacity_bytes must be in [1, 1073741824], got " +
-                            std::to_string(config.staging_pool.buffer_capacity_bytes);
+        error_out.message = "buffer_capacity_bytes must be in [1, 1073741824], got " + std::to_string(config.staging_pool.buffer_capacity_bytes);
         return AMIO_ERR_MANIFEST_INVALID;
     }
 
     // worker_pool.threads [1, 256]
-    if (config.worker_pool.threads < kMinThreads ||
-        config.worker_pool.threads > kMaxThreads) {
+    if (config.worker_pool.threads < kMinThreads || config.worker_pool.threads > kMaxThreads) {
         error_out.field_path = "worker_pool.threads";
-        error_out.message = "threads must be in [1, 256], got " +
-                            std::to_string(config.worker_pool.threads);
+        error_out.message = "threads must be in [1, 256], got " + std::to_string(config.worker_pool.threads);
         return AMIO_ERR_MANIFEST_INVALID;
     }
 
     // prefetch.depth [1, 1024]
-    if (config.prefetch.depth < kMinPrefetchDepth ||
-        config.prefetch.depth > kMaxPrefetchDepth) {
+    if (config.prefetch.depth < kMinPrefetchDepth || config.prefetch.depth > kMaxPrefetchDepth) {
         error_out.field_path = "prefetch.depth";
-        error_out.message = "depth must be in [1, 1024], got " +
-                            std::to_string(config.prefetch.depth);
+        error_out.message = "depth must be in [1, 1024], got " + std::to_string(config.prefetch.depth);
         return AMIO_ERR_MANIFEST_INVALID;
     }
 
     // prefetch.read_timeout_s [1, 3600]
-    if (config.prefetch.read_timeout_s < kMinReadTimeoutS ||
-        config.prefetch.read_timeout_s > kMaxReadTimeoutS) {
+    if (config.prefetch.read_timeout_s < kMinReadTimeoutS || config.prefetch.read_timeout_s > kMaxReadTimeoutS) {
         error_out.field_path = "prefetch.read_timeout_s";
-        error_out.message = "read_timeout_s must be in [1, 3600], got " +
-                            std::to_string(config.prefetch.read_timeout_s);
+        error_out.message = "read_timeout_s must be in [1, 3600], got " + std::to_string(config.prefetch.read_timeout_s);
         return AMIO_ERR_MANIFEST_INVALID;
     }
 
     // staging_timeout_ms [1, 60000]
-    if (config.staging_timeout_ms < kMinStagingTimeoutMs ||
-        config.staging_timeout_ms > kMaxStagingTimeoutMs) {
+    if (config.staging_timeout_ms < kMinStagingTimeoutMs || config.staging_timeout_ms > kMaxStagingTimeoutMs) {
         error_out.field_path = "staging_timeout_ms";
-        error_out.message = "staging_timeout_ms must be in [1, 60000], got " +
-                            std::to_string(config.staging_timeout_ms);
+        error_out.message = "staging_timeout_ms must be in [1, 60000], got " + std::to_string(config.staging_timeout_ms);
         return AMIO_ERR_MANIFEST_INVALID;
     }
 
@@ -131,17 +113,14 @@ amio_err_t ConfigLoader::validate(const Config& config,
     if (!config.codec.active_codec.empty()) {
         if (!is_valid_codec(config.codec.active_codec)) {
             error_out.field_path = "codec.active_codec";
-            error_out.message = "active codec '" + config.codec.active_codec +
-                                "' is not a recognized lossless codec";
+            error_out.message = "active codec '" + config.codec.active_codec + "' is not a recognized lossless codec";
             return AMIO_ERR_LOSSY_CODEC_FORBIDDEN;
         }
         // Also check it's on the manifest's own allow-list.
         const auto& al = config.codec.lossless_allow_list;
-        if (!al.empty() &&
-            std::find(al.begin(), al.end(), config.codec.active_codec) == al.end()) {
+        if (!al.empty() && std::find(al.begin(), al.end(), config.codec.active_codec) == al.end()) {
             error_out.field_path = "codec.active_codec";
-            error_out.message = "active codec '" + config.codec.active_codec +
-                                "' is not on the manifest's lossless_allow_list";
+            error_out.message = "active codec '" + config.codec.active_codec + "' is not on the manifest's lossless_allow_list";
             return AMIO_ERR_LOSSY_CODEC_FORBIDDEN;
         }
     }
@@ -168,14 +147,15 @@ static std::string trim(const std::string& s) {
 static int count_indent(const std::string& line) {
     int count = 0;
     for (char c : line) {
-        if (c == ' ') ++count;
-        else break;
+        if (c == ' ')
+            ++count;
+        else
+            break;
     }
     return count;
 }
 
-std::vector<ConfigLoader::KeyValue> ConfigLoader::tokenize_yaml(
-    const std::string& content) {
+std::vector<ConfigLoader::KeyValue> ConfigLoader::tokenize_yaml(const std::string& content) {
     std::vector<KeyValue> tokens;
     std::istringstream stream(content);
     std::string line;
@@ -222,9 +202,7 @@ std::vector<ConfigLoader::KeyValue> ConfigLoader::tokenize_yaml(
                     value = trim(value.substr(0, comment_pos));
                 }
                 // Remove quotes.
-                if (value.size() >= 2 &&
-                    ((value.front() == '"' && value.back() == '"') ||
-                     (value.front() == '\'' && value.back() == '\''))) {
+                if (value.size() >= 2 && ((value.front() == '"' && value.back() == '"') || (value.front() == '\'' && value.back() == '\''))) {
                     value = value.substr(1, value.size() - 2);
                 }
             }
@@ -279,8 +257,7 @@ std::vector<ConfigLoader::KeyValue> ConfigLoader::tokenize_yaml(
 // arrays of scalars, and string/number values.
 // ===================================================================
 
-std::vector<ConfigLoader::KeyValue> ConfigLoader::tokenize_json(
-    const std::string& content) {
+std::vector<ConfigLoader::KeyValue> ConfigLoader::tokenize_json(const std::string& content) {
     std::vector<KeyValue> tokens;
 
     // Simple state-machine JSON parser.
@@ -366,8 +343,7 @@ std::vector<ConfigLoader::KeyValue> ConfigLoader::tokenize_json(
             } else {
                 // Scalar value.
                 // Remove quotes from string values.
-                if (value_part.size() >= 2 &&
-                    value_part.front() == '"' && value_part.back() == '"') {
+                if (value_part.size() >= 2 && value_part.front() == '"' && value_part.back() == '"') {
                     value_part = value_part.substr(1, value_part.size() - 2);
                 }
 
@@ -417,11 +393,7 @@ static bool parse_int(const std::string& s, int& out) {
     }
 }
 
-amio_err_t ConfigLoader::populate_config(
-    const std::vector<KeyValue>& tokens,
-    Config& config_out,
-    ValidationError& error_out) {
-
+amio_err_t ConfigLoader::populate_config(const std::vector<KeyValue>& tokens, Config& config_out, ValidationError& error_out) {
     for (const auto& kv : tokens) {
         const std::string& key = kv.key;
         const std::string& val = kv.value;
@@ -533,9 +505,7 @@ amio_err_t ConfigLoader::populate_config(
 // parse -- load and validate a manifest file.
 // ===================================================================
 
-amio_err_t ConfigLoader::parse(const std::string& path,
-                               Config& config_out,
-                               ValidationError& error_out) {
+amio_err_t ConfigLoader::parse(const std::string& path, Config& config_out, ValidationError& error_out) {
     // Read file contents.
     std::ifstream file(path);
     if (!file.is_open()) {
@@ -569,10 +539,7 @@ amio_err_t ConfigLoader::parse(const std::string& path,
 // parse_string -- parse a manifest from a string.
 // ===================================================================
 
-amio_err_t ConfigLoader::parse_string(const std::string& content,
-                                      const std::string& format,
-                                      Config& config_out,
-                                      ValidationError& error_out) {
+amio_err_t ConfigLoader::parse_string(const std::string& content, const std::string& format, Config& config_out, ValidationError& error_out) {
     // Reset config to defaults.
     config_out = Config{};
 

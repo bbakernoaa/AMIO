@@ -31,10 +31,10 @@
 //
 // Validates: R12.5, R12.6, R12.7, R12.8
 
-#include "amio/amio.h"
+#include <cstddef>  // std::size_t
+#include <cstdio>   // std::snprintf
 
-#include <cstdio>     // std::snprintf
-#include <cstddef>    // std::size_t
+#include "amio/amio.h"
 
 namespace {
 
@@ -66,14 +66,17 @@ namespace {
 constexpr const char *kAmioErrorTable[] = {
     /*  0 = AMIO_OK                        */ "AMIO_OK: success",
     /*  1 = AMIO_ERR_NULL_HANDLE           */ "AMIO_ERR_NULL_HANDLE: null opaque handle",
-    /*  2 = AMIO_ERR_INVALID_HANDLE        */ "AMIO_ERR_INVALID_HANDLE: handle never initialized, finalized, released, or stale (generation mismatch)",
+    /*  2 = AMIO_ERR_INVALID_HANDLE        */
+    "AMIO_ERR_INVALID_HANDLE: handle never initialized, finalized, released, or stale (generation mismatch)",
     /*  3 = AMIO_ERR_MANIFEST_NOT_FOUND    */ "AMIO_ERR_MANIFEST_NOT_FOUND: manifest path missing or unreadable",
     /*  4 = AMIO_ERR_MANIFEST_INVALID      */ "AMIO_ERR_MANIFEST_INVALID: manifest failed schema validation",
     /*  5 = AMIO_ERR_ALREADY_INITIALIZED   */ "AMIO_ERR_ALREADY_INITIALIZED: amio_init invoked twice on the same handle",
     /*  6 = AMIO_ERR_FINALIZE_TIMEOUT      */ "AMIO_ERR_FINALIZE_TIMEOUT: finalize drain phase exceeded its 30-second bound",
-    /*  7 = AMIO_ERR_STAGING_BACKPRESSURE  */ "AMIO_ERR_STAGING_BACKPRESSURE: no staging buffer became available within the configured staging timeout",
+    /*  7 = AMIO_ERR_STAGING_BACKPRESSURE  */
+    "AMIO_ERR_STAGING_BACKPRESSURE: no staging buffer became available within the configured staging timeout",
     /*  8 = AMIO_ERR_INVALID_BINDING       */ "AMIO_ERR_INVALID_BINDING: requested CPU core or NUMA domain is not present or not permitted",
-    /*  9 = AMIO_ERR_COMM_SPLIT_FAILED     */ "AMIO_ERR_COMM_SPLIT_FAILED: eckit::mpi communicator split failed or I/O rank set is not a subset of world",
+    /*  9 = AMIO_ERR_COMM_SPLIT_FAILED     */
+    "AMIO_ERR_COMM_SPLIT_FAILED: eckit::mpi communicator split failed or I/O rank set is not a subset of world",
     /* 10 = AMIO_ERR_THREADING_UNSUPPORTED */ "AMIO_ERR_THREADING_UNSUPPORTED: host did not initialize MPI with at least MPI_THREAD_MULTIPLE",
     /* 11 = AMIO_ERR_UNKNOWN_BACKEND       */ "AMIO_ERR_UNKNOWN_BACKEND: configuration backend key does not match any registered driver",
     /* 12 = AMIO_ERR_LOSSY_CODEC_FORBIDDEN */ "AMIO_ERR_LOSSY_CODEC_FORBIDDEN: requested codec is not on the lossless allow-list",
@@ -81,13 +84,11 @@ constexpr const char *kAmioErrorTable[] = {
     /* 14 = AMIO_ERR_QUEUE_FULL            */ "AMIO_ERR_QUEUE_FULL: worker queue depth would exceed capacity and backpressure is not configured",
     /* 15 = AMIO_ERR_TIMEOUT               */ "AMIO_ERR_TIMEOUT: synchronous wait, flush, or read exceeded its configured timeout",
     /* 16 = AMIO_ERR_BACKEND_FAILURE       */ "AMIO_ERR_BACKEND_FAILURE: backend driver reported a serialization or deserialization failure",
-    /* 17 = AMIO_ERR_INVALID_INPUT         */ "AMIO_ERR_INVALID_INPUT: null host pointer, unsupported dtype, or invalid shape descriptor"
-};
+    /* 17 = AMIO_ERR_INVALID_INPUT         */ "AMIO_ERR_INVALID_INPUT: null host pointer, unsupported dtype, or invalid shape descriptor"};
 
 // Number of populated slots in the defined-code table.  Used as the
 // upper bound of the "defined code" index range in amio_strerror.
-constexpr std::size_t kAmioErrorTableSize =
-    sizeof(kAmioErrorTable) / sizeof(kAmioErrorTable[0]);
+constexpr std::size_t kAmioErrorTableSize = sizeof(kAmioErrorTable) / sizeof(kAmioErrorTable[0]);
 
 // Compile-time invariant: every enumerator declared in
 // amio_errors.h has a corresponding slot in the description table.
@@ -95,16 +96,14 @@ constexpr std::size_t kAmioErrorTableSize =
 // mirroring it here, this static_assert (and the one at the bottom
 // of the table) breaks the build instead of silently returning
 // "AMIO_ERR_UNKNOWN(...)" for a freshly-defined code.
-static_assert(kAmioErrorTableSize ==
-                  static_cast<std::size_t>(AMIO_ERR_INVALID_INPUT) + 1u,
+static_assert(kAmioErrorTableSize == static_cast<std::size_t>(AMIO_ERR_INVALID_INPUT) + 1u,
               "kAmioErrorTable must contain a slot for every AMIO_ERR_* "
               "enumerator declared in include/amio/amio_errors.h");
 
 // Sanity-check that slot 0 is the success sentinel.  R10.8 freezes
 // AMIO_OK at value 0; this assert protects against accidental
 // reordering of either the enum or the table.
-static_assert(static_cast<int>(AMIO_OK) == 0,
-              "AMIO_OK must remain integer value 0");
+static_assert(static_cast<int>(AMIO_OK) == 0, "AMIO_OK must remain integer value 0");
 
 // Capacity of the per-thread scratch buffer used to format the
 // "AMIO_ERR_UNKNOWN(<int>)" description for undefined codes.
@@ -142,8 +141,7 @@ extern "C" AMIO_API const char *amio_strerror(int err) {
     // comparison.  The inclusive lower bound on `err` is therefore
     // strictly necessary.
     // ------------------------------------------------------------------
-    if (err >= 0 &&
-        static_cast<std::size_t>(err) < kAmioErrorTableSize) {
+    if (err >= 0 && static_cast<std::size_t>(err) < kAmioErrorTableSize) {
         // Pure read of static-storage string literal.  No mutation,
         // no allocation, no synchronization required (R12.6).  The
         // returned pointer remains valid for the entire program
@@ -178,10 +176,7 @@ extern "C" AMIO_API const char *amio_strerror(int err) {
     // the return value because the contract only requires
     // "non-null, null-terminated" -- the formatted body is best
     // effort.
-    std::snprintf(unknown_buffer,
-                  kUnknownBufferBytes,
-                  "AMIO_ERR_UNKNOWN(%d)",
-                  err);
+    std::snprintf(unknown_buffer, kUnknownBufferBytes, "AMIO_ERR_UNKNOWN(%d)", err);
 
     return unknown_buffer;
 }

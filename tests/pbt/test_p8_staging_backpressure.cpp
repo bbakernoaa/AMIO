@@ -14,15 +14,14 @@
 // CRITICAL: Uses the REAL StagingPool implementation (no mocks).
 // Tests exercise the actual condition-variable timeout path.
 
-#include "pbt_common.hpp"
-#include "generators.hpp"
-
-#include "staging/staging_pool.hpp"
-
 #include <chrono>
 #include <cstring>
 #include <thread>
 #include <vector>
+
+#include "generators.hpp"
+#include "pbt_common.hpp"
+#include "staging/staging_pool.hpp"
 
 // ===================================================================
 // Property 8a: Backpressure timeout -- exhausted pool returns nullptr
@@ -39,16 +38,15 @@
 //      total_buffer_count unchanged).
 // ===================================================================
 
-TEST_CASE("P8: exhausted StagingPool returns nullptr within timeout",
-          "[pbt][p8][staging_backpressure][timeout]") {
+TEST_CASE("P8: exhausted StagingPool returns nullptr within timeout", "[pbt][p8][staging_backpressure][timeout]") {
     auto result = rc::check(
         "exhausted pool acquire returns nullptr within T + epsilon, "
         "pool state unchanged",
         []() {
             // Generate pool parameters.
-            auto buffer_count = *rc::gen::inRange<std::size_t>(1, 5);  // [1, 4]
+            auto buffer_count = *rc::gen::inRange<std::size_t>(1, 5);         // [1, 4]
             auto buffer_capacity = *rc::gen::inRange<std::size_t>(64, 4097);  // [64, 4096] bytes
-            auto timeout_ms = *rc::gen::inRange<std::int64_t>(1, 101);  // [1, 100] ms
+            auto timeout_ms = *rc::gen::inRange<std::int64_t>(1, 101);        // [1, 100] ms
 
             // Create the pool with the generated timeout.
             amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms);
@@ -81,8 +79,7 @@ TEST_CASE("P8: exhausted StagingPool returns nullptr within timeout",
             RC_ASSERT(result_buf == nullptr);
 
             // Elapsed time should be >= T (the timeout) and <= T + epsilon.
-            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                t_end - t_start).count();
+            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
 
             // The acquire should have waited at least close to the timeout.
             // Allow a small margin below (2ms) for clock granularity.
@@ -116,51 +113,46 @@ TEST_CASE("P8: exhausted StagingPool returns nullptr within timeout",
 // remain bit-for-bit identical after the backpressure timeout.
 // ===================================================================
 
-TEST_CASE("P8: source data unmodified after backpressure rejection",
-          "[pbt][p8][staging_backpressure][source_unmodified]") {
-    auto result = rc::check(
-        "source pointer bytes unchanged after backpressure timeout",
-        []() {
-            // Generate pool parameters -- small pool, short timeout.
-            auto buffer_count = *rc::gen::inRange<std::size_t>(1, 4);  // [1, 3]
-            auto buffer_capacity = *rc::gen::inRange<std::size_t>(64, 1025);  // [64, 1024]
-            auto timeout_ms = *rc::gen::inRange<std::int64_t>(1, 51);  // [1, 50] ms
+TEST_CASE("P8: source data unmodified after backpressure rejection", "[pbt][p8][staging_backpressure][source_unmodified]") {
+    auto result = rc::check("source pointer bytes unchanged after backpressure timeout", []() {
+        // Generate pool parameters -- small pool, short timeout.
+        auto buffer_count = *rc::gen::inRange<std::size_t>(1, 4);         // [1, 3]
+        auto buffer_capacity = *rc::gen::inRange<std::size_t>(64, 1025);  // [64, 1024]
+        auto timeout_ms = *rc::gen::inRange<std::int64_t>(1, 51);         // [1, 50] ms
 
-            // Generate source data of random size and content.
-            auto data_size = *rc::gen::inRange<std::size_t>(1, 513);  // [1, 512] bytes
-            std::vector<std::byte> source_data(data_size);
-            for (std::size_t i = 0; i < data_size; ++i) {
-                source_data[i] = static_cast<std::byte>(
-                    *rc::gen::inRange(0, 256));
-            }
+        // Generate source data of random size and content.
+        auto data_size = *rc::gen::inRange<std::size_t>(1, 513);  // [1, 512] bytes
+        std::vector<std::byte> source_data(data_size);
+        for (std::size_t i = 0; i < data_size; ++i) {
+            source_data[i] = static_cast<std::byte>(*rc::gen::inRange(0, 256));
+        }
 
-            // Keep a copy of the original source data for comparison.
-            std::vector<std::byte> original_data = source_data;
+        // Keep a copy of the original source data for comparison.
+        std::vector<std::byte> original_data = source_data;
 
-            // Create pool and exhaust it.
-            amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms);
+        // Create pool and exhaust it.
+        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms);
 
-            std::vector<amio::detail::StagingBuffer*> acquired;
-            for (std::size_t i = 0; i < buffer_count; ++i) {
-                auto* buf = pool.acquire(1);
-                RC_ASSERT(buf != nullptr);
-                acquired.push_back(buf);
-            }
+        std::vector<amio::detail::StagingBuffer*> acquired;
+        for (std::size_t i = 0; i < buffer_count; ++i) {
+            auto* buf = pool.acquire(1);
+            RC_ASSERT(buf != nullptr);
+            acquired.push_back(buf);
+        }
 
-            // Attempt acquire -- will timeout (backpressure).
-            auto* result_buf = pool.acquire(data_size);
-            RC_ASSERT(result_buf == nullptr);
+        // Attempt acquire -- will timeout (backpressure).
+        auto* result_buf = pool.acquire(data_size);
+        RC_ASSERT(result_buf == nullptr);
 
-            // Source data must be completely unmodified.
-            RC_ASSERT(source_data.size() == original_data.size());
-            RC_ASSERT(std::memcmp(source_data.data(), original_data.data(),
-                                  source_data.size()) == 0);
+        // Source data must be completely unmodified.
+        RC_ASSERT(source_data.size() == original_data.size());
+        RC_ASSERT(std::memcmp(source_data.data(), original_data.data(), source_data.size()) == 0);
 
-            // Clean up.
-            for (auto* buf : acquired) {
-                pool.release(buf);
-            }
-        });
+        // Clean up.
+        for (auto* buf : acquired) {
+            pool.release(buf);
+        }
+    });
     REQUIRE(result);
 }
 
@@ -173,52 +165,47 @@ TEST_CASE("P8: source data unmodified after backpressure rejection",
 // path.
 // ===================================================================
 
-TEST_CASE("P8: acquire succeeds when buffer released during wait",
-          "[pbt][p8][staging_backpressure][release_during_wait]") {
-    auto result = rc::check(
-        "acquire succeeds if buffer released before timeout expires",
-        []() {
-            // Use a pool with exactly 1 buffer and a longer timeout
-            // so the release has time to happen.
-            auto buffer_capacity = *rc::gen::inRange<std::size_t>(64, 1025);
-            constexpr std::int64_t timeout_ms = 500;  // 500ms -- plenty of time
+TEST_CASE("P8: acquire succeeds when buffer released during wait", "[pbt][p8][staging_backpressure][release_during_wait]") {
+    auto result = rc::check("acquire succeeds if buffer released before timeout expires", []() {
+        // Use a pool with exactly 1 buffer and a longer timeout
+        // so the release has time to happen.
+        auto buffer_capacity = *rc::gen::inRange<std::size_t>(64, 1025);
+        constexpr std::int64_t timeout_ms = 500;  // 500ms -- plenty of time
 
-            amio::detail::StagingPool pool(1, buffer_capacity, timeout_ms);
+        amio::detail::StagingPool pool(1, buffer_capacity, timeout_ms);
 
-            // Exhaust the single buffer.
-            auto* held_buf = pool.acquire(1);
-            RC_ASSERT(held_buf != nullptr);
-            RC_ASSERT(pool.free_buffer_count() == 0);
+        // Exhaust the single buffer.
+        auto* held_buf = pool.acquire(1);
+        RC_ASSERT(held_buf != nullptr);
+        RC_ASSERT(pool.free_buffer_count() == 0);
 
-            // Generate a release delay in [5, 50]ms.
-            auto release_delay_ms = *rc::gen::inRange<int>(5, 51);
+        // Generate a release delay in [5, 50]ms.
+        auto release_delay_ms = *rc::gen::inRange<int>(5, 51);
 
-            // Launch a thread that releases the buffer after a delay.
-            std::thread releaser([&pool, held_buf, release_delay_ms]() {
-                std::this_thread::sleep_for(
-                    std::chrono::milliseconds(release_delay_ms));
-                pool.release(held_buf);
-            });
-
-            // Attempt to acquire -- should succeed after the release.
-            auto t_start = std::chrono::steady_clock::now();
-            auto* new_buf = pool.acquire(1);
-            auto t_end = std::chrono::steady_clock::now();
-
-            // The acquire should succeed (buffer was released).
-            RC_ASSERT(new_buf != nullptr);
-
-            // It should have taken approximately release_delay_ms.
-            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                t_end - t_start).count();
-            // Should not have waited the full timeout.
-            RC_ASSERT(elapsed_ms < timeout_ms);
-
-            releaser.join();
-
-            // Clean up.
-            pool.release(new_buf);
-            RC_ASSERT(pool.free_buffer_count() == 1);
+        // Launch a thread that releases the buffer after a delay.
+        std::thread releaser([&pool, held_buf, release_delay_ms]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(release_delay_ms));
+            pool.release(held_buf);
         });
+
+        // Attempt to acquire -- should succeed after the release.
+        auto t_start = std::chrono::steady_clock::now();
+        auto* new_buf = pool.acquire(1);
+        auto t_end = std::chrono::steady_clock::now();
+
+        // The acquire should succeed (buffer was released).
+        RC_ASSERT(new_buf != nullptr);
+
+        // It should have taken approximately release_delay_ms.
+        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
+        // Should not have waited the full timeout.
+        RC_ASSERT(elapsed_ms < timeout_ms);
+
+        releaser.join();
+
+        // Clean up.
+        pool.release(new_buf);
+        RC_ASSERT(pool.free_buffer_count() == 1);
+    });
     REQUIRE(result);
 }

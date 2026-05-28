@@ -30,37 +30,49 @@
 #ifndef AMIO_HAS_ECKIT
 namespace eckit {
 class Configuration {
-public:
+   public:
     virtual ~Configuration() = default;
-    virtual bool has(const std::string& /*key*/) const { return false; }
-    virtual std::string getString(const std::string& /*key*/) const { return ""; }
-    virtual std::string getString(const std::string& /*key*/, const std::string& def) const { return def; }
-    virtual long getLong(const std::string& /*key*/, long def = 0) const { return def; }
-    virtual std::vector<long> getLongVector(const std::string& /*key*/) const { return {}; }
-    virtual bool getBool(const std::string& /*key*/, bool def = false) const { return def; }
+    virtual bool has(const std::string& /*key*/) const {
+        return false;
+    }
+    virtual std::string getString(const std::string& /*key*/) const {
+        return "";
+    }
+    virtual std::string getString(const std::string& /*key*/, const std::string& def) const {
+        return def;
+    }
+    virtual long getLong(const std::string& /*key*/, long def = 0) const {
+        return def;
+    }
+    virtual std::vector<long> getLongVector(const std::string& /*key*/) const {
+        return {};
+    }
+    virtual bool getBool(const std::string& /*key*/, bool def = false) const {
+        return def;
+    }
 };
 }  // namespace eckit
 // Prevent the driver .cpp from redefining eckit::Configuration.
 #define AMIO_ECKIT_CONFIG_DEFINED
 #endif
 
-#include "drivers/zarr/zarr_driver.hpp"
-#include "factory/backend_factory.hpp"
-#include "staging/staging_pool.hpp"
-
 #include <cassert>
 #include <cstdio>
 #include <stdexcept>
 #include <unordered_map>
 
+#include "drivers/zarr/zarr_driver.hpp"
+#include "factory/backend_factory.hpp"
+#include "staging/staging_pool.hpp"
+
 namespace {
 
 using amio::detail::Backend_Driver;
 using amio::detail::BackendFactory;
-using amio::detail::Zarr_Driver;
+using amio::detail::BoundingBox;
 using amio::detail::StagingBuffer;
 using amio::detail::VarMeta;
-using amio::detail::BoundingBox;
+using amio::detail::Zarr_Driver;
 
 // ---------------------------------------------------------------
 // Test infrastructure
@@ -73,56 +85,56 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char* expr, const char* file, int line, const std::string& context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
-#define EXPECT_THROWS(expr, ctx)                                     \
-    do {                                                             \
-        bool threw = false;                                          \
-        try { expr; } catch (...) { threw = true; }                  \
-        if (!threw) {                                                \
-            report_failure(#expr " should throw", __FILE__,          \
-                           __LINE__, (ctx));                         \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_THROWS(expr, ctx)                                              \
+    do {                                                                      \
+        bool threw = false;                                                   \
+        try {                                                                 \
+            expr;                                                             \
+        } catch (...) {                                                       \
+            threw = true;                                                     \
+        }                                                                     \
+        if (!threw) {                                                         \
+            report_failure(#expr " should throw", __FILE__, __LINE__, (ctx)); \
+        } else {                                                              \
+            ++g_result.passed;                                                \
+        }                                                                     \
     } while (0)
 
-#define EXPECT_THROWS_WITH(expr, substring, ctx)                     \
-    do {                                                             \
-        bool threw = false;                                          \
-        std::string msg;                                             \
-        try { expr; }                                                \
-        catch (const std::exception& e) {                            \
-            threw = true;                                            \
-            msg = e.what();                                          \
-        }                                                            \
-        catch (...) { threw = true; msg = "(unknown exception)"; }   \
-        if (!threw) {                                                \
-            report_failure(#expr " should throw", __FILE__,          \
-                           __LINE__, (ctx));                         \
-        } else if (msg.find(substring) == std::string::npos) {      \
-            std::string detail = "expected '" +                      \
-                std::string(substring) + "' in: " + msg;            \
-            report_failure(#expr " wrong message", __FILE__,         \
-                           __LINE__, detail);                        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_THROWS_WITH(expr, substring, ctx)                                         \
+    do {                                                                                 \
+        bool threw = false;                                                              \
+        std::string msg;                                                                 \
+        try {                                                                            \
+            expr;                                                                        \
+        } catch (const std::exception& e) {                                              \
+            threw = true;                                                                \
+            msg = e.what();                                                              \
+        } catch (...) {                                                                  \
+            threw = true;                                                                \
+            msg = "(unknown exception)";                                                 \
+        }                                                                                \
+        if (!threw) {                                                                    \
+            report_failure(#expr " should throw", __FILE__, __LINE__, (ctx));            \
+        } else if (msg.find(substring) == std::string::npos) {                           \
+            std::string detail = "expected '" + std::string(substring) + "' in: " + msg; \
+            report_failure(#expr " wrong message", __FILE__, __LINE__, detail);          \
+        } else {                                                                         \
+            ++g_result.passed;                                                           \
+        }                                                                                \
     } while (0)
 
 // ---------------------------------------------------------------
@@ -132,7 +144,7 @@ void report_failure(const char *expr, const char *file, int line,
 // A simple key-value configuration mock that implements the
 // eckit::Configuration interface used by Zarr_Driver.
 class MockConfig : public eckit::Configuration {
-public:
+   public:
     MockConfig() = default;
     ~MockConfig() override = default;
 
@@ -140,8 +152,7 @@ public:
         strings_[key] = value;
     }
 
-    void set_long_vector(const std::string& key,
-                         const std::vector<long>& value) {
+    void set_long_vector(const std::string& key, const std::vector<long>& value) {
         vectors_[key] = value;
     }
 
@@ -155,8 +166,7 @@ public:
         return "";
     }
 
-    std::string getString(const std::string& key,
-                          const std::string& def) const override {
+    std::string getString(const std::string& key, const std::string& def) const override {
         auto it = strings_.find(key);
         if (it != strings_.end()) return it->second;
         return def;
@@ -178,7 +188,7 @@ public:
         return def;
     }
 
-private:
+   private:
     std::unordered_map<std::string, std::string> strings_;
     std::unordered_map<std::string, std::vector<long>> vectors_;
 };
@@ -202,15 +212,12 @@ MockConfig make_valid_config() {
 void test_zarr_driver_registered_with_factory() {
     // The static BackendRegistrar<Zarr_Driver>("zarr3") should have
     // registered the driver at static init time.
-    EXPECT_TRUE(BackendFactory::instance().has("zarr3"),
-                "Zarr_Driver should be registered under key 'zarr3'");
+    EXPECT_TRUE(BackendFactory::instance().has("zarr3"), "Zarr_Driver should be registered under key 'zarr3'");
 
     amio_err_t err = AMIO_ERR_UNKNOWN_BACKEND;
     auto driver = BackendFactory::instance().build("zarr3", err);
-    EXPECT_TRUE(driver != nullptr,
-                "build('zarr3') should return a driver instance");
-    EXPECT_TRUE(err == AMIO_OK,
-                "build('zarr3') should set err to AMIO_OK");
+    EXPECT_TRUE(driver != nullptr, "build('zarr3') should return a driver instance");
+    EXPECT_TRUE(err == AMIO_OK, "build('zarr3') should set err to AMIO_OK");
 }
 
 // ---------------------------------------------------------------
@@ -221,10 +228,7 @@ void test_missing_all_fields() {
     Zarr_Driver driver;
     MockConfig cfg;  // Empty config — all fields missing.
 
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "missing required configuration fields",
-        "empty config should throw naming missing fields");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "missing required configuration fields", "empty config should throw naming missing fields");
 }
 
 void test_missing_uri_field() {
@@ -236,10 +240,7 @@ void test_missing_uri_field() {
     cfg.set_string("codec", "blosc");
 
     Zarr_Driver driver;
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "uri",
-        "missing uri should be named in error");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "uri", "missing uri should be named in error");
 }
 
 void test_missing_chunk_shape_field() {
@@ -250,10 +251,7 @@ void test_missing_chunk_shape_field() {
     cfg.set_string("codec", "blosc");
 
     Zarr_Driver driver;
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "chunk_shape",
-        "missing chunk_shape should be named in error");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "chunk_shape", "missing chunk_shape should be named in error");
 }
 
 void test_missing_multiple_fields() {
@@ -264,19 +262,14 @@ void test_missing_multiple_fields() {
     Zarr_Driver driver;
     try {
         driver.open_write(cfg);
-        report_failure("should throw", __FILE__, __LINE__,
-                       "missing multiple fields should throw");
+        report_failure("should throw", __FILE__, __LINE__, "missing multiple fields should throw");
     } catch (const std::runtime_error& e) {
         std::string msg = e.what();
         // Should name all missing fields in a single error.
-        EXPECT_TRUE(msg.find("chunk_shape") != std::string::npos,
-                    "error should name 'chunk_shape'");
-        EXPECT_TRUE(msg.find("shard_shape") != std::string::npos,
-                    "error should name 'shard_shape'");
-        EXPECT_TRUE(msg.find("array_shape") != std::string::npos,
-                    "error should name 'array_shape'");
-        EXPECT_TRUE(msg.find("codec") != std::string::npos,
-                    "error should name 'codec'");
+        EXPECT_TRUE(msg.find("chunk_shape") != std::string::npos, "error should name 'chunk_shape'");
+        EXPECT_TRUE(msg.find("shard_shape") != std::string::npos, "error should name 'shard_shape'");
+        EXPECT_TRUE(msg.find("array_shape") != std::string::npos, "error should name 'array_shape'");
+        EXPECT_TRUE(msg.find("codec") != std::string::npos, "error should name 'codec'");
     }
 }
 
@@ -287,46 +280,37 @@ void test_missing_multiple_fields() {
 void test_chunk_dims_must_divide_shard_dims() {
     MockConfig cfg;
     cfg.set_string("uri", "/tmp/test");
-    cfg.set_long_vector("chunk_shape", {100, 64});   // 100 does not divide 256
+    cfg.set_long_vector("chunk_shape", {100, 64});  // 100 does not divide 256
     cfg.set_long_vector("shard_shape", {256, 256});
     cfg.set_long_vector("array_shape", {1024, 1024});
     cfg.set_string("codec", "blosc");
 
     Zarr_Driver driver;
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "must evenly divide",
-        "chunk not dividing shard should throw");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "must evenly divide", "chunk not dividing shard should throw");
 }
 
 void test_chunk_dims_must_be_positive() {
     MockConfig cfg;
     cfg.set_string("uri", "/tmp/test");
-    cfg.set_long_vector("chunk_shape", {0, 64});     // 0 is not positive
+    cfg.set_long_vector("chunk_shape", {0, 64});  // 0 is not positive
     cfg.set_long_vector("shard_shape", {256, 256});
     cfg.set_long_vector("array_shape", {1024, 1024});
     cfg.set_string("codec", "blosc");
 
     Zarr_Driver driver;
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "must be a positive integer",
-        "zero chunk dim should throw");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "must be a positive integer", "zero chunk dim should throw");
 }
 
 void test_shard_dims_must_be_positive() {
     MockConfig cfg;
     cfg.set_string("uri", "/tmp/test");
     cfg.set_long_vector("chunk_shape", {64, 64});
-    cfg.set_long_vector("shard_shape", {-1, 256});   // negative is not positive
+    cfg.set_long_vector("shard_shape", {-1, 256});  // negative is not positive
     cfg.set_long_vector("array_shape", {1024, 1024});
     cfg.set_string("codec", "blosc");
 
     Zarr_Driver driver;
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "must be a positive integer",
-        "negative shard dim should throw");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "must be a positive integer", "negative shard dim should throw");
 }
 
 void test_chunk_shard_dimension_mismatch() {
@@ -338,10 +322,7 @@ void test_chunk_shard_dimension_mismatch() {
     cfg.set_string("codec", "blosc");
 
     Zarr_Driver driver;
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "same number of dimensions",
-        "mismatched chunk/shard dims should throw");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "same number of dimensions", "mismatched chunk/shard dims should throw");
 }
 
 void test_valid_sharding_accepted() {
@@ -357,10 +338,7 @@ void test_valid_sharding_accepted() {
     // In non-TensorStore builds, this will throw about TensorStore
     // not being available (after passing validation).
 #ifndef AMIO_HAS_TENSORSTORE
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "TensorStore is not available",
-        "valid config should pass validation but fail on TensorStore absence");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "TensorStore is not available", "valid config should pass validation but fail on TensorStore absence");
 #endif
 }
 
@@ -377,10 +355,7 @@ void test_invalid_codec_rejected() {
     cfg.set_string("codec", "lz4");  // Not in {blosc, zstandard}
 
     Zarr_Driver driver;
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "must be one of {blosc, zstandard}",
-        "invalid codec should throw");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "must be one of {blosc, zstandard}", "invalid codec should throw");
 }
 
 void test_blosc_codec_accepted() {
@@ -390,10 +365,7 @@ void test_blosc_codec_accepted() {
     Zarr_Driver driver;
 #ifndef AMIO_HAS_TENSORSTORE
     // Should pass codec validation, fail on TensorStore absence.
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "TensorStore is not available",
-        "blosc codec should pass validation");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "TensorStore is not available", "blosc codec should pass validation");
 #endif
 }
 
@@ -404,10 +376,7 @@ void test_zstandard_codec_accepted() {
     Zarr_Driver driver;
 #ifndef AMIO_HAS_TENSORSTORE
     // Should pass codec validation, fail on TensorStore absence.
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "TensorStore is not available",
-        "zstandard codec should pass validation");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "TensorStore is not available", "zstandard codec should pass validation");
 #endif
 }
 
@@ -416,18 +385,12 @@ void test_zstandard_codec_accepted() {
 // ---------------------------------------------------------------
 
 void test_cloud_uri_detection() {
-    EXPECT_TRUE(Zarr_Driver::is_cloud_uri("s3://bucket/path"),
-                "s3:// should be detected as cloud URI");
-    EXPECT_TRUE(Zarr_Driver::is_cloud_uri("gs://bucket/path"),
-                "gs:// should be detected as cloud URI");
-    EXPECT_TRUE(Zarr_Driver::is_cloud_uri("https://example.com/path"),
-                "https:// should be detected as cloud URI");
-    EXPECT_TRUE(!Zarr_Driver::is_cloud_uri("/local/path"),
-                "local path should not be cloud URI");
-    EXPECT_TRUE(!Zarr_Driver::is_cloud_uri("file:///local/path"),
-                "file:// should not be cloud URI");
-    EXPECT_TRUE(!Zarr_Driver::is_cloud_uri("http://example.com"),
-                "http:// (not https) should not be cloud URI");
+    EXPECT_TRUE(Zarr_Driver::is_cloud_uri("s3://bucket/path"), "s3:// should be detected as cloud URI");
+    EXPECT_TRUE(Zarr_Driver::is_cloud_uri("gs://bucket/path"), "gs:// should be detected as cloud URI");
+    EXPECT_TRUE(Zarr_Driver::is_cloud_uri("https://example.com/path"), "https:// should be detected as cloud URI");
+    EXPECT_TRUE(!Zarr_Driver::is_cloud_uri("/local/path"), "local path should not be cloud URI");
+    EXPECT_TRUE(!Zarr_Driver::is_cloud_uri("file:///local/path"), "file:// should not be cloud URI");
+    EXPECT_TRUE(!Zarr_Driver::is_cloud_uri("http://example.com"), "http:// (not https) should not be cloud URI");
 }
 
 // ---------------------------------------------------------------
@@ -435,30 +398,12 @@ void test_cloud_uri_detection() {
 // ---------------------------------------------------------------
 
 void test_error_categorization() {
-    EXPECT_TRUE(
-        Zarr_Driver::categorize_error("authentication failed") ==
-            "authentication/authorization error",
-        "auth error should be categorized");
-    EXPECT_TRUE(
-        Zarr_Driver::categorize_error("403 Forbidden") ==
-            "authentication/authorization error",
-        "403 should be categorized as auth error");
-    EXPECT_TRUE(
-        Zarr_Driver::categorize_error("network timeout") ==
-            "network error",
-        "network timeout should be categorized");
-    EXPECT_TRUE(
-        Zarr_Driver::categorize_error("connection refused") ==
-            "network error",
-        "connection refused should be categorized as network error");
-    EXPECT_TRUE(
-        Zarr_Driver::categorize_error("unsupported scheme") ==
-            "unsupported URI scheme",
-        "unsupported scheme should be categorized");
-    EXPECT_TRUE(
-        Zarr_Driver::categorize_error("some other error") ==
-            "I/O error",
-        "unknown error should be categorized as I/O error");
+    EXPECT_TRUE(Zarr_Driver::categorize_error("authentication failed") == "authentication/authorization error", "auth error should be categorized");
+    EXPECT_TRUE(Zarr_Driver::categorize_error("403 Forbidden") == "authentication/authorization error", "403 should be categorized as auth error");
+    EXPECT_TRUE(Zarr_Driver::categorize_error("network timeout") == "network error", "network timeout should be categorized");
+    EXPECT_TRUE(Zarr_Driver::categorize_error("connection refused") == "network error", "connection refused should be categorized as network error");
+    EXPECT_TRUE(Zarr_Driver::categorize_error("unsupported scheme") == "unsupported URI scheme", "unsupported scheme should be categorized");
+    EXPECT_TRUE(Zarr_Driver::categorize_error("some other error") == "I/O error", "unknown error should be categorized as I/O error");
 }
 
 // ---------------------------------------------------------------
@@ -470,20 +415,14 @@ void test_open_write_throws_without_tensorstore() {
     MockConfig cfg = make_valid_config();
     Zarr_Driver driver;
 
-    EXPECT_THROWS_WITH(
-        driver.open_write(cfg),
-        "TensorStore is not available",
-        "open_write should throw without TensorStore");
+    EXPECT_THROWS_WITH(driver.open_write(cfg), "TensorStore is not available", "open_write should throw without TensorStore");
 }
 
 void test_open_read_throws_without_tensorstore() {
     MockConfig cfg = make_valid_config();
     Zarr_Driver driver;
 
-    EXPECT_THROWS_WITH(
-        driver.open_read(cfg),
-        "TensorStore is not available",
-        "open_read should throw without TensorStore");
+    EXPECT_THROWS_WITH(driver.open_read(cfg), "TensorStore is not available", "open_read should throw without TensorStore");
 }
 #endif
 
@@ -510,10 +449,7 @@ void test_write_throws_when_not_open() {
     StagingBuffer buf{};
     VarMeta meta{};
 
-    EXPECT_THROWS_WITH(
-        driver.write(buf, meta),
-        "not open for writing",
-        "write on unopened driver should throw");
+    EXPECT_THROWS_WITH(driver.write(buf, meta), "not open for writing", "write on unopened driver should throw");
 }
 
 void test_read_throws_when_not_open() {
@@ -521,10 +457,7 @@ void test_read_throws_when_not_open() {
     StagingBuffer buf{};
     VarMeta meta{};
 
-    EXPECT_THROWS_WITH(
-        driver.read(buf, meta, 0, std::nullopt),
-        "not open for reading",
-        "read on unopened driver should throw");
+    EXPECT_THROWS_WITH(driver.read(buf, meta, 0, std::nullopt), "not open for reading", "read on unopened driver should throw");
 }
 
 // ---------------------------------------------------------------
@@ -532,26 +465,16 @@ void test_read_throws_when_not_open() {
 // ---------------------------------------------------------------
 
 void test_dtype_to_string() {
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_F32) == "float32",
-                "F32 -> float32");
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_F64) == "float64",
-                "F64 -> float64");
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_I8) == "int8",
-                "I8 -> int8");
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_I16) == "int16",
-                "I16 -> int16");
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_I32) == "int32",
-                "I32 -> int32");
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_I64) == "int64",
-                "I64 -> int64");
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_U8) == "uint8",
-                "U8 -> uint8");
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_U16) == "uint16",
-                "U16 -> uint16");
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_U32) == "uint32",
-                "U32 -> uint32");
-    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_U64) == "uint64",
-                "U64 -> uint64");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_F32) == "float32", "F32 -> float32");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_F64) == "float64", "F64 -> float64");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_I8) == "int8", "I8 -> int8");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_I16) == "int16", "I16 -> int16");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_I32) == "int32", "I32 -> int32");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_I64) == "int64", "I64 -> int64");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_U8) == "uint8", "U8 -> uint8");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_U16) == "uint16", "U16 -> uint16");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_U32) == "uint32", "U32 -> uint32");
+    EXPECT_TRUE(Zarr_Driver::dtype_to_string(AMIO_DTYPE_U64) == "uint64", "U64 -> uint64");
 }
 
 void test_dtype_size() {
@@ -613,9 +536,7 @@ int main() {
     test_dtype_to_string();
     test_dtype_size();
 
-    std::fprintf(stdout,
-                 "test_zarr_driver: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_zarr_driver: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

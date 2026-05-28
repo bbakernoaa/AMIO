@@ -23,19 +23,19 @@
 //   * validate_comm_config independently validates without performing
 //     the actual split.
 
-#include "workers/comm_split.hpp"
-
 #include <cassert>
 #include <cstdio>
 #include <string>
+
+#include "workers/comm_split.hpp"
 
 namespace {
 
 using amio::detail::CommConfig;
 using amio::detail::IOCommunicator;
+using amio::detail::is_io_rank;
 using amio::detail::split_communicator;
 using amio::detail::validate_comm_config;
-using amio::detail::is_io_rank;
 
 struct TestResult {
     int passed = 0;
@@ -44,21 +44,18 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char *expr, const char *file, int line, const std::string &context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
 // ---- Test: default config returns OK ----
@@ -69,12 +66,9 @@ void test_default_config_returns_ok() {
 
     IOCommunicator result{};
     amio_err_t rc = split_communicator(config, 0, result);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "default config should return AMIO_OK, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_OK, "default config should return AMIO_OK, got " + std::to_string(rc));
     EXPECT_TRUE(result.valid, "result should be valid for default config");
-    EXPECT_TRUE(result.is_io_rank,
-                "all ranks should be I/O ranks in default mode");
+    EXPECT_TRUE(result.is_io_rank, "all ranks should be I/O ranks in default mode");
 }
 
 // ---- Test: explicit empty io_ranks is default ----
@@ -101,9 +95,7 @@ void test_validate_valid_config() {
     config.world_size = 4;
 
     amio_err_t rc = validate_comm_config(config);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "valid config should pass validation, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_OK, "valid config should pass validation, got " + std::to_string(rc));
 }
 
 // ---- Test: validate_comm_config with default config ----
@@ -122,14 +114,11 @@ void test_rank_out_of_range_negative() {
     config.world_size = 4;
 
     amio_err_t rc = validate_comm_config(config);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "negative rank should fail validation, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "negative rank should fail validation, got " + std::to_string(rc));
 
     IOCommunicator result{};
     rc = split_communicator(config, 0, result);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "negative rank should fail split");
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "negative rank should fail split");
     EXPECT_TRUE(!result.valid, "result should not be valid on failure");
 }
 
@@ -141,9 +130,7 @@ void test_rank_out_of_range_too_large() {
     config.world_size = 4;
 
     amio_err_t rc = validate_comm_config(config);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "rank >= world_size should fail validation, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "rank >= world_size should fail validation, got " + std::to_string(rc));
 }
 
 // ---- Test: duplicate ranks ----
@@ -154,9 +141,7 @@ void test_duplicate_ranks() {
     config.world_size = 4;
 
     amio_err_t rc = validate_comm_config(config);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "duplicate ranks should fail validation, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "duplicate ranks should fail validation, got " + std::to_string(rc));
 }
 
 // ---- Test: io_ranks == all ranks (not a proper subset) ----
@@ -167,9 +152,7 @@ void test_all_ranks_as_io() {
     config.world_size = 4;
 
     amio_err_t rc = validate_comm_config(config);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "all ranks as I/O should fail (not proper subset), got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "all ranks as I/O should fail (not proper subset), got " + std::to_string(rc));
 }
 
 // ---- Test: world_size <= 0 ----
@@ -180,9 +163,7 @@ void test_zero_world_size() {
     config.world_size = 0;
 
     amio_err_t rc = validate_comm_config(config);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "world_size=0 should fail validation, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "world_size=0 should fail validation, got " + std::to_string(rc));
 }
 
 void test_negative_world_size() {
@@ -191,9 +172,7 @@ void test_negative_world_size() {
     config.world_size = -1;
 
     amio_err_t rc = validate_comm_config(config);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "negative world_size should fail validation, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "negative world_size should fail validation, got " + std::to_string(rc));
 }
 
 // ---- Test: non-default config without MPI returns error ----
@@ -214,13 +193,12 @@ void test_non_default_without_mpi() {
 #if !defined(AMIO_HAS_MPI) && !defined(AMIO_HAS_ECKIT)
     EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
                 "non-default config without MPI should return "
-                "AMIO_ERR_COMM_SPLIT_FAILED, got " + std::to_string(rc));
-    EXPECT_TRUE(!result.valid,
-                "result should not be valid without MPI");
+                "AMIO_ERR_COMM_SPLIT_FAILED, got " +
+                    std::to_string(rc));
+    EXPECT_TRUE(!result.valid, "result should not be valid without MPI");
 #else
     // If MPI is available, the split might succeed.
-    EXPECT_TRUE(rc == AMIO_OK || rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "with MPI, split should either succeed or fail gracefully");
+    EXPECT_TRUE(rc == AMIO_OK || rc == AMIO_ERR_COMM_SPLIT_FAILED, "with MPI, split should either succeed or fail gracefully");
 #endif
 }
 
@@ -235,13 +213,11 @@ void test_invalid_my_rank() {
 
     // my_rank negative
     amio_err_t rc = split_communicator(config, -1, result);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "negative my_rank should fail, got " + std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "negative my_rank should fail, got " + std::to_string(rc));
 
     // my_rank >= world_size
     rc = split_communicator(config, 4, result);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "my_rank >= world_size should fail, got " + std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "my_rank >= world_size should fail, got " + std::to_string(rc));
 }
 
 // ---- Test: single I/O rank in multi-rank world ----
@@ -252,9 +228,7 @@ void test_single_io_rank_validation() {
     config.world_size = 8;
 
     amio_err_t rc = validate_comm_config(config);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "single I/O rank in 8-rank world should validate, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_OK, "single I/O rank in 8-rank world should validate, got " + std::to_string(rc));
 }
 
 // ---- Test: IOCommunicator default state ----
@@ -264,18 +238,15 @@ void test_io_communicator_default_state() {
     EXPECT_TRUE(!comm.valid, "default IOCommunicator should not be valid");
     EXPECT_TRUE(!comm.is_io_rank, "default should not be I/O rank");
     EXPECT_TRUE(comm.io_comm_id == 0, "default io_comm_id should be 0");
-    EXPECT_TRUE(comm.compute_comm_id == 0,
-                "default compute_comm_id should be 0");
+    EXPECT_TRUE(comm.compute_comm_id == 0, "default compute_comm_id should be 0");
 }
 
 // ---- Test: is_io_rank helper with default config ----
 
 void test_is_io_rank_default_config() {
     CommConfig config;  // default: all ranks do I/O
-    EXPECT_TRUE(is_io_rank(config, 0),
-                "default config: rank 0 should be I/O rank");
-    EXPECT_TRUE(is_io_rank(config, 99),
-                "default config: any rank should be I/O rank");
+    EXPECT_TRUE(is_io_rank(config, 0), "default config: rank 0 should be I/O rank");
+    EXPECT_TRUE(is_io_rank(config, 99), "default config: any rank should be I/O rank");
 }
 
 // ---- Test: is_io_rank helper with non-default config ----
@@ -285,14 +256,10 @@ void test_is_io_rank_non_default_config() {
     config.io_ranks = {1, 3};
     config.world_size = 4;
 
-    EXPECT_TRUE(!is_io_rank(config, 0),
-                "rank 0 should NOT be I/O rank");
-    EXPECT_TRUE(is_io_rank(config, 1),
-                "rank 1 should be I/O rank");
-    EXPECT_TRUE(!is_io_rank(config, 2),
-                "rank 2 should NOT be I/O rank");
-    EXPECT_TRUE(is_io_rank(config, 3),
-                "rank 3 should be I/O rank");
+    EXPECT_TRUE(!is_io_rank(config, 0), "rank 0 should NOT be I/O rank");
+    EXPECT_TRUE(is_io_rank(config, 1), "rank 1 should be I/O rank");
+    EXPECT_TRUE(!is_io_rank(config, 2), "rank 2 should NOT be I/O rank");
+    EXPECT_TRUE(is_io_rank(config, 3), "rank 3 should be I/O rank");
 }
 
 }  // namespace
@@ -315,9 +282,7 @@ int main() {
     test_is_io_rank_default_config();
     test_is_io_rank_non_default_config();
 
-    std::fprintf(stdout,
-                 "test_comm_split: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_comm_split: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

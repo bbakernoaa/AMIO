@@ -50,14 +50,14 @@ namespace amio::detail {
 //       A value of -1 means "MPI not initialized" or "unknown".
 struct MpiThreadingConfig {
     bool requires_background_mpi_io = false;
-    int  mpi_thread_level_provided  = -1;
+    int mpi_thread_level_provided = -1;
 };
 
 // Thread level constants matching MPI standard values.
-static constexpr int kMpiThreadSingle     = 0;
-static constexpr int kMpiThreadFunneled   = 1;
+static constexpr int kMpiThreadSingle = 0;
+static constexpr int kMpiThreadFunneled = 1;
 static constexpr int kMpiThreadSerialized = 2;
-static constexpr int kMpiThreadMultiple   = 3;
+static constexpr int kMpiThreadMultiple = 3;
 
 // validate_mpi_threading -- check that the MPI threading level is
 // sufficient for the requested configuration.

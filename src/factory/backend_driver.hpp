@@ -85,12 +85,12 @@ using VariableId = std::uint64_t;
 //   timestep     - the temporal index for this write/read operation
 //                  (-1 if not applicable)
 struct VarMeta {
-    DatasetId    dataset_id  = 0;
-    VariableId   variable_id = 0;
-    std::string  name;
-    amio_dtype_t dtype       = AMIO_DTYPE_F32;
-    amio_shape_t shape       = {};
-    std::int64_t timestep    = -1;
+    DatasetId dataset_id = 0;
+    VariableId variable_id = 0;
+    std::string name;
+    amio_dtype_t dtype = AMIO_DTYPE_F32;
+    amio_shape_t shape = {};
+    std::int64_t timestep = -1;
 };
 
 // BoundingBox -- multidimensional sub-region descriptor for
@@ -145,7 +145,7 @@ struct BoundingBox {
 //   catches these and translates them to AMIO_ERR_* codes recorded
 //   against the originating handle (R12.1, R12.2).
 class Backend_Driver {
-public:
+   public:
     virtual ~Backend_Driver() = default;
 
     // open_write -- prepare the driver for write operations.
@@ -196,10 +196,7 @@ public:
     //
     // On success, dst.data[0..dst.used_bytes) contains the decoded
     // payload.  On failure, throws eckit::Exception.
-    virtual void read(StagingBuffer& dst,
-                      const VarMeta& meta,
-                      std::int64_t timestep,
-                      const std::optional<BoundingBox>& bbox) = 0;
+    virtual void read(StagingBuffer& dst, const VarMeta& meta, std::int64_t timestep, const std::optional<BoundingBox>& bbox) = 0;
 
     // flush -- ensure all previously written data is durable.
     //

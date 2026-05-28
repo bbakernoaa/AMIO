@@ -33,10 +33,6 @@
 //     (smoke-level coverage; the tighter property is covered by
 //     P4 in task 13.5).
 
-#include "c_boundary/handle_table.hpp"
-
-#include "amio/amio_errors.h"
-
 #include <atomic>
 #include <cassert>
 #include <cstdint>
@@ -44,6 +40,9 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "amio/amio_errors.h"
+#include "c_boundary/handle_table.hpp"
 
 namespace {
 
@@ -57,21 +56,18 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char *expr, const char *file, int line, const std::string &context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
 void test_insert_returns_nonzero_token_with_correct_payload() {
@@ -87,13 +83,11 @@ void test_insert_returns_nonzero_token_with_correct_payload() {
     EXPECT_TRUE(tok_a != tok_b, "two fresh inserts produced equal tokens");
 
     void *out = nullptr;
-    EXPECT_TRUE(t.lookup(tok_a, HandleKind::Core, &out) == AMIO_OK,
-                "lookup of fresh Core token failed");
+    EXPECT_TRUE(t.lookup(tok_a, HandleKind::Core, &out) == AMIO_OK, "lookup of fresh Core token failed");
     EXPECT_TRUE(out == &payload_a, "Core lookup returned wrong payload");
 
     out = nullptr;
-    EXPECT_TRUE(t.lookup(tok_b, HandleKind::Dataset, &out) == AMIO_OK,
-                "lookup of fresh Dataset token failed");
+    EXPECT_TRUE(t.lookup(tok_b, HandleKind::Dataset, &out) == AMIO_OK, "lookup of fresh Dataset token failed");
     EXPECT_TRUE(out == &payload_b, "Dataset lookup returned wrong payload");
 
     EXPECT_TRUE(t.size_for_test() == 2u, "size_for_test mismatch after 2 inserts");
@@ -103,10 +97,8 @@ void test_lookup_null_handle_returns_null_handle_error() {
     HandleTable t;
     void *out = reinterpret_cast<void *>(0xCAFEFACE);  // poison
     auto rc = t.lookup(/*token=*/0, HandleKind::Core, &out);
-    EXPECT_TRUE(rc == AMIO_ERR_NULL_HANDLE,
-                "lookup(0) did not return AMIO_ERR_NULL_HANDLE");
-    EXPECT_TRUE(out == nullptr,
-                "lookup(0) failed to clear out-payload to NULL");
+    EXPECT_TRUE(rc == AMIO_ERR_NULL_HANDLE, "lookup(0) did not return AMIO_ERR_NULL_HANDLE");
+    EXPECT_TRUE(out == nullptr, "lookup(0) failed to clear out-payload to NULL");
 }
 
 void test_lookup_wrong_kind_returns_invalid_handle() {
@@ -116,18 +108,14 @@ void test_lookup_wrong_kind_returns_invalid_handle() {
 
     void *out = nullptr;
     auto rc = t.lookup(tok, HandleKind::Core, &out);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE,
-                "wrong-kind lookup did not return AMIO_ERR_INVALID_HANDLE");
-    EXPECT_TRUE(out == nullptr,
-                "wrong-kind lookup leaked a payload pointer");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE, "wrong-kind lookup did not return AMIO_ERR_INVALID_HANDLE");
+    EXPECT_TRUE(out == nullptr, "wrong-kind lookup leaked a payload pointer");
 
     // The handle must still be valid for the correct kind.
     out = nullptr;
     rc = t.lookup(tok, HandleKind::Dataset, &out);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "correct-kind lookup failed after wrong-kind miss");
-    EXPECT_TRUE(out == &payload,
-                "correct-kind lookup returned wrong payload");
+    EXPECT_TRUE(rc == AMIO_OK, "correct-kind lookup failed after wrong-kind miss");
+    EXPECT_TRUE(out == &payload, "correct-kind lookup returned wrong payload");
 }
 
 void test_release_then_lookup_returns_invalid_handle() {
@@ -135,19 +123,16 @@ void test_release_then_lookup_returns_invalid_handle() {
     int payload = 7;
     auto tok = t.insert(HandleKind::Io, &payload);
 
-    EXPECT_TRUE(t.release(tok, HandleKind::Io) == AMIO_OK,
-                "first release failed");
+    EXPECT_TRUE(t.release(tok, HandleKind::Io) == AMIO_OK, "first release failed");
 
     void *out = reinterpret_cast<void *>(0xDEADBEEF);
     auto rc = t.lookup(tok, HandleKind::Io, &out);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE,
-                "lookup after release did not return AMIO_ERR_INVALID_HANDLE");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE, "lookup after release did not return AMIO_ERR_INVALID_HANDLE");
     EXPECT_TRUE(out == nullptr, "stale-lookup leaked a payload pointer");
 
     // Double-release must also fail without crashing.
     rc = t.release(tok, HandleKind::Io);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE,
-                "double release did not return AMIO_ERR_INVALID_HANDLE");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE, "double release did not return AMIO_ERR_INVALID_HANDLE");
 }
 
 void test_reuse_after_free_old_token_stays_invalid() {
@@ -159,44 +144,34 @@ void test_reuse_after_free_old_token_stays_invalid() {
 
     int payload_old = 1;
     auto tok_old = t.insert(HandleKind::View, &payload_old);
-    EXPECT_TRUE(t.release(tok_old, HandleKind::View) == AMIO_OK,
-                "release(tok_old) failed");
+    EXPECT_TRUE(t.release(tok_old, HandleKind::View) == AMIO_OK, "release(tok_old) failed");
 
     int payload_new = 2;
     auto tok_new = t.insert(HandleKind::View, &payload_new);
 
-    EXPECT_TRUE(tok_new != tok_old,
-                "recycled slot reused the same token value (no generation bump)");
-    EXPECT_TRUE(HandleTable::unpack_slot(tok_new) ==
-                HandleTable::unpack_slot(tok_old),
-                "recycled token did not land on the same slot index");
+    EXPECT_TRUE(tok_new != tok_old, "recycled slot reused the same token value (no generation bump)");
+    EXPECT_TRUE(HandleTable::unpack_slot(tok_new) == HandleTable::unpack_slot(tok_old), "recycled token did not land on the same slot index");
 
     // Old token still returns AMIO_ERR_INVALID_HANDLE.
     void *out = nullptr;
     auto rc = t.lookup(tok_old, HandleKind::View, &out);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE,
-                "stale token after recycle did not return AMIO_ERR_INVALID_HANDLE");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE, "stale token after recycle did not return AMIO_ERR_INVALID_HANDLE");
     EXPECT_TRUE(out == nullptr, "stale recycle lookup leaked a payload");
 
     // New token resolves to the new payload.
     out = nullptr;
     rc = t.lookup(tok_new, HandleKind::View, &out);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "fresh token after recycle did not return AMIO_OK");
-    EXPECT_TRUE(out == &payload_new,
-                "fresh token returned an unexpected payload");
+    EXPECT_TRUE(rc == AMIO_OK, "fresh token after recycle did not return AMIO_OK");
+    EXPECT_TRUE(out == &payload_new, "fresh token returned an unexpected payload");
 
     // Release of a stale token must not invalidate the live token.
     rc = t.release(tok_old, HandleKind::View);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE,
-                "release of stale token did not return AMIO_ERR_INVALID_HANDLE");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE, "release of stale token did not return AMIO_ERR_INVALID_HANDLE");
 
     out = nullptr;
     rc = t.lookup(tok_new, HandleKind::View, &out);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "stale-release corrupted the live token");
-    EXPECT_TRUE(out == &payload_new,
-                "stale-release corrupted the payload binding");
+    EXPECT_TRUE(rc == AMIO_OK, "stale-release corrupted the live token");
+    EXPECT_TRUE(out == &payload_new, "stale-release corrupted the payload binding");
 }
 
 void test_garbage_token_with_oob_slot_index_is_rejected() {
@@ -205,25 +180,20 @@ void test_garbage_token_with_oob_slot_index_is_rejected() {
     auto tok = t.insert(HandleKind::Core, &payload);
 
     // Fabricate a token whose slot index points outside the table.
-    auto bogus = HandleTable::pack(/*slot=*/12345u,
-                                   HandleTable::unpack_generation(tok));
+    auto bogus = HandleTable::pack(/*slot=*/12345u, HandleTable::unpack_generation(tok));
 
     void *out = nullptr;
     auto rc = t.lookup(bogus, HandleKind::Core, &out);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE,
-                "OOB-slot lookup did not return AMIO_ERR_INVALID_HANDLE");
-    EXPECT_TRUE(out == nullptr,
-                "OOB-slot lookup leaked a payload pointer");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE, "OOB-slot lookup did not return AMIO_ERR_INVALID_HANDLE");
+    EXPECT_TRUE(out == nullptr, "OOB-slot lookup leaked a payload pointer");
 
     rc = t.release(bogus, HandleKind::Core);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE,
-                "OOB-slot release did not return AMIO_ERR_INVALID_HANDLE");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_HANDLE, "OOB-slot release did not return AMIO_ERR_INVALID_HANDLE");
 
     // The legitimate token is unaffected.
     out = nullptr;
     rc = t.lookup(tok, HandleKind::Core, &out);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "legitimate lookup broken by OOB-token traffic");
+    EXPECT_TRUE(rc == AMIO_OK, "legitimate lookup broken by OOB-token traffic");
 }
 
 void test_concurrent_insert_and_release_is_safe() {
@@ -258,8 +228,7 @@ void test_concurrent_insert_and_release_is_safe() {
                 }
 
                 void *out = nullptr;
-                if (t.lookup(tok, HandleKind::Io, &out) != AMIO_OK ||
-                    out != p) {
+                if (t.lookup(tok, HandleKind::Io, &out) != AMIO_OK || out != p) {
                     race_failures.fetch_add(1, std::memory_order_relaxed);
                 }
 
@@ -269,8 +238,7 @@ void test_concurrent_insert_and_release_is_safe() {
 
                 // Stale lookup after release must always fail.
                 out = reinterpret_cast<void *>(0xBADF00D);
-                if (t.lookup(tok, HandleKind::Io, &out) !=
-                    AMIO_ERR_INVALID_HANDLE) {
+                if (t.lookup(tok, HandleKind::Io, &out) != AMIO_ERR_INVALID_HANDLE) {
                     race_failures.fetch_add(1, std::memory_order_relaxed);
                 }
             }
@@ -282,14 +250,12 @@ void test_concurrent_insert_and_release_is_safe() {
     }
 
     EXPECT_TRUE(race_failures.load(std::memory_order_relaxed) == 0,
-                "concurrent insert/lookup/release exposed "
-                + std::to_string(race_failures.load()) + " inconsistencies");
+                "concurrent insert/lookup/release exposed " + std::to_string(race_failures.load()) + " inconsistencies");
 
     // After the storm, the live-slot count should be zero (every
     // insert was paired with a release).  The free list re-uses
     // slots, so size_for_test counts only live slots.
-    EXPECT_TRUE(t.size_for_test() == 0u,
-                "live slot count drifted after balanced insert/release pairs");
+    EXPECT_TRUE(t.size_for_test() == 0u, "live slot count drifted after balanced insert/release pairs");
 }
 
 }  // namespace
@@ -303,9 +269,7 @@ int main() {
     test_garbage_token_with_oob_slot_index_is_rejected();
     test_concurrent_insert_and_release_is_safe();
 
-    std::fprintf(stdout,
-                 "test_handle_table: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_handle_table: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

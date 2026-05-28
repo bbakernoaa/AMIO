@@ -18,9 +18,6 @@
 //
 // Validates: R12.1, R12.2, R12.3, R12.4, R12.9, R12.10
 
-#include "workers/exception_bridge.hpp"
-#include "workers/worker_pool.hpp"
-
 #include <atomic>
 #include <cassert>
 #include <chrono>
@@ -29,17 +26,20 @@
 #include <string>
 #include <thread>
 
+#include "workers/exception_bridge.hpp"
+#include "workers/worker_pool.hpp"
+
 namespace {
 
 using amio::detail::DatasetVariableKey;
+using amio::detail::emit_parallel_stacktrace;
+using amio::detail::execute_with_exception_cordon;
 using amio::detail::IOCommunicator;
 using amio::detail::OutcomeRegistry;
 using amio::detail::TaskOutcome;
+using amio::detail::translate_exception_to_error;
 using amio::detail::WorkerPool;
 using amio::detail::WorkerPoolConfig;
-using amio::detail::emit_parallel_stacktrace;
-using amio::detail::execute_with_exception_cordon;
-using amio::detail::translate_exception_to_error;
 
 struct TestResult {
     int passed = 0;
@@ -48,21 +48,18 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char *expr, const char *file, int line, const std::string &context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
 // ---- Test: translate_exception_to_error with std::runtime_error ----
@@ -77,10 +74,8 @@ void test_translate_std_runtime_error() {
         code = translate_exception_to_error(&msg);
     }
 
-    EXPECT_TRUE(code == AMIO_ERR_BACKEND_FAILURE,
-                "std::runtime_error should map to AMIO_ERR_BACKEND_FAILURE");
-    EXPECT_TRUE(msg == "test runtime error",
-                "message should be preserved");
+    EXPECT_TRUE(code == AMIO_ERR_BACKEND_FAILURE, "std::runtime_error should map to AMIO_ERR_BACKEND_FAILURE");
+    EXPECT_TRUE(msg == "test runtime error", "message should be preserved");
 }
 
 // ---- Test: translate_exception_to_error with std::invalid_argument ----
@@ -95,10 +90,8 @@ void test_translate_std_invalid_argument() {
         code = translate_exception_to_error(&msg);
     }
 
-    EXPECT_TRUE(code == AMIO_ERR_INVALID_INPUT,
-                "std::invalid_argument should map to AMIO_ERR_INVALID_INPUT");
-    EXPECT_TRUE(msg == "bad argument",
-                "message should be preserved");
+    EXPECT_TRUE(code == AMIO_ERR_INVALID_INPUT, "std::invalid_argument should map to AMIO_ERR_INVALID_INPUT");
+    EXPECT_TRUE(msg == "bad argument", "message should be preserved");
 }
 
 // ---- Test: translate_exception_to_error with unknown exception ----
@@ -113,32 +106,25 @@ void test_translate_unknown_exception() {
         code = translate_exception_to_error(&msg);
     }
 
-    EXPECT_TRUE(code == AMIO_ERR_BACKEND_FAILURE,
-                "unknown exception should map to AMIO_ERR_BACKEND_FAILURE");
-    EXPECT_TRUE(msg == "Unknown exception (non-std)",
-                "message should indicate unknown exception");
+    EXPECT_TRUE(code == AMIO_ERR_BACKEND_FAILURE, "unknown exception should map to AMIO_ERR_BACKEND_FAILURE");
+    EXPECT_TRUE(msg == "Unknown exception (non-std)", "message should indicate unknown exception");
 }
 
 // ---- Test: emit_parallel_stacktrace produces non-empty trace ----
 
 void test_emit_parallel_stacktrace_produces_trace() {
     IOCommunicator io_comm;
-    io_comm.valid      = true;
+    io_comm.valid = true;
     io_comm.is_io_rank = true;
     io_comm.io_comm_id = 0;
     io_comm.compute_comm_id = 0;
 
-    std::string trace = emit_parallel_stacktrace(
-        io_comm, AMIO_ERR_BACKEND_FAILURE, "test failure message");
+    std::string trace = emit_parallel_stacktrace(io_comm, AMIO_ERR_BACKEND_FAILURE, "test failure message");
 
-    EXPECT_TRUE(!trace.empty(),
-                "stack trace should be non-empty");
-    EXPECT_TRUE(trace.find("AMIO FATAL") != std::string::npos,
-                "stack trace should contain AMIO FATAL marker");
-    EXPECT_TRUE(trace.find("test failure message") != std::string::npos,
-                "stack trace should contain the error message");
-    EXPECT_TRUE(trace.find("AMIO_ERR_BACKEND_FAILURE") != std::string::npos,
-                "stack trace should contain the error code description");
+    EXPECT_TRUE(!trace.empty(), "stack trace should be non-empty");
+    EXPECT_TRUE(trace.find("AMIO FATAL") != std::string::npos, "stack trace should contain AMIO FATAL marker");
+    EXPECT_TRUE(trace.find("test failure message") != std::string::npos, "stack trace should contain the error message");
+    EXPECT_TRUE(trace.find("AMIO_ERR_BACKEND_FAILURE") != std::string::npos, "stack trace should contain the error code description");
 }
 
 // ---- Test: OutcomeRegistry record and query ----
@@ -147,12 +133,9 @@ void test_outcome_registry_record_and_query() {
     OutcomeRegistry registry;
 
     // Initially no failures.
-    EXPECT_TRUE(!registry.has_failure(1),
-                "no failure initially for handle 1");
-    EXPECT_TRUE(registry.get_outcomes(1).empty(),
-                "no outcomes initially for handle 1");
-    EXPECT_TRUE(registry.failure_count() == 0,
-                "failure_count should be 0 initially");
+    EXPECT_TRUE(!registry.has_failure(1), "no failure initially for handle 1");
+    EXPECT_TRUE(registry.get_outcomes(1).empty(), "no outcomes initially for handle 1");
+    EXPECT_TRUE(registry.failure_count() == 0, "failure_count should be 0 initially");
 
     // Record a failure.
     TaskOutcome failure;
@@ -161,35 +144,26 @@ void test_outcome_registry_record_and_query() {
     failure.stack_trace = "[trace]";
     registry.record(1, failure);
 
-    EXPECT_TRUE(registry.has_failure(1),
-                "should have failure for handle 1");
-    EXPECT_TRUE(registry.failure_count() == 1,
-                "failure_count should be 1");
+    EXPECT_TRUE(registry.has_failure(1), "should have failure for handle 1");
+    EXPECT_TRUE(registry.failure_count() == 1, "failure_count should be 1");
 
     auto outcomes = registry.get_outcomes(1);
-    EXPECT_TRUE(outcomes.size() == 1,
-                "should have 1 outcome for handle 1");
-    EXPECT_TRUE(outcomes[0].error_code == AMIO_ERR_BACKEND_FAILURE,
-                "outcome error_code should match");
-    EXPECT_TRUE(outcomes[0].message == "disk full",
-                "outcome message should match");
+    EXPECT_TRUE(outcomes.size() == 1, "should have 1 outcome for handle 1");
+    EXPECT_TRUE(outcomes[0].error_code == AMIO_ERR_BACKEND_FAILURE, "outcome error_code should match");
+    EXPECT_TRUE(outcomes[0].message == "disk full", "outcome message should match");
 
     // Record a success (should not affect failure detection).
     TaskOutcome success;
     success.error_code = AMIO_OK;
     registry.record(1, success);
 
-    EXPECT_TRUE(registry.has_failure(1),
-                "should still have failure for handle 1");
-    EXPECT_TRUE(registry.get_outcomes(1).size() == 2,
-                "should have 2 outcomes for handle 1");
+    EXPECT_TRUE(registry.has_failure(1), "should still have failure for handle 1");
+    EXPECT_TRUE(registry.get_outcomes(1).size() == 2, "should have 2 outcomes for handle 1");
 
     // get_first_failure returns the first failure.
     auto first = registry.get_first_failure(1);
-    EXPECT_TRUE(first.error_code == AMIO_ERR_BACKEND_FAILURE,
-                "first failure should be BACKEND_FAILURE");
-    EXPECT_TRUE(first.message == "disk full",
-                "first failure message should match");
+    EXPECT_TRUE(first.error_code == AMIO_ERR_BACKEND_FAILURE, "first failure should be BACKEND_FAILURE");
+    EXPECT_TRUE(first.message == "disk full", "first failure message should match");
 }
 
 // ---- Test: OutcomeRegistry clear ----
@@ -203,22 +177,16 @@ void test_outcome_registry_clear() {
     registry.record(1, failure);
     registry.record(2, failure);
 
-    EXPECT_TRUE(registry.failure_count() == 2,
-                "should have 2 handles with failures");
+    EXPECT_TRUE(registry.failure_count() == 2, "should have 2 handles with failures");
 
     registry.clear(1);
-    EXPECT_TRUE(!registry.has_failure(1),
-                "handle 1 should be cleared");
-    EXPECT_TRUE(registry.has_failure(2),
-                "handle 2 should still have failure");
-    EXPECT_TRUE(registry.failure_count() == 1,
-                "failure_count should be 1 after clearing handle 1");
+    EXPECT_TRUE(!registry.has_failure(1), "handle 1 should be cleared");
+    EXPECT_TRUE(registry.has_failure(2), "handle 2 should still have failure");
+    EXPECT_TRUE(registry.failure_count() == 1, "failure_count should be 1 after clearing handle 1");
 
     registry.clear_all();
-    EXPECT_TRUE(!registry.has_failure(2),
-                "handle 2 should be cleared after clear_all");
-    EXPECT_TRUE(registry.failure_count() == 0,
-                "failure_count should be 0 after clear_all");
+    EXPECT_TRUE(!registry.has_failure(2), "handle 2 should be cleared after clear_all");
+    EXPECT_TRUE(registry.failure_count() == 0, "failure_count should be 0 after clear_all");
 }
 
 // ---- Test: OutcomeRegistry get_first_failure with no failure ----
@@ -227,17 +195,15 @@ void test_outcome_registry_no_failure() {
     OutcomeRegistry registry;
 
     auto first = registry.get_first_failure(999);
-    EXPECT_TRUE(first.error_code == AMIO_OK,
-                "get_first_failure on unknown handle should return AMIO_OK");
-    EXPECT_TRUE(!first.is_failure(),
-                "should not be a failure");
+    EXPECT_TRUE(first.error_code == AMIO_OK, "get_first_failure on unknown handle should return AMIO_OK");
+    EXPECT_TRUE(!first.is_failure(), "should not be a failure");
 }
 
 // ---- Test: execute_with_exception_cordon success path ----
 
 void test_cordon_success_path() {
     IOCommunicator io_comm;
-    io_comm.valid      = true;
+    io_comm.valid = true;
     io_comm.is_io_rank = true;
     io_comm.io_comm_id = 0;
     io_comm.compute_comm_id = 0;
@@ -245,81 +211,58 @@ void test_cordon_success_path() {
     OutcomeRegistry registry;
     std::atomic<int> counter{0};
 
-    auto outcome = execute_with_exception_cordon(
-        [&]() { counter.fetch_add(1); },
-        /*handle_id=*/42,
-        io_comm,
-        registry);
+    auto outcome = execute_with_exception_cordon([&]() { counter.fetch_add(1); },
+                                                 /*handle_id=*/42, io_comm, registry);
 
-    EXPECT_TRUE(outcome.error_code == AMIO_OK,
-                "success path should return AMIO_OK");
-    EXPECT_TRUE(!outcome.is_failure(),
-                "success path should not be a failure");
-    EXPECT_TRUE(counter.load() == 1,
-                "callback should have been executed");
-    EXPECT_TRUE(!registry.has_failure(42),
-                "no failure should be recorded on success");
+    EXPECT_TRUE(outcome.error_code == AMIO_OK, "success path should return AMIO_OK");
+    EXPECT_TRUE(!outcome.is_failure(), "success path should not be a failure");
+    EXPECT_TRUE(counter.load() == 1, "callback should have been executed");
+    EXPECT_TRUE(!registry.has_failure(42), "no failure should be recorded on success");
 }
 
 // ---- Test: execute_with_exception_cordon std::exception path ----
 
 void test_cordon_std_exception_path() {
     IOCommunicator io_comm;
-    io_comm.valid      = true;
+    io_comm.valid = true;
     io_comm.is_io_rank = true;
     io_comm.io_comm_id = 0;
     io_comm.compute_comm_id = 0;
 
     OutcomeRegistry registry;
 
-    auto outcome = execute_with_exception_cordon(
-        [&]() { throw std::runtime_error("backend crashed"); },
-        /*handle_id=*/100,
-        io_comm,
-        registry);
+    auto outcome = execute_with_exception_cordon([&]() { throw std::runtime_error("backend crashed"); },
+                                                 /*handle_id=*/100, io_comm, registry);
 
-    EXPECT_TRUE(outcome.error_code == AMIO_ERR_BACKEND_FAILURE,
-                "std::exception should produce AMIO_ERR_BACKEND_FAILURE");
-    EXPECT_TRUE(outcome.is_failure(),
-                "should be a failure");
-    EXPECT_TRUE(outcome.message == "backend crashed",
-                "message should be preserved");
-    EXPECT_TRUE(!outcome.stack_trace.empty(),
-                "stack trace should be non-empty");
+    EXPECT_TRUE(outcome.error_code == AMIO_ERR_BACKEND_FAILURE, "std::exception should produce AMIO_ERR_BACKEND_FAILURE");
+    EXPECT_TRUE(outcome.is_failure(), "should be a failure");
+    EXPECT_TRUE(outcome.message == "backend crashed", "message should be preserved");
+    EXPECT_TRUE(!outcome.stack_trace.empty(), "stack trace should be non-empty");
 
     // Verify recorded in registry (R12.9).
-    EXPECT_TRUE(registry.has_failure(100),
-                "failure should be recorded against handle 100");
+    EXPECT_TRUE(registry.has_failure(100), "failure should be recorded against handle 100");
     auto first = registry.get_first_failure(100);
-    EXPECT_TRUE(first.error_code == AMIO_ERR_BACKEND_FAILURE,
-                "recorded failure should match");
-    EXPECT_TRUE(first.message == "backend crashed",
-                "recorded message should match");
+    EXPECT_TRUE(first.error_code == AMIO_ERR_BACKEND_FAILURE, "recorded failure should match");
+    EXPECT_TRUE(first.message == "backend crashed", "recorded message should match");
 }
 
 // ---- Test: execute_with_exception_cordon unknown exception path ----
 
 void test_cordon_unknown_exception_path() {
     IOCommunicator io_comm;
-    io_comm.valid      = true;
+    io_comm.valid = true;
     io_comm.is_io_rank = true;
     io_comm.io_comm_id = 0;
     io_comm.compute_comm_id = 0;
 
     OutcomeRegistry registry;
 
-    auto outcome = execute_with_exception_cordon(
-        [&]() { throw 42; },  // Non-std exception.
-        /*handle_id=*/200,
-        io_comm,
-        registry);
+    auto outcome = execute_with_exception_cordon([&]() { throw 42; },  // Non-std exception.
+                                                 /*handle_id=*/200, io_comm, registry);
 
-    EXPECT_TRUE(outcome.error_code == AMIO_ERR_BACKEND_FAILURE,
-                "unknown exception should produce AMIO_ERR_BACKEND_FAILURE");
-    EXPECT_TRUE(outcome.message == "Unknown exception (non-std)",
-                "message should indicate unknown exception");
-    EXPECT_TRUE(registry.has_failure(200),
-                "failure should be recorded against handle 200");
+    EXPECT_TRUE(outcome.error_code == AMIO_ERR_BACKEND_FAILURE, "unknown exception should produce AMIO_ERR_BACKEND_FAILURE");
+    EXPECT_TRUE(outcome.message == "Unknown exception (non-std)", "message should indicate unknown exception");
+    EXPECT_TRUE(registry.has_failure(200), "failure should be recorded against handle 200");
 }
 
 // ---- Test: WorkerPool catches exceptions on worker threads (R12.1) ----
@@ -330,36 +273,26 @@ void test_worker_pool_catches_exceptions() {
     DatasetVariableKey key{1, 1};
 
     // Submit a task that throws -- it should NOT crash the pool.
-    pool.submit_write(key, /*handle_id=*/500, [&]() {
-        throw std::runtime_error("worker thread exception");
-    });
+    pool.submit_write(key, /*handle_id=*/500, [&]() { throw std::runtime_error("worker thread exception"); });
 
     pool.drain();
 
     // Pool should still be functional.
-    EXPECT_TRUE(!pool.is_shutdown(),
-                "pool should not be shut down after exception");
+    EXPECT_TRUE(!pool.is_shutdown(), "pool should not be shut down after exception");
 
     // The failure should be recorded in the outcome registry.
-    EXPECT_TRUE(pool.outcome_registry().has_failure(500),
-                "failure should be recorded against handle 500");
+    EXPECT_TRUE(pool.outcome_registry().has_failure(500), "failure should be recorded against handle 500");
 
     auto first = pool.outcome_registry().get_first_failure(500);
-    EXPECT_TRUE(first.error_code == AMIO_ERR_BACKEND_FAILURE,
-                "recorded error code should be AMIO_ERR_BACKEND_FAILURE");
-    EXPECT_TRUE(first.message == "worker thread exception",
-                "recorded message should match");
-    EXPECT_TRUE(!first.stack_trace.empty(),
-                "stack trace should be recorded (R12.10)");
+    EXPECT_TRUE(first.error_code == AMIO_ERR_BACKEND_FAILURE, "recorded error code should be AMIO_ERR_BACKEND_FAILURE");
+    EXPECT_TRUE(first.message == "worker thread exception", "recorded message should match");
+    EXPECT_TRUE(!first.stack_trace.empty(), "stack trace should be recorded (R12.10)");
 
     // Submit another task to verify pool still works.
     std::atomic<int> counter{0};
-    pool.submit_write(key, [&]() {
-        counter.fetch_add(1);
-    });
+    pool.submit_write(key, [&]() { counter.fetch_add(1); });
     pool.drain();
-    EXPECT_TRUE(counter.load() == 1,
-                "pool should still execute tasks after exception");
+    EXPECT_TRUE(counter.load() == 1, "pool should still execute tasks after exception");
 }
 
 // ---- Test: WorkerPool exception cordon with prefetch tasks ----
@@ -369,26 +302,19 @@ void test_worker_pool_prefetch_exception_cordon() {
 
     // Submit a prefetch task that throws.
     pool.submit_prefetch(/*timestep=*/5, /*distance=*/1,
-                         /*dataset_id=*/1, /*handle_id=*/600,
-                         [&]() {
-        throw std::logic_error("prefetch failed");
-    });
+                         /*dataset_id=*/1, /*handle_id=*/600, [&]() { throw std::logic_error("prefetch failed"); });
 
     pool.drain();
 
     // Pool should still be functional.
-    EXPECT_TRUE(!pool.is_shutdown(),
-                "pool should not be shut down after prefetch exception");
+    EXPECT_TRUE(!pool.is_shutdown(), "pool should not be shut down after prefetch exception");
 
     // The failure should be recorded.
-    EXPECT_TRUE(pool.outcome_registry().has_failure(600),
-                "failure should be recorded against handle 600");
+    EXPECT_TRUE(pool.outcome_registry().has_failure(600), "failure should be recorded against handle 600");
 
     auto first = pool.outcome_registry().get_first_failure(600);
-    EXPECT_TRUE(first.error_code == AMIO_ERR_BACKEND_FAILURE,
-                "prefetch failure should be AMIO_ERR_BACKEND_FAILURE");
-    EXPECT_TRUE(first.message == "prefetch failed",
-                "prefetch failure message should match");
+    EXPECT_TRUE(first.error_code == AMIO_ERR_BACKEND_FAILURE, "prefetch failure should be AMIO_ERR_BACKEND_FAILURE");
+    EXPECT_TRUE(first.message == "prefetch failed", "prefetch failure message should match");
 }
 
 // ---- Test: Multiple exceptions recorded against same handle ----
@@ -400,28 +326,23 @@ void test_multiple_exceptions_same_handle() {
 
     // Submit multiple tasks that throw against the same handle.
     for (int i = 0; i < 3; ++i) {
-        pool.submit_write(key, /*handle_id=*/700, [&, i]() {
-            throw std::runtime_error("error " + std::to_string(i));
-        });
+        pool.submit_write(key, /*handle_id=*/700, [&, i]() { throw std::runtime_error("error " + std::to_string(i)); });
     }
 
     pool.drain();
 
     auto outcomes = pool.outcome_registry().get_outcomes(700);
-    EXPECT_TRUE(outcomes.size() == 3,
-                "should have 3 outcomes recorded, got " +
-                std::to_string(outcomes.size()));
+    EXPECT_TRUE(outcomes.size() == 3, "should have 3 outcomes recorded, got " + std::to_string(outcomes.size()));
 
     // All should be failures.
     bool all_failures = true;
-    for (const auto& o : outcomes) {
+    for (const auto &o : outcomes) {
         if (!o.is_failure()) {
             all_failures = false;
             break;
         }
     }
-    EXPECT_TRUE(all_failures,
-                "all outcomes should be failures");
+    EXPECT_TRUE(all_failures, "all outcomes should be failures");
 }
 
 // ---- Test: Stack trace emitted BEFORE outcome is recorded (R12.3, R12.4) ----
@@ -433,18 +354,15 @@ void test_multiple_exceptions_same_handle() {
 
 void test_stack_trace_before_recording() {
     IOCommunicator io_comm;
-    io_comm.valid      = true;
+    io_comm.valid = true;
     io_comm.is_io_rank = true;
     io_comm.io_comm_id = 0;
     io_comm.compute_comm_id = 0;
 
     OutcomeRegistry registry;
 
-    execute_with_exception_cordon(
-        [&]() { throw std::runtime_error("ordering test"); },
-        /*handle_id=*/800,
-        io_comm,
-        registry);
+    execute_with_exception_cordon([&]() { throw std::runtime_error("ordering test"); },
+                                  /*handle_id=*/800, io_comm, registry);
 
     // The recorded outcome should have a non-empty stack trace,
     // proving that emit_parallel_stacktrace completed before
@@ -453,31 +371,25 @@ void test_stack_trace_before_recording() {
     EXPECT_TRUE(!first.stack_trace.empty(),
                 "stack trace should be present in recorded outcome "
                 "(proves emission completed before recording)");
-    EXPECT_TRUE(first.stack_trace.find("ordering test") != std::string::npos,
-                "stack trace should contain the error message");
+    EXPECT_TRUE(first.stack_trace.find("ordering test") != std::string::npos, "stack trace should contain the error message");
 }
 
 // ---- Test: Exception cordon with null callback (no-op) ----
 
 void test_cordon_null_callback() {
     IOCommunicator io_comm;
-    io_comm.valid      = true;
+    io_comm.valid = true;
     io_comm.is_io_rank = true;
     io_comm.io_comm_id = 0;
     io_comm.compute_comm_id = 0;
 
     OutcomeRegistry registry;
 
-    auto outcome = execute_with_exception_cordon(
-        nullptr,  // null callback
-        /*handle_id=*/900,
-        io_comm,
-        registry);
+    auto outcome = execute_with_exception_cordon(nullptr,  // null callback
+                                                 /*handle_id=*/900, io_comm, registry);
 
-    EXPECT_TRUE(outcome.error_code == AMIO_OK,
-                "null callback should succeed (no-op)");
-    EXPECT_TRUE(!registry.has_failure(900),
-                "no failure should be recorded for null callback");
+    EXPECT_TRUE(outcome.error_code == AMIO_OK, "null callback should succeed (no-op)");
+    EXPECT_TRUE(!registry.has_failure(900), "no failure should be recorded for null callback");
 }
 
 // ---- Test: OutcomeRegistry thread safety ----
@@ -496,28 +408,24 @@ void test_outcome_registry_thread_safety() {
             for (int i = 0; i < kOpsPerThread; ++i) {
                 TaskOutcome outcome;
                 outcome.error_code = AMIO_ERR_BACKEND_FAILURE;
-                outcome.message = "thread " + std::to_string(t) +
-                                  " op " + std::to_string(i);
+                outcome.message = "thread " + std::to_string(t) + " op " + std::to_string(i);
                 registry.record(static_cast<std::uint64_t>(t), outcome);
             }
         });
     }
 
-    for (auto& t : threads) {
+    for (auto &t : threads) {
         t.join();
     }
 
     // Each thread should have recorded kOpsPerThread outcomes.
     for (int t = 0; t < kThreads; ++t) {
         auto outcomes = registry.get_outcomes(static_cast<std::uint64_t>(t));
-        EXPECT_TRUE(outcomes.size() == kOpsPerThread,
-                    "thread " + std::to_string(t) +
-                    " should have " + std::to_string(kOpsPerThread) +
-                    " outcomes, got " + std::to_string(outcomes.size()));
+        EXPECT_TRUE(outcomes.size() == kOpsPerThread, "thread " + std::to_string(t) + " should have " + std::to_string(kOpsPerThread) +
+                                                          " outcomes, got " + std::to_string(outcomes.size()));
     }
 
-    EXPECT_TRUE(registry.failure_count() == kThreads,
-                "failure_count should be " + std::to_string(kThreads));
+    EXPECT_TRUE(registry.failure_count() == kThreads, "failure_count should be " + std::to_string(kThreads));
 }
 
 }  // namespace
@@ -540,9 +448,7 @@ int main() {
     test_cordon_null_callback();
     test_outcome_registry_thread_safety();
 
-    std::fprintf(stdout,
-                 "test_exception_bridge: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_exception_bridge: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

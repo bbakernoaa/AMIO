@@ -22,8 +22,6 @@
 // Validates: R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7, R9.8
 
 #include "drivers/grib2/grib2_driver.hpp"
-#include "factory/backend_factory.hpp"
-#include "staging/staging_pool.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -33,6 +31,9 @@
 #include <numeric>
 #include <stdexcept>
 #include <string>
+
+#include "factory/backend_factory.hpp"
+#include "staging/staging_pool.hpp"
 
 #ifdef AMIO_HAS_G2C
 #include <grib2.h>  // nceplibs-g2c public header
@@ -52,14 +53,16 @@
 namespace eckit {
 
 class Exception : public std::runtime_error {
-public:
+   public:
     using std::runtime_error::runtime_error;
 };
 
 class Configuration {
-public:
+   public:
     virtual ~Configuration() = default;
-    virtual bool has(const std::string& /*key*/) const { return false; }
+    virtual bool has(const std::string& /*key*/) const {
+        return false;
+    }
     virtual bool getBool(const std::string& /*key*/, bool def) const {
         return def;
     }
@@ -72,25 +75,27 @@ public:
     virtual std::string getString(const std::string& key) const {
         throw Exception("Key not found: " + key);
     }
-    virtual std::string getString(const std::string& /*key*/,
-                                  const std::string& def) const {
+    virtual std::string getString(const std::string& /*key*/, const std::string& def) const {
         return def;
     }
-    virtual std::vector<std::string> getStringVector(
-        const std::string& /*key*/) const {
+    virtual std::vector<std::string> getStringVector(const std::string& /*key*/) const {
         return {};
     }
-    virtual std::vector<std::string> getStringVector(
-        const std::string& /*key*/,
-        const std::vector<std::string>& def) const {
+    virtual std::vector<std::string> getStringVector(const std::string& /*key*/, const std::vector<std::string>& def) const {
         return def;
     }
 };
 
 namespace Log {
-inline std::ostream& info() { return std::cerr; }
-inline std::ostream& warning() { return std::cerr; }
-inline std::ostream& error() { return std::cerr; }
+inline std::ostream& info() {
+    return std::cerr;
+}
+inline std::ostream& warning() {
+    return std::cerr;
+}
+inline std::ostream& error() {
+    return std::cerr;
+}
 }  // namespace Log
 
 }  // namespace eckit
@@ -115,25 +120,21 @@ BackendRegistrar<GRIB2_Driver> grib2_registrar("grib2");
 GRIB2_DRT parse_drt_name(const std::string& name) {
     // Normalize to lowercase for comparison.
     std::string lower = name;
-    std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
 
-    if (lower == "adaptive_entropy_coding" || lower == "libaec" ||
-        lower == "adaptive entropy coding via libaec" ||
+    if (lower == "adaptive_entropy_coding" || lower == "libaec" || lower == "adaptive entropy coding via libaec" ||
         lower == "adaptive entropy coding") {
         return GRIB2_DRT::AdaptiveEntropyCoding;
     }
-    if (lower == "lossless_jpeg2000" || lower == "jpeg2000" ||
-        lower == "lossless jpeg2000") {
+    if (lower == "lossless_jpeg2000" || lower == "jpeg2000" || lower == "lossless jpeg2000") {
         return GRIB2_DRT::LosslessJPEG2000;
     }
 
     // Not in the allowed set — this is an unrecognized DRT (R9.6, R9.7).
-    throw eckit::Exception(
-        "GRIB2_Driver: unrecognized Data Representation Template: '" +
-        name + "'. DRT name is not recognized. "
-        "Allowed values: {Adaptive Entropy Coding via libaec, "
-        "Lossless JPEG2000}. Zero record bytes emitted.");
+    throw eckit::Exception("GRIB2_Driver: unrecognized Data Representation Template: '" + name +
+                           "'. DRT name is not recognized. "
+                           "Allowed values: {Adaptive Entropy Coding via libaec, "
+                           "Lossless JPEG2000}. Zero record bytes emitted.");
 }
 
 // ---------------------------------------------------------------
@@ -193,8 +194,7 @@ void GRIB2_Driver::initialize(const eckit::Configuration& config) {
 #ifndef AMIO_HAS_G2C
     // Should not reach here — constructor would have thrown.
     (void)config;
-    throw eckit::Exception(
-        "GRIB2_Driver: nceplibs-g2c is not available in this build.");
+    throw eckit::Exception("GRIB2_Driver: nceplibs-g2c is not available in this build.");
 #else
     // Use async + timeout to enforce the 5-second initialization bound (R9.1).
     auto init_future = std::async(std::launch::async, [this, &config]() {
@@ -222,17 +222,14 @@ void GRIB2_Driver::initialize(const eckit::Configuration& config) {
 
         // Parse the WMO code table from configuration.
         // Expected format: parallel arrays of keys and values.
-        auto keys = config.getStringVector("wmo_code_table_keys",
-                                           std::vector<std::string>{});
-        auto values = config.getStringVector("wmo_code_table_values",
-                                             std::vector<std::string>{});
+        auto keys = config.getStringVector("wmo_code_table_keys", std::vector<std::string>{});
+        auto values = config.getStringVector("wmo_code_table_values", std::vector<std::string>{});
 
         if (keys.size() != values.size()) {
             throw eckit::Exception(
                 "GRIB2_Driver: WMO code table mapping failed to load. "
                 "Keys/values size mismatch (keys=" +
-                std::to_string(keys.size()) + ", values=" +
-                std::to_string(values.size()) + ").");
+                std::to_string(keys.size()) + ", values=" + std::to_string(values.size()) + ").");
         }
 
         for (std::size_t i = 0; i < keys.size(); ++i) {
@@ -241,7 +238,8 @@ void GRIB2_Driver::initialize(const eckit::Configuration& config) {
             } catch (const std::exception& e) {
                 throw eckit::Exception(
                     "GRIB2_Driver: WMO code table mapping failed to load. "
-                    "Invalid value for key '" + keys[i] + "': " + e.what());
+                    "Invalid value for key '" +
+                    keys[i] + "': " + e.what());
             }
         }
     });
@@ -268,8 +266,7 @@ void GRIB2_Driver::initialize(const eckit::Configuration& config) {
 
 void GRIB2_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
     if (!initialized_) {
-        throw eckit::Exception(
-            "GRIB2_Driver::write called before successful initialization");
+        throw eckit::Exception("GRIB2_Driver::write called before successful initialization");
     }
 
     // Step 1: Translate all metadata through WMO code table (R9.3, R9.8).
@@ -316,8 +313,7 @@ void GRIB2_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
     (void)encode_ptr;
     (void)payload_bytes;
     (void)translated_codes;
-    throw eckit::Exception(
-        "GRIB2_Driver::write: nceplibs-g2c not available");
+    throw eckit::Exception("GRIB2_Driver::write: nceplibs-g2c not available");
 #endif
 }
 
@@ -325,13 +321,9 @@ void GRIB2_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
 // read -- decode a GRIB2 record into StagingBuffer
 // ---------------------------------------------------------------
 
-void GRIB2_Driver::read(StagingBuffer& dst,
-                        const VarMeta& meta,
-                        std::int64_t timestep,
-                        const std::optional<BoundingBox>& bbox) {
+void GRIB2_Driver::read(StagingBuffer& dst, const VarMeta& meta, std::int64_t timestep, const std::optional<BoundingBox>& bbox) {
     if (!initialized_) {
-        throw eckit::Exception(
-            "GRIB2_Driver::read called before successful initialization");
+        throw eckit::Exception("GRIB2_Driver::read called before successful initialization");
     }
 
 #ifdef AMIO_HAS_G2C
@@ -355,8 +347,7 @@ void GRIB2_Driver::read(StagingBuffer& dst,
     (void)meta;
     (void)timestep;
     (void)bbox;
-    throw eckit::Exception(
-        "GRIB2_Driver::read: nceplibs-g2c not available");
+    throw eckit::Exception("GRIB2_Driver::read: nceplibs-g2c not available");
 #endif
 }
 
@@ -392,11 +383,9 @@ void GRIB2_Driver::close() {
 // (R9.6, R9.7)
 // ---------------------------------------------------------------
 
-GRIB2_DRT GRIB2_Driver::validate_drt(
-    const eckit::Configuration& config) const {
+GRIB2_DRT GRIB2_Driver::validate_drt(const eckit::Configuration& config) const {
     // Check if DRT field is present (R9.7 - "missing" case).
-    if (!config.has("data_representation_template") &&
-        !config.has("drt")) {
+    if (!config.has("data_representation_template") && !config.has("drt")) {
         throw eckit::Exception(
             "GRIB2_Driver: Data Representation Template field is missing "
             "from configuration. Required field: 'data_representation_"
@@ -430,8 +419,7 @@ GRIB2_DRT GRIB2_Driver::validate_drt(
 // (R9.3, R9.8)
 // ---------------------------------------------------------------
 
-std::unordered_map<std::string, std::int64_t>
-GRIB2_Driver::translate_metadata(const VarMeta& meta) const {
+std::unordered_map<std::string, std::int64_t> GRIB2_Driver::translate_metadata(const VarMeta& meta) const {
     std::unordered_map<std::string, std::int64_t> translated;
 
     // The variable name is the primary metadata key that must be
@@ -446,10 +434,9 @@ GRIB2_Driver::translate_metadata(const VarMeta& meta) const {
     // Look up the variable name in the WMO code table (R9.8).
     auto it = wmo_table_.find(meta.name);
     if (it == wmo_table_.end()) {
-        throw eckit::Exception(
-            "GRIB2_Driver: WMO metadata key '" + meta.name +
-            "' not found in WMO code table mapping. "
-            "Discarding partial record, zero output bytes.");
+        throw eckit::Exception("GRIB2_Driver: WMO metadata key '" + meta.name +
+                               "' not found in WMO code table mapping. "
+                               "Discarding partial record, zero output bytes.");
     }
     translated["variable_name"] = it->second;
 
@@ -507,11 +494,7 @@ bool GRIB2_Driver::is_contiguous_row_major(const amio_shape_t& shape) {
 // row-major order, and pass the packed buffer to the encoder.
 // ---------------------------------------------------------------
 
-std::vector<std::byte> GRIB2_Driver::pack_row_major(
-    const std::byte* src_data,
-    const amio_shape_t& shape,
-    std::size_t element_size) {
-
+std::vector<std::byte> GRIB2_Driver::pack_row_major(const std::byte* src_data, const amio_shape_t& shape, std::size_t element_size) {
     const std::size_t num_elements = total_elements(shape);
     std::vector<std::byte> packed(num_elements * element_size);
 
@@ -543,15 +526,12 @@ std::vector<std::byte> GRIB2_Driver::pack_row_major(
         // Compute source offset from indices and strides (in elements).
         std::size_t src_elem_offset = 0;
         for (std::int32_t d = 0; d < shape.rank; ++d) {
-            src_elem_offset += static_cast<std::size_t>(indices[d]) *
-                               static_cast<std::size_t>(actual_strides[d]);
+            src_elem_offset += static_cast<std::size_t>(indices[d]) * static_cast<std::size_t>(actual_strides[d]);
         }
         std::size_t src_byte_offset = src_elem_offset * element_size;
 
         // Copy one element.
-        std::memcpy(packed.data() + dst_offset,
-                    src_data + src_byte_offset,
-                    element_size);
+        std::memcpy(packed.data() + dst_offset, src_data + src_byte_offset, element_size);
         dst_offset += element_size;
 
         // Increment multi-dimensional index (row-major: last dim first).
@@ -591,17 +571,28 @@ std::size_t GRIB2_Driver::total_elements(const amio_shape_t& shape) {
 
 std::size_t GRIB2_Driver::dtype_size(amio_dtype_t dtype) {
     switch (dtype) {
-        case AMIO_DTYPE_F32: return 4;
-        case AMIO_DTYPE_F64: return 8;
-        case AMIO_DTYPE_I8:  return 1;
-        case AMIO_DTYPE_I16: return 2;
-        case AMIO_DTYPE_I32: return 4;
-        case AMIO_DTYPE_I64: return 8;
-        case AMIO_DTYPE_U8:  return 1;
-        case AMIO_DTYPE_U16: return 2;
-        case AMIO_DTYPE_U32: return 4;
-        case AMIO_DTYPE_U64: return 8;
-        default:             return 0;
+        case AMIO_DTYPE_F32:
+            return 4;
+        case AMIO_DTYPE_F64:
+            return 8;
+        case AMIO_DTYPE_I8:
+            return 1;
+        case AMIO_DTYPE_I16:
+            return 2;
+        case AMIO_DTYPE_I32:
+            return 4;
+        case AMIO_DTYPE_I64:
+            return 8;
+        case AMIO_DTYPE_U8:
+            return 1;
+        case AMIO_DTYPE_U16:
+            return 2;
+        case AMIO_DTYPE_U32:
+            return 4;
+        case AMIO_DTYPE_U64:
+            return 8;
+        default:
+            return 0;
     }
 }
 

@@ -21,9 +21,6 @@
 //   * Graceful shutdown: destructor drains and joins.
 //   * After shutdown, submit is a no-op.
 
-#include "workers/worker_pool.hpp"
-#include "workers/mpi_threading.hpp"
-
 #include <atomic>
 #include <cassert>
 #include <chrono>
@@ -33,14 +30,17 @@
 #include <thread>
 #include <vector>
 
+#include "workers/mpi_threading.hpp"
+#include "workers/worker_pool.hpp"
+
 namespace {
 
+using amio::detail::BackpressureConfig;
 using amio::detail::DatasetVariableKey;
+using amio::detail::IOCommunicator;
+using amio::detail::ThreadConfig;
 using amio::detail::WorkerPool;
 using amio::detail::WorkerPoolConfig;
-using amio::detail::BackpressureConfig;
-using amio::detail::ThreadConfig;
-using amio::detail::IOCommunicator;
 
 struct TestResult {
     int passed = 0;
@@ -49,21 +49,18 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char* expr, const char* file, int line, const std::string& context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
 // ---- Test: construction starts correct number of threads ----
@@ -71,13 +68,11 @@ void report_failure(const char *expr, const char *file, int line,
 void test_construction_thread_count() {
     {
         WorkerPool pool(1);
-        EXPECT_TRUE(pool.thread_count() == 1,
-                    "thread_count should be 1");
+        EXPECT_TRUE(pool.thread_count() == 1, "thread_count should be 1");
     }
     {
         WorkerPool pool(4);
-        EXPECT_TRUE(pool.thread_count() == 4,
-                    "thread_count should be 4");
+        EXPECT_TRUE(pool.thread_count() == 4, "thread_count should be 4");
     }
 }
 
@@ -89,16 +84,12 @@ void test_submit_write_executes_callback() {
     std::atomic<int> counter{0};
 
     DatasetVariableKey key{1, 1};
-    pool.submit_write(key, [&]() {
-        counter.fetch_add(1, std::memory_order_relaxed);
-    });
+    pool.submit_write(key, [&]() { counter.fetch_add(1, std::memory_order_relaxed); });
 
     pool.drain();
 
-    EXPECT_TRUE(counter.load() == 1,
-                "write callback should have been executed once");
-    EXPECT_TRUE(pool.total_writes_completed() == 1,
-                "total_writes_completed should be 1");
+    EXPECT_TRUE(counter.load() == 1, "write callback should have been executed once");
+    EXPECT_TRUE(pool.total_writes_completed() == 1, "total_writes_completed should be 1");
 }
 
 // ---- Test: multiple writes execute ----
@@ -111,18 +102,13 @@ void test_multiple_writes_execute() {
 
     DatasetVariableKey key{1, 1};
     for (int i = 0; i < kTasks; ++i) {
-        pool.submit_write(key, [&]() {
-            counter.fetch_add(1, std::memory_order_relaxed);
-        });
+        pool.submit_write(key, [&]() { counter.fetch_add(1, std::memory_order_relaxed); });
     }
 
     pool.drain();
 
-    EXPECT_TRUE(counter.load() == kTasks,
-                "all write callbacks should have executed, got " +
-                std::to_string(counter.load()));
-    EXPECT_TRUE(pool.total_writes_completed() == kTasks,
-                "total_writes_completed mismatch");
+    EXPECT_TRUE(counter.load() == kTasks, "all write callbacks should have executed, got " + std::to_string(counter.load()));
+    EXPECT_TRUE(pool.total_writes_completed() == kTasks, "total_writes_completed mismatch");
 }
 
 // ---- Test: per-(dataset,variable) ordering preserved ----
@@ -149,8 +135,7 @@ void test_per_dv_ordering_preserved() {
 
     pool.drain();
 
-    EXPECT_TRUE(static_cast<int>(execution_order.size()) == kTasks,
-                "all tasks should have executed");
+    EXPECT_TRUE(static_cast<int>(execution_order.size()) == kTasks, "all tasks should have executed");
 
     // Verify strict ordering.
     bool ordered = true;
@@ -191,10 +176,8 @@ void test_different_dv_pairs_interleave() {
 
     pool.drain();
 
-    EXPECT_TRUE(counter_a.load() == kTasks,
-                "all key_a tasks should complete");
-    EXPECT_TRUE(counter_b.load() == kTasks,
-                "all key_b tasks should complete");
+    EXPECT_TRUE(counter_a.load() == kTasks, "all key_a tasks should complete");
+    EXPECT_TRUE(counter_b.load() == kTasks, "all key_b tasks should complete");
 }
 
 // ---- Test: submit_prefetch executes callback ----
@@ -205,16 +188,12 @@ void test_submit_prefetch_executes_callback() {
     std::atomic<int> counter{0};
 
     pool.submit_prefetch(/*timestep=*/5, /*distance=*/3,
-                         /*dataset_id=*/1, [&]() {
-        counter.fetch_add(1, std::memory_order_relaxed);
-    });
+                         /*dataset_id=*/1, [&]() { counter.fetch_add(1, std::memory_order_relaxed); });
 
     pool.drain();
 
-    EXPECT_TRUE(counter.load() == 1,
-                "prefetch callback should have been executed");
-    EXPECT_TRUE(pool.total_prefetches_completed() == 1,
-                "total_prefetches_completed should be 1");
+    EXPECT_TRUE(counter.load() == 1, "prefetch callback should have been executed");
+    EXPECT_TRUE(pool.total_prefetches_completed() == 1, "total_prefetches_completed should be 1");
 }
 
 // ---- Test: prefetch priority by distance ----
@@ -235,9 +214,9 @@ void test_prefetch_priority_by_distance() {
     };
     PrefetchSpec specs[] = {
         {10, 10},
-        {5,  5},
-        {1,  1},
-        {3,  3},
+        {5, 5},
+        {1, 1},
+        {3, 3},
     };
 
     // Submit all before any can execute by holding the pool busy.
@@ -258,9 +237,9 @@ void test_prefetch_priority_by_distance() {
     for (const auto& spec : specs) {
         pool.submit_prefetch(spec.timestep, spec.distance,
                              /*dataset_id=*/1, [&, ts = spec.timestep]() {
-            std::lock_guard<std::mutex> lock(mu);
-            execution_order.push_back(ts);
-        });
+                                 std::lock_guard<std::mutex> lock(mu);
+                                 execution_order.push_back(ts);
+                             });
     }
 
     // Release the gate.
@@ -268,19 +247,14 @@ void test_prefetch_priority_by_distance() {
 
     pool.drain();
 
-    EXPECT_TRUE(execution_order.size() == 4,
-                "all prefetch tasks should execute");
+    EXPECT_TRUE(execution_order.size() == 4, "all prefetch tasks should execute");
 
     // Verify priority order: distance 1, 3, 5, 10 → timesteps 1, 3, 5, 10.
     if (execution_order.size() == 4) {
-        EXPECT_TRUE(execution_order[0] == 1,
-                    "first prefetch should be distance=1 (timestep=1)");
-        EXPECT_TRUE(execution_order[1] == 3,
-                    "second prefetch should be distance=3 (timestep=3)");
-        EXPECT_TRUE(execution_order[2] == 5,
-                    "third prefetch should be distance=5 (timestep=5)");
-        EXPECT_TRUE(execution_order[3] == 10,
-                    "fourth prefetch should be distance=10 (timestep=10)");
+        EXPECT_TRUE(execution_order[0] == 1, "first prefetch should be distance=1 (timestep=1)");
+        EXPECT_TRUE(execution_order[1] == 3, "second prefetch should be distance=3 (timestep=3)");
+        EXPECT_TRUE(execution_order[2] == 5, "third prefetch should be distance=5 (timestep=5)");
+        EXPECT_TRUE(execution_order[3] == 10, "fourth prefetch should be distance=10 (timestep=10)");
     }
 }
 
@@ -302,8 +276,7 @@ void test_drain_blocks_until_complete() {
     pool.drain();
 
     // After drain returns, all tasks must be complete.
-    EXPECT_TRUE(counter.load() == 10,
-                "all tasks should be complete after drain");
+    EXPECT_TRUE(counter.load() == 10, "all tasks should be complete after drain");
 }
 
 // ---- Test: write_queue_depth and prefetch_queue_depth ----
@@ -329,19 +302,15 @@ void test_queue_depth_reporting() {
     pool.submit_write(key2, [&]() {});
     pool.submit_prefetch(1, 1, 1, [&]() {});
 
-    EXPECT_TRUE(pool.write_queue_depth() == 2,
-                "write_queue_depth should be 2");
-    EXPECT_TRUE(pool.prefetch_queue_depth() == 1,
-                "prefetch_queue_depth should be 1");
+    EXPECT_TRUE(pool.write_queue_depth() == 2, "write_queue_depth should be 2");
+    EXPECT_TRUE(pool.prefetch_queue_depth() == 1, "prefetch_queue_depth should be 1");
 
     // Release gate and drain.
     gate.store(true, std::memory_order_release);
     pool.drain();
 
-    EXPECT_TRUE(pool.write_queue_depth() == 0,
-                "write_queue_depth should be 0 after drain");
-    EXPECT_TRUE(pool.prefetch_queue_depth() == 0,
-                "prefetch_queue_depth should be 0 after drain");
+    EXPECT_TRUE(pool.write_queue_depth() == 0, "write_queue_depth should be 0 after drain");
+    EXPECT_TRUE(pool.prefetch_queue_depth() == 0, "prefetch_queue_depth should be 0 after drain");
 }
 
 // ---- Test: shutdown makes submit no-op ----
@@ -354,18 +323,13 @@ void test_shutdown_makes_submit_noop() {
 
     std::atomic<int> counter{0};
     DatasetVariableKey key{1, 1};
-    pool.submit_write(key, [&]() {
-        counter.fetch_add(1, std::memory_order_relaxed);
-    });
-    pool.submit_prefetch(1, 1, 1, [&]() {
-        counter.fetch_add(1, std::memory_order_relaxed);
-    });
+    pool.submit_write(key, [&]() { counter.fetch_add(1, std::memory_order_relaxed); });
+    pool.submit_prefetch(1, 1, 1, [&]() { counter.fetch_add(1, std::memory_order_relaxed); });
 
     // Give a moment for any accidental execution.
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
-    EXPECT_TRUE(counter.load() == 0,
-                "no callbacks should execute after shutdown");
+    EXPECT_TRUE(counter.load() == 0, "no callbacks should execute after shutdown");
 }
 
 // ---- Test: destructor drains and joins gracefully ----
@@ -378,16 +342,14 @@ void test_destructor_drains_gracefully() {
         DatasetVariableKey key{1, 1};
         for (int i = 0; i < 10; ++i) {
             pool.submit_write(key, [&]() {
-                std::this_thread::sleep_for(
-                    std::chrono::microseconds(100));
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
                 counter.fetch_add(1, std::memory_order_relaxed);
             });
         }
         // Destructor should drain and join.
     }
 
-    EXPECT_TRUE(counter.load() == 10,
-                "destructor should drain all tasks before returning");
+    EXPECT_TRUE(counter.load() == 10, "destructor should drain all tasks before returning");
 }
 
 // ---- Test: sequence numbers are assigned correctly ----
@@ -407,8 +369,7 @@ void test_sequence_numbers_assigned() {
     // Different key gets its own sequence.
     DatasetVariableKey key2{2, 2};
     auto seq_b0 = pool.submit_write(key2, []() {});
-    EXPECT_TRUE(seq_b0 == 0,
-                "different key should start at seq 0");
+    EXPECT_TRUE(seq_b0 == 0, "different key should start at seq 0");
 
     pool.drain();
 }
@@ -429,8 +390,7 @@ void test_concurrent_writes_multiple_keys() {
         DatasetVariableKey key{static_cast<std::uint64_t>(k), 0};
         for (int i = 0; i < kTasksPerKey; ++i) {
             pool.submit_write(key, [&, k, i]() {
-                std::this_thread::sleep_for(
-                    std::chrono::microseconds(10));
+                std::this_thread::sleep_for(std::chrono::microseconds(10));
                 std::lock_guard<std::mutex> lock(mu);
                 orders[static_cast<std::uint64_t>(k)].push_back(i);
             });
@@ -458,9 +418,7 @@ void test_concurrent_writes_multiple_keys() {
     EXPECT_TRUE(all_ordered,
                 "each (dataset,variable) key should have tasks in "
                 "submission order");
-    EXPECT_TRUE(pool.total_writes_completed() ==
-                static_cast<std::uint64_t>(kKeys * kTasksPerKey),
-                "total writes completed mismatch");
+    EXPECT_TRUE(pool.total_writes_completed() == static_cast<std::uint64_t>(kKeys * kTasksPerKey), "total writes completed mismatch");
 }
 
 // ---- Test: mixed write and prefetch tasks ----
@@ -473,20 +431,14 @@ void test_mixed_write_and_prefetch() {
 
     DatasetVariableKey key{1, 1};
     for (int i = 0; i < 10; ++i) {
-        pool.submit_write(key, [&]() {
-            write_count.fetch_add(1, std::memory_order_relaxed);
-        });
-        pool.submit_prefetch(i, i, 1, [&]() {
-            prefetch_count.fetch_add(1, std::memory_order_relaxed);
-        });
+        pool.submit_write(key, [&]() { write_count.fetch_add(1, std::memory_order_relaxed); });
+        pool.submit_prefetch(i, i, 1, [&]() { prefetch_count.fetch_add(1, std::memory_order_relaxed); });
     }
 
     pool.drain();
 
-    EXPECT_TRUE(write_count.load() == 10,
-                "all write tasks should complete");
-    EXPECT_TRUE(prefetch_count.load() == 10,
-                "all prefetch tasks should complete");
+    EXPECT_TRUE(write_count.load() == 10, "all write tasks should complete");
+    EXPECT_TRUE(prefetch_count.load() == 10, "all prefetch tasks should complete");
 }
 
 // ---- Test: WorkerPoolConfig constructor with default config ----
@@ -498,24 +450,17 @@ void test_config_constructor_default() {
 
     WorkerPool pool(config);
 
-    EXPECT_TRUE(pool.thread_count() == 2,
-                "config constructor should set thread_count=2");
-    EXPECT_TRUE(pool.io_communicator().valid,
-                "default io_communicator should be valid");
-    EXPECT_TRUE(pool.io_communicator().is_io_rank,
-                "default io_communicator should mark all ranks as I/O");
-    EXPECT_TRUE(pool.pinning_errors() == 0,
-                "no pinning errors with default config");
+    EXPECT_TRUE(pool.thread_count() == 2, "config constructor should set thread_count=2");
+    EXPECT_TRUE(pool.io_communicator().valid, "default io_communicator should be valid");
+    EXPECT_TRUE(pool.io_communicator().is_io_rank, "default io_communicator should mark all ranks as I/O");
+    EXPECT_TRUE(pool.pinning_errors() == 0, "no pinning errors with default config");
 
     // Verify the pool still works.
     std::atomic<int> counter{0};
     DatasetVariableKey key{1, 1};
-    pool.submit_write(key, [&]() {
-        counter.fetch_add(1, std::memory_order_relaxed);
-    });
+    pool.submit_write(key, [&]() { counter.fetch_add(1, std::memory_order_relaxed); });
     pool.drain();
-    EXPECT_TRUE(counter.load() == 1,
-                "config-constructed pool should execute tasks");
+    EXPECT_TRUE(counter.load() == 1, "config-constructed pool should execute tasks");
 }
 
 // ---- Test: WorkerPoolConfig with IOCommunicator ----
@@ -523,21 +468,17 @@ void test_config_constructor_default() {
 void test_config_constructor_with_io_comm() {
     WorkerPoolConfig config;
     config.thread_count = 2;
-    config.io_comm.valid      = true;
+    config.io_comm.valid = true;
     config.io_comm.is_io_rank = true;
     config.io_comm.io_comm_id = 42;
     config.io_comm.compute_comm_id = 7;
 
     WorkerPool pool(config);
 
-    EXPECT_TRUE(pool.io_communicator().valid,
-                "io_communicator should be valid");
-    EXPECT_TRUE(pool.io_communicator().is_io_rank,
-                "io_communicator should report is_io_rank");
-    EXPECT_TRUE(pool.io_communicator().io_comm_id == 42,
-                "io_communicator io_comm_id should be 42");
-    EXPECT_TRUE(pool.io_communicator().compute_comm_id == 7,
-                "io_communicator compute_comm_id should be 7");
+    EXPECT_TRUE(pool.io_communicator().valid, "io_communicator should be valid");
+    EXPECT_TRUE(pool.io_communicator().is_io_rank, "io_communicator should report is_io_rank");
+    EXPECT_TRUE(pool.io_communicator().io_comm_id == 42, "io_communicator io_comm_id should be 42");
+    EXPECT_TRUE(pool.io_communicator().compute_comm_id == 7, "io_communicator compute_comm_id should be 7");
 }
 
 // ---- Test: WorkerPoolConfig with invalid pinning records errors ----
@@ -558,19 +499,14 @@ void test_config_constructor_invalid_pinning() {
 
     // On Linux, pinning to core 99999 should fail.
     // On non-Linux, any non-default config fails.
-    EXPECT_TRUE(pool.pinning_errors() == 2,
-                "both threads should report pinning errors, got " +
-                std::to_string(pool.pinning_errors()));
+    EXPECT_TRUE(pool.pinning_errors() == 2, "both threads should report pinning errors, got " + std::to_string(pool.pinning_errors()));
 
     // Pool should still function despite pinning failures.
     std::atomic<int> counter{0};
     DatasetVariableKey key{1, 1};
-    pool.submit_write(key, [&]() {
-        counter.fetch_add(1, std::memory_order_relaxed);
-    });
+    pool.submit_write(key, [&]() { counter.fetch_add(1, std::memory_order_relaxed); });
     pool.drain();
-    EXPECT_TRUE(counter.load() == 1,
-                "pool should still work after pinning failures");
+    EXPECT_TRUE(counter.load() == 1, "pool should still work after pinning failures");
 }
 
 // ---- Test: WorkerPoolConfig with valid pinning (Linux only) ----
@@ -597,24 +533,18 @@ void test_config_constructor_valid_pinning() {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
 #if defined(__linux__)
-    EXPECT_TRUE(pool.pinning_errors() == 0,
-                "valid pinning should succeed on Linux, got " +
-                std::to_string(pool.pinning_errors()) + " errors");
+    EXPECT_TRUE(pool.pinning_errors() == 0, "valid pinning should succeed on Linux, got " + std::to_string(pool.pinning_errors()) + " errors");
 #else
     // On non-Linux, non-default configs always fail.
-    EXPECT_TRUE(pool.pinning_errors() == 2,
-                "non-Linux should report pinning errors");
+    EXPECT_TRUE(pool.pinning_errors() == 2, "non-Linux should report pinning errors");
 #endif
 
     // Pool should function.
     std::atomic<int> counter{0};
     DatasetVariableKey key{1, 1};
-    pool.submit_write(key, [&]() {
-        counter.fetch_add(1, std::memory_order_relaxed);
-    });
+    pool.submit_write(key, [&]() { counter.fetch_add(1, std::memory_order_relaxed); });
     pool.drain();
-    EXPECT_TRUE(counter.load() == 1,
-                "pool should work with valid pinning");
+    EXPECT_TRUE(counter.load() == 1, "pool should work with valid pinning");
 }
 
 // ---- Test: Backend_Driver MPI calls routed through I/O communicator ----
@@ -625,7 +555,7 @@ void test_backend_driver_uses_io_comm() {
     // would route MPI calls through the I/O communicator (R3.5).
     WorkerPoolConfig config;
     config.thread_count = 1;
-    config.io_comm.valid      = true;
+    config.io_comm.valid = true;
     config.io_comm.is_io_rank = true;
     config.io_comm.io_comm_id = 123;
     config.io_comm.compute_comm_id = 456;
@@ -647,11 +577,8 @@ void test_backend_driver_uses_io_comm() {
 
     pool.drain();
 
-    EXPECT_TRUE(observed_io_comm.load() == 123,
-                "Backend_Driver should see io_comm_id=123, got " +
-                std::to_string(observed_io_comm.load()));
-    EXPECT_TRUE(observed_is_io.load(),
-                "Backend_Driver should see is_io_rank=true");
+    EXPECT_TRUE(observed_io_comm.load() == 123, "Backend_Driver should see io_comm_id=123, got " + std::to_string(observed_io_comm.load()));
+    EXPECT_TRUE(observed_is_io.load(), "Backend_Driver should see is_io_rank=true");
 }
 
 // ---- Test: Full init-time validation flow (R3.2, R3.3, R3.5, R3.6) ----
@@ -675,20 +602,17 @@ void test_full_init_validation_flow_success() {
     // Step 1: Validate thread bindings (default = no pinning).
     ThreadConfig thread_cfg;
     amio_err_t rc = validate_thread_config(thread_cfg);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "default thread config should validate OK");
+    EXPECT_TRUE(rc == AMIO_OK, "default thread config should validate OK");
 
     // Step 2: Validate comm config (default = no split).
     CommConfig comm_cfg;
     rc = validate_comm_config(comm_cfg);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "default comm config should validate OK");
+    EXPECT_TRUE(rc == AMIO_OK, "default comm config should validate OK");
 
     // Step 3: Perform comm split.
     IOCommunicator io_comm;
     rc = split_communicator(comm_cfg, 0, io_comm);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "default comm split should succeed");
+    EXPECT_TRUE(rc == AMIO_OK, "default comm split should succeed");
     EXPECT_TRUE(io_comm.valid, "io_comm should be valid");
     EXPECT_TRUE(io_comm.is_io_rank, "all ranks should be I/O in default mode");
 
@@ -700,24 +624,17 @@ void test_full_init_validation_flow_success() {
 
     WorkerPool pool(pool_cfg);
 
-    EXPECT_TRUE(pool.thread_count() == 2,
-                "pool should have 2 threads");
-    EXPECT_TRUE(pool.io_communicator().valid,
-                "pool io_communicator should be valid");
-    EXPECT_TRUE(pool.io_communicator().is_io_rank,
-                "pool should report is_io_rank=true");
-    EXPECT_TRUE(pool.pinning_errors() == 0,
-                "no pinning errors with default config");
+    EXPECT_TRUE(pool.thread_count() == 2, "pool should have 2 threads");
+    EXPECT_TRUE(pool.io_communicator().valid, "pool io_communicator should be valid");
+    EXPECT_TRUE(pool.io_communicator().is_io_rank, "pool should report is_io_rank=true");
+    EXPECT_TRUE(pool.pinning_errors() == 0, "no pinning errors with default config");
 
     // Verify pool functions correctly.
     std::atomic<int> counter{0};
     DatasetVariableKey key{1, 1};
-    pool.submit_write(key, [&]() {
-        counter.fetch_add(1, std::memory_order_relaxed);
-    });
+    pool.submit_write(key, [&]() { counter.fetch_add(1, std::memory_order_relaxed); });
     pool.drain();
-    EXPECT_TRUE(counter.load() == 1,
-                "pool should execute tasks after full init flow");
+    EXPECT_TRUE(counter.load() == 1, "pool should execute tasks after full init flow");
 }
 
 void test_full_init_validation_flow_invalid_binding() {
@@ -729,8 +646,7 @@ void test_full_init_validation_flow_invalid_binding() {
     bad_cfg.cpu_cores = {99999};  // Invalid core.
 
     amio_err_t rc = validate_thread_config(bad_cfg);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "invalid binding should be detected at init time");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "invalid binding should be detected at init time");
 
     // amio_init would return AMIO_ERR_INVALID_BINDING here and NOT
     // create the WorkerPool.  The host affinity is unchanged because
@@ -749,16 +665,13 @@ void test_full_init_validation_flow_invalid_comm_split() {
     bad_cfg.world_size = 4;
 
     amio_err_t rc = validate_comm_config(bad_cfg);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "invalid comm config should be detected at init time");
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "invalid comm config should be detected at init time");
 
     // Even if we try the split, it should fail.
     IOCommunicator io_comm;
     rc = split_communicator(bad_cfg, 0, io_comm);
-    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED,
-                "split with invalid ranks should fail");
-    EXPECT_TRUE(!io_comm.valid,
-                "io_comm should not be valid on failure");
+    EXPECT_TRUE(rc == AMIO_ERR_COMM_SPLIT_FAILED, "split with invalid ranks should fail");
+    EXPECT_TRUE(!io_comm.valid, "io_comm should not be valid on failure");
 
     // amio_init would return AMIO_ERR_COMM_SPLIT_FAILED here and NOT
     // create the WorkerPool.  The world communicator is unmodified.
@@ -770,7 +683,7 @@ void test_all_backend_calls_use_io_comm_only() {
     // through it (R3.5).
     WorkerPoolConfig config;
     config.thread_count = 2;
-    config.io_comm.valid      = true;
+    config.io_comm.valid = true;
     config.io_comm.is_io_rank = true;
     config.io_comm.io_comm_id = 777;
     config.io_comm.compute_comm_id = 888;
@@ -786,8 +699,7 @@ void test_all_backend_calls_use_io_comm_only() {
         DatasetVariableKey key{static_cast<uint64_t>(i), 0};
         pool.submit_write(key, [&]() {
             const auto& comm = pool.io_communicator();
-            if (comm.valid && comm.io_comm_id == 777 &&
-                comm.is_io_rank) {
+            if (comm.valid && comm.io_comm_id == 777 && comm.is_io_rank) {
                 correct_comm_count.fetch_add(1, std::memory_order_relaxed);
             }
         });
@@ -795,10 +707,8 @@ void test_all_backend_calls_use_io_comm_only() {
 
     pool.drain();
 
-    EXPECT_TRUE(correct_comm_count.load() == kTasks,
-                "all " + std::to_string(kTasks) +
-                " Backend_Driver callbacks should see io_comm_id=777, got " +
-                std::to_string(correct_comm_count.load()));
+    EXPECT_TRUE(correct_comm_count.load() == kTasks, "all " + std::to_string(kTasks) + " Backend_Driver callbacks should see io_comm_id=777, got " +
+                                                         std::to_string(correct_comm_count.load()));
 }
 
 // ---- Test: MPI threading validation (R3.8) ----
@@ -813,8 +723,7 @@ void test_mpi_threading_validation_no_background_mpi() {
     cfg.mpi_thread_level_provided = amio::detail::kMpiThreadSingle;
 
     amio_err_t rc = validate_mpi_threading(cfg);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "no background MPI-IO should pass regardless of thread level");
+    EXPECT_TRUE(rc == AMIO_OK, "no background MPI-IO should pass regardless of thread level");
 }
 
 void test_mpi_threading_validation_thread_multiple_ok() {
@@ -827,8 +736,7 @@ void test_mpi_threading_validation_thread_multiple_ok() {
     cfg.mpi_thread_level_provided = amio::detail::kMpiThreadMultiple;
 
     amio_err_t rc = validate_mpi_threading(cfg);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "MPI_THREAD_MULTIPLE should satisfy background MPI-IO");
+    EXPECT_TRUE(rc == AMIO_OK, "MPI_THREAD_MULTIPLE should satisfy background MPI-IO");
 }
 
 void test_mpi_threading_validation_insufficient_level() {
@@ -841,8 +749,7 @@ void test_mpi_threading_validation_insufficient_level() {
     cfg.mpi_thread_level_provided = amio::detail::kMpiThreadSerialized;
 
     amio_err_t rc = validate_mpi_threading(cfg);
-    EXPECT_TRUE(rc == AMIO_ERR_THREADING_UNSUPPORTED,
-                "MPI_THREAD_SERIALIZED should fail for background MPI-IO");
+    EXPECT_TRUE(rc == AMIO_ERR_THREADING_UNSUPPORTED, "MPI_THREAD_SERIALIZED should fail for background MPI-IO");
 }
 
 void test_mpi_threading_validation_mpi_not_initialized() {
@@ -855,8 +762,7 @@ void test_mpi_threading_validation_mpi_not_initialized() {
     cfg.mpi_thread_level_provided = -1;
 
     amio_err_t rc = validate_mpi_threading(cfg);
-    EXPECT_TRUE(rc == AMIO_ERR_THREADING_UNSUPPORTED,
-                "MPI not initialized should fail for background MPI-IO");
+    EXPECT_TRUE(rc == AMIO_ERR_THREADING_UNSUPPORTED, "MPI not initialized should fail for background MPI-IO");
 }
 
 void test_mpi_threading_validation_funneled_insufficient() {
@@ -869,8 +775,7 @@ void test_mpi_threading_validation_funneled_insufficient() {
     cfg.mpi_thread_level_provided = amio::detail::kMpiThreadFunneled;
 
     amio_err_t rc = validate_mpi_threading(cfg);
-    EXPECT_TRUE(rc == AMIO_ERR_THREADING_UNSUPPORTED,
-                "MPI_THREAD_FUNNELED should fail for background MPI-IO");
+    EXPECT_TRUE(rc == AMIO_ERR_THREADING_UNSUPPORTED, "MPI_THREAD_FUNNELED should fail for background MPI-IO");
 }
 
 // ---- Test: Queue-full without backpressure (R6.9) ----
@@ -901,18 +806,14 @@ void test_queue_full_without_backpressure() {
     for (int i = 0; i < 5; ++i) {
         std::uint64_t seq = 0;
         amio_err_t rc = pool.submit_write(key2, []() {}, &seq);
-        EXPECT_TRUE(rc == AMIO_OK,
-                    "submit within capacity should succeed, task " +
-                    std::to_string(i));
+        EXPECT_TRUE(rc == AMIO_OK, "submit within capacity should succeed, task " + std::to_string(i));
     }
 
     // Next submit should fail with AMIO_ERR_QUEUE_FULL.
     std::uint64_t seq = 0;
     amio_err_t rc = pool.submit_write(key2, []() {}, &seq);
-    EXPECT_TRUE(rc == AMIO_ERR_QUEUE_FULL,
-                "submit beyond capacity should return AMIO_ERR_QUEUE_FULL");
-    EXPECT_TRUE(seq == 0,
-                "seq_out should be 0 on queue-full rejection");
+    EXPECT_TRUE(rc == AMIO_ERR_QUEUE_FULL, "submit beyond capacity should return AMIO_ERR_QUEUE_FULL");
+    EXPECT_TRUE(seq == 0, "seq_out should be 0 on queue-full rejection");
 
     // Release gate and drain.
     gate.store(true, std::memory_order_release);
@@ -946,8 +847,7 @@ void test_queue_full_legacy_interface() {
 
     // Next submit via legacy interface should return 0.
     auto seq = pool.submit_write(key2, []() {});
-    EXPECT_TRUE(seq == 0,
-                "legacy submit_write should return 0 on queue-full");
+    EXPECT_TRUE(seq == 0, "legacy submit_write should return 0 on queue-full");
 
     gate.store(true, std::memory_order_release);
     pool.drain();
@@ -967,14 +867,10 @@ void test_backpressure_blocks_at_high_watermark() {
 
     WorkerPool pool(config);
 
-    EXPECT_TRUE(pool.backpressure_enabled(),
-                "backpressure should be enabled");
-    EXPECT_TRUE(pool.low_watermark() == 2,
-                "low_watermark should be 2");
-    EXPECT_TRUE(pool.high_watermark() == 5,
-                "high_watermark should be 5");
-    EXPECT_TRUE(pool.queue_capacity() == 10,
-                "queue_capacity should be 10");
+    EXPECT_TRUE(pool.backpressure_enabled(), "backpressure should be enabled");
+    EXPECT_TRUE(pool.low_watermark() == 2, "low_watermark should be 2");
+    EXPECT_TRUE(pool.high_watermark() == 5, "high_watermark should be 5");
+    EXPECT_TRUE(pool.queue_capacity() == 10, "queue_capacity should be 10");
 
     // Block the workers so tasks accumulate.
     std::atomic<bool> gate{false};
@@ -999,9 +895,7 @@ void test_backpressure_blocks_at_high_watermark() {
     for (int i = 0; i < 5; ++i) {
         std::uint64_t seq = 0;
         amio_err_t rc = pool.submit_write(key2, []() {}, &seq);
-        EXPECT_TRUE(rc == AMIO_OK,
-                    "submit below high_watermark should succeed, task " +
-                    std::to_string(i));
+        EXPECT_TRUE(rc == AMIO_OK, "submit below high_watermark should succeed, task " + std::to_string(i));
     }
 
     // Now queue depth is 5 (== H). Next submit should block.
@@ -1016,16 +910,14 @@ void test_backpressure_blocks_at_high_watermark() {
 
     // Give the submitter time to block.
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    EXPECT_TRUE(!submit_completed.load(std::memory_order_acquire),
-                "submit should be blocked at high_watermark");
+    EXPECT_TRUE(!submit_completed.load(std::memory_order_acquire), "submit should be blocked at high_watermark");
 
     // Release the gate so workers can drain tasks.
     gate.store(true, std::memory_order_release);
 
     // Wait for the submitter to complete.
     submitter.join();
-    EXPECT_TRUE(submit_completed.load(std::memory_order_acquire),
-                "submit should complete after queue drains below low_watermark");
+    EXPECT_TRUE(submit_completed.load(std::memory_order_acquire), "submit should complete after queue drains below low_watermark");
 
     pool.drain();
 }
@@ -1034,10 +926,8 @@ void test_backpressure_config_accessors() {
     // Test default (no backpressure).
     {
         WorkerPool pool(2);
-        EXPECT_TRUE(!pool.backpressure_enabled(),
-                    "default pool should not have backpressure enabled");
-        EXPECT_TRUE(pool.queue_capacity() == 1024,
-                    "default queue_capacity should be 1024");
+        EXPECT_TRUE(!pool.backpressure_enabled(), "default pool should not have backpressure enabled");
+        EXPECT_TRUE(pool.queue_capacity() == 1024, "default queue_capacity should be 1024");
     }
 
     // Test with explicit config.
@@ -1050,14 +940,10 @@ void test_backpressure_config_accessors() {
         config.backpressure.queue_capacity = 100;
 
         WorkerPool pool(config);
-        EXPECT_TRUE(pool.backpressure_enabled(),
-                    "configured pool should have backpressure enabled");
-        EXPECT_TRUE(pool.low_watermark() == 10,
-                    "low_watermark should be 10");
-        EXPECT_TRUE(pool.high_watermark() == 50,
-                    "high_watermark should be 50");
-        EXPECT_TRUE(pool.queue_capacity() == 100,
-                    "queue_capacity should be 100");
+        EXPECT_TRUE(pool.backpressure_enabled(), "configured pool should have backpressure enabled");
+        EXPECT_TRUE(pool.low_watermark() == 10, "low_watermark should be 10");
+        EXPECT_TRUE(pool.high_watermark() == 50, "high_watermark should be 50");
+        EXPECT_TRUE(pool.queue_capacity() == 100, "queue_capacity should be 100");
     }
 }
 
@@ -1096,16 +982,14 @@ void test_backpressure_shutdown_unblocks_writers() {
     });
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    EXPECT_TRUE(!submit_done.load(std::memory_order_acquire),
-                "submit should be blocked");
+    EXPECT_TRUE(!submit_done.load(std::memory_order_acquire), "submit should be blocked");
 
     // Shutdown should unblock the writer.
     gate.store(true, std::memory_order_release);
     pool.shutdown();
 
     submitter.join();
-    EXPECT_TRUE(submit_done.load(std::memory_order_acquire),
-                "shutdown should unblock blocked writer");
+    EXPECT_TRUE(submit_done.load(std::memory_order_acquire), "shutdown should unblock blocked writer");
 }
 
 }  // namespace
@@ -1147,9 +1031,7 @@ int main() {
     test_backpressure_config_accessors();
     test_backpressure_shutdown_unblocks_writers();
 
-    std::fprintf(stdout,
-                 "test_worker_pool: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_worker_pool: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

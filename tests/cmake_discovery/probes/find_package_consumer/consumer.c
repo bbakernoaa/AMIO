@@ -16,13 +16,12 @@
 
 #include <amio/amio.h>
 
-int main(void)
-{
+int main(void) {
     /* Reference the declared opaque handle so the linker is forced
      * to resolve against libamio.so's exported symbol set, which is
      * what R13.2 ultimately turns into a "no Rust/Cargo/Go in the
      * dependency closure" assertion.
      */
-    amio_core_handle h = (amio_core_handle) 0;
+    amio_core_handle h = (amio_core_handle)0;
     return (h == 0) ? 0 : 1;
 }

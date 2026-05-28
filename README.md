@@ -114,9 +114,9 @@ Google TensorStore relies on the Bazel build system, which aggressively fetches 
 | **MPI Thread Contention**
 Executing NetCDF MPI-IO writes from an ecKit background thread while the host model performs MPI Halo exchanges may trigger fatal segmentation faults in legacy environments. | Medium | Target models must be updated to initialize the runtime using MPI_Init_thread() requesting MPI_THREAD_MULTIPLE. Furthermore, AMIO will provide a strictly synchronous execution toggle (amio_wait) for legacy clusters lacking robust multi-threading support. |
 
-   
+
 ## License
 
-This project is part of NOAA-EMC Ecosystem. 
+This project is part of NOAA-EMC Ecosystem.
 
 See LICENSE and DISCLAIMER for details.

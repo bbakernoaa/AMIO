@@ -29,25 +29,14 @@ namespace amio::pbt {
 // ===================================================================
 
 struct MpiCallRecord {
-    enum class Operation {
-        Init,
-        Finalize,
-        CommSplit,
-        CommFree,
-        Barrier,
-        Allreduce,
-        Bcast,
-        Send,
-        Recv,
-        QueryThreadLevel
-    };
+    enum class Operation { Init, Finalize, CommSplit, CommFree, Barrier, Allreduce, Bcast, Send, Recv, QueryThreadLevel };
 
-    Operation   operation;
-    int         color       = 0;    // for CommSplit
-    int         key         = 0;    // for CommSplit
-    int         source_rank = 0;
-    int         dest_rank   = 0;
-    std::string tag;                // descriptive tag
+    Operation operation;
+    int color = 0;  // for CommSplit
+    int key = 0;    // for CommSplit
+    int source_rank = 0;
+    int dest_rank = 0;
+    std::string tag;  // descriptive tag
 };
 
 // ===================================================================
@@ -57,7 +46,7 @@ struct MpiCallRecord {
 // ===================================================================
 
 class MockMpi {
-public:
+   public:
     MockMpi() = default;
     ~MockMpi() = default;
 
@@ -124,8 +113,8 @@ public:
 
         MpiCallRecord rec;
         rec.operation = MpiCallRecord::Operation::CommSplit;
-        rec.color     = color;
-        rec.key       = key;
+        rec.color = color;
+        rec.key = key;
         calls_.push_back(rec);
 
         if (split_should_fail_) {
@@ -205,21 +194,21 @@ public:
         thread_level_ = 3;  // MPI_THREAD_MULTIPLE
     }
 
-private:
+   private:
     void record_call_internal(MpiCallRecord::Operation op) const {
         MpiCallRecord rec;
         rec.operation = op;
         calls_.push_back(rec);
     }
 
-    mutable std::mutex                  mu_;
-    mutable std::vector<MpiCallRecord>  calls_;
-    int                                 world_rank_  = 0;
-    int                                 world_size_  = 1;
-    int                                 thread_level_ = 3;  // MPI_THREAD_MULTIPLE
-    int                                 split_count_ = 0;
-    bool                                split_should_fail_ = false;
-    std::string                         split_failure_message_;
+    mutable std::mutex mu_;
+    mutable std::vector<MpiCallRecord> calls_;
+    int world_rank_ = 0;
+    int world_size_ = 1;
+    int thread_level_ = 3;  // MPI_THREAD_MULTIPLE
+    int split_count_ = 0;
+    bool split_should_fail_ = false;
+    std::string split_failure_message_;
 };
 
 }  // namespace amio::pbt

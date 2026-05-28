@@ -29,6 +29,7 @@
 #include <tensorstore/tensorstore.h>
 #include <tensorstore/util/result.h>
 #include <tensorstore/util/status.h>
+
 #include <nlohmann/json.hpp>
 #endif
 
@@ -41,15 +42,26 @@
 // In production builds, eckit is always available.
 namespace eckit {
 class Configuration {
-public:
+   public:
     virtual ~Configuration() = default;
-    virtual bool has(const std::string& /*key*/) const { return false; }
-    virtual std::string getString(const std::string& /*key*/) const { return ""; }
-    virtual std::string getString(const std::string& /*key*/,
-                                   const std::string& def) const { return def; }
-    virtual long getLong(const std::string& /*key*/, long def = 0) const { return def; }
-    virtual std::vector<long> getLongVector(const std::string& /*key*/) const { return {}; }
-    virtual bool getBool(const std::string& /*key*/, bool def = false) const { return def; }
+    virtual bool has(const std::string& /*key*/) const {
+        return false;
+    }
+    virtual std::string getString(const std::string& /*key*/) const {
+        return "";
+    }
+    virtual std::string getString(const std::string& /*key*/, const std::string& def) const {
+        return def;
+    }
+    virtual long getLong(const std::string& /*key*/, long def = 0) const {
+        return def;
+    }
+    virtual std::vector<long> getLongVector(const std::string& /*key*/) const {
+        return {};
+    }
+    virtual bool getBool(const std::string& /*key*/, bool def = false) const {
+        return def;
+    }
 };
 }  // namespace eckit
 #endif  // AMIO_HAS_ECKIT
@@ -69,9 +81,7 @@ BackendRegistrar<Zarr_Driver> reg_zarr3("zarr3");
 // ===================================================================
 
 bool Zarr_Driver::is_cloud_uri(const std::string& uri) {
-    return uri.rfind("s3://", 0) == 0 ||
-           uri.rfind("gs://", 0) == 0 ||
-           uri.rfind("https://", 0) == 0;
+    return uri.rfind("s3://", 0) == 0 || uri.rfind("gs://", 0) == 0 || uri.rfind("https://", 0) == 0;
 }
 
 // ===================================================================
@@ -81,26 +91,19 @@ bool Zarr_Driver::is_cloud_uri(const std::string& uri) {
 std::string Zarr_Driver::categorize_error(const std::string& message) {
     // Heuristic categorization based on error message content.
     std::string lower_msg = message;
-    std::transform(lower_msg.begin(), lower_msg.end(), lower_msg.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    std::transform(lower_msg.begin(), lower_msg.end(), lower_msg.begin(), [](unsigned char c) { return std::tolower(c); });
 
-    if (lower_msg.find("auth") != std::string::npos ||
-        lower_msg.find("credential") != std::string::npos ||
-        lower_msg.find("permission") != std::string::npos ||
-        lower_msg.find("forbidden") != std::string::npos ||
-        lower_msg.find("401") != std::string::npos ||
-        lower_msg.find("403") != std::string::npos) {
+    if (lower_msg.find("auth") != std::string::npos || lower_msg.find("credential") != std::string::npos ||
+        lower_msg.find("permission") != std::string::npos || lower_msg.find("forbidden") != std::string::npos ||
+        lower_msg.find("401") != std::string::npos || lower_msg.find("403") != std::string::npos) {
         return "authentication/authorization error";
     }
-    if (lower_msg.find("network") != std::string::npos ||
-        lower_msg.find("connect") != std::string::npos ||
-        lower_msg.find("timeout") != std::string::npos ||
-        lower_msg.find("dns") != std::string::npos ||
+    if (lower_msg.find("network") != std::string::npos || lower_msg.find("connect") != std::string::npos ||
+        lower_msg.find("timeout") != std::string::npos || lower_msg.find("dns") != std::string::npos ||
         lower_msg.find("unreachable") != std::string::npos) {
         return "network error";
     }
-    if (lower_msg.find("scheme") != std::string::npos ||
-        lower_msg.find("unsupported") != std::string::npos) {
+    if (lower_msg.find("scheme") != std::string::npos || lower_msg.find("unsupported") != std::string::npos) {
         return "unsupported URI scheme";
     }
     return "I/O error";
@@ -112,17 +115,28 @@ std::string Zarr_Driver::categorize_error(const std::string& message) {
 
 std::string Zarr_Driver::dtype_to_string(amio_dtype_t dtype) {
     switch (dtype) {
-        case AMIO_DTYPE_F32: return "float32";
-        case AMIO_DTYPE_F64: return "float64";
-        case AMIO_DTYPE_I8:  return "int8";
-        case AMIO_DTYPE_I16: return "int16";
-        case AMIO_DTYPE_I32: return "int32";
-        case AMIO_DTYPE_I64: return "int64";
-        case AMIO_DTYPE_U8:  return "uint8";
-        case AMIO_DTYPE_U16: return "uint16";
-        case AMIO_DTYPE_U32: return "uint32";
-        case AMIO_DTYPE_U64: return "uint64";
-        default:             return "float32";
+        case AMIO_DTYPE_F32:
+            return "float32";
+        case AMIO_DTYPE_F64:
+            return "float64";
+        case AMIO_DTYPE_I8:
+            return "int8";
+        case AMIO_DTYPE_I16:
+            return "int16";
+        case AMIO_DTYPE_I32:
+            return "int32";
+        case AMIO_DTYPE_I64:
+            return "int64";
+        case AMIO_DTYPE_U8:
+            return "uint8";
+        case AMIO_DTYPE_U16:
+            return "uint16";
+        case AMIO_DTYPE_U32:
+            return "uint32";
+        case AMIO_DTYPE_U64:
+            return "uint64";
+        default:
+            return "float32";
     }
 }
 
@@ -132,17 +146,28 @@ std::string Zarr_Driver::dtype_to_string(amio_dtype_t dtype) {
 
 std::size_t Zarr_Driver::dtype_size(amio_dtype_t dtype) {
     switch (dtype) {
-        case AMIO_DTYPE_F32: return 4;
-        case AMIO_DTYPE_F64: return 8;
-        case AMIO_DTYPE_I8:  return 1;
-        case AMIO_DTYPE_I16: return 2;
-        case AMIO_DTYPE_I32: return 4;
-        case AMIO_DTYPE_I64: return 8;
-        case AMIO_DTYPE_U8:  return 1;
-        case AMIO_DTYPE_U16: return 2;
-        case AMIO_DTYPE_U32: return 4;
-        case AMIO_DTYPE_U64: return 8;
-        default:             return 4;
+        case AMIO_DTYPE_F32:
+            return 4;
+        case AMIO_DTYPE_F64:
+            return 8;
+        case AMIO_DTYPE_I8:
+            return 1;
+        case AMIO_DTYPE_I16:
+            return 2;
+        case AMIO_DTYPE_I32:
+            return 4;
+        case AMIO_DTYPE_I64:
+            return 8;
+        case AMIO_DTYPE_U8:
+            return 1;
+        case AMIO_DTYPE_U16:
+            return 2;
+        case AMIO_DTYPE_U32:
+            return 4;
+        case AMIO_DTYPE_U64:
+            return 8;
+        default:
+            return 4;
     }
 }
 
@@ -227,8 +252,7 @@ void Zarr_Driver::validate_sharding(const ZarrConfig& cfg) {
         std::string msg =
             "Zarr_Driver: chunk_shape and shard_shape must have the same "
             "number of dimensions (got " +
-            std::to_string(cfg.chunk_shape.size()) + " vs " +
-            std::to_string(cfg.shard_shape.size()) + ")";
+            std::to_string(cfg.chunk_shape.size()) + " vs " + std::to_string(cfg.shard_shape.size()) + ")";
 #ifdef AMIO_HAS_ECKIT
         throw eckit::Exception(msg, Here);
 #else
@@ -239,9 +263,7 @@ void Zarr_Driver::validate_sharding(const ZarrConfig& cfg) {
     for (std::size_t i = 0; i < cfg.chunk_shape.size(); ++i) {
         if (cfg.chunk_shape[i] <= 0) {
             std::string msg =
-                "Zarr_Driver: chunk_shape[" + std::to_string(i) +
-                "] must be a positive integer (got " +
-                std::to_string(cfg.chunk_shape[i]) + ")";
+                "Zarr_Driver: chunk_shape[" + std::to_string(i) + "] must be a positive integer (got " + std::to_string(cfg.chunk_shape[i]) + ")";
 #ifdef AMIO_HAS_ECKIT
             throw eckit::Exception(msg, Here);
 #else
@@ -250,9 +272,7 @@ void Zarr_Driver::validate_sharding(const ZarrConfig& cfg) {
         }
         if (cfg.shard_shape[i] <= 0) {
             std::string msg =
-                "Zarr_Driver: shard_shape[" + std::to_string(i) +
-                "] must be a positive integer (got " +
-                std::to_string(cfg.shard_shape[i]) + ")";
+                "Zarr_Driver: shard_shape[" + std::to_string(i) + "] must be a positive integer (got " + std::to_string(cfg.shard_shape[i]) + ")";
 #ifdef AMIO_HAS_ECKIT
             throw eckit::Exception(msg, Here);
 #else
@@ -260,11 +280,8 @@ void Zarr_Driver::validate_sharding(const ZarrConfig& cfg) {
 #endif
         }
         if (cfg.shard_shape[i] % cfg.chunk_shape[i] != 0) {
-            std::string msg =
-                "Zarr_Driver: chunk_shape[" + std::to_string(i) +
-                "] (" + std::to_string(cfg.chunk_shape[i]) +
-                ") must evenly divide shard_shape[" + std::to_string(i) +
-                "] (" + std::to_string(cfg.shard_shape[i]) + ")";
+            std::string msg = "Zarr_Driver: chunk_shape[" + std::to_string(i) + "] (" + std::to_string(cfg.chunk_shape[i]) +
+                              ") must evenly divide shard_shape[" + std::to_string(i) + "] (" + std::to_string(cfg.shard_shape[i]) + ")";
 #ifdef AMIO_HAS_ECKIT
             throw eckit::Exception(msg, Here);
 #else
@@ -280,9 +297,7 @@ void Zarr_Driver::validate_sharding(const ZarrConfig& cfg) {
 
 void Zarr_Driver::validate_codec(const ZarrConfig& cfg) {
     if (cfg.codec != "blosc" && cfg.codec != "zstandard") {
-        std::string msg =
-            "Zarr_Driver: codec must be one of {blosc, zstandard} (got '" +
-            cfg.codec + "')";
+        std::string msg = "Zarr_Driver: codec must be one of {blosc, zstandard} (got '" + cfg.codec + "')";
 #ifdef AMIO_HAS_ECKIT
         throw eckit::Exception(msg, Here);
 #else
@@ -379,8 +394,7 @@ void Zarr_Driver::open_write(const eckit::Configuration& config) {
     // Configure metadata: dtype, shape, codecs.
     auto& metadata = spec["metadata"];
     metadata["shape"] = config_.array_shape;
-    metadata["data_type"] =
-        config_.dtype_str.empty() ? "float32" : config_.dtype_str;
+    metadata["data_type"] = config_.dtype_str.empty() ? "float32" : config_.dtype_str;
 
     // Configure zarr3_sharding_indexed codec chain (R8.3, R8.4):
     //   outer: bytes → sharding_indexed
@@ -434,8 +448,7 @@ void Zarr_Driver::open_write(const eckit::Configuration& config) {
 
     metadata["codecs"] = codecs;
     metadata["chunk_grid"]["name"] = "regular";
-    metadata["chunk_grid"]["configuration"]["chunk_shape"] =
-        config_.shard_shape;
+    metadata["chunk_grid"]["configuration"]["chunk_shape"] = config_.shard_shape;
 
     // Create mode for writing.
     spec["create"] = true;
@@ -444,23 +457,17 @@ void Zarr_Driver::open_write(const eckit::Configuration& config) {
     // Open TensorStore.
     ts_context_ = tensorstore::Context::Default();
 
-    auto open_result = tensorstore::Open(
-        tensorstore::Spec::FromJson(spec).value(),
-        ts_context_,
-        tensorstore::OpenMode::create |
-            tensorstore::OpenMode::delete_existing,
-        tensorstore::ReadWriteMode::read_write)
-        .result();
+    auto open_result =
+        tensorstore::Open(tensorstore::Spec::FromJson(spec).value(), ts_context_,
+                          tensorstore::OpenMode::create | tensorstore::OpenMode::delete_existing, tensorstore::ReadWriteMode::read_write)
+            .result();
 
     if (!open_result.ok()) {
         // Network/auth errors abort operation, leave target unchanged,
         // return categorized error (R8.9).
-        std::string err_msg =
-            std::string(open_result.status().message());
+        std::string err_msg = std::string(open_result.status().message());
         std::string category = categorize_error(err_msg);
-        std::string full_msg =
-            "Zarr_Driver: failed to open TensorStore for writing (" +
-            category + "): " + err_msg;
+        std::string full_msg = "Zarr_Driver: failed to open TensorStore for writing (" + category + "): " + err_msg;
 #ifdef AMIO_HAS_ECKIT
         throw eckit::Exception(full_msg, Here);
 #else
@@ -516,21 +523,15 @@ void Zarr_Driver::open_read(const eckit::Configuration& config) {
 
     ts_context_ = tensorstore::Context::Default();
 
-    auto open_result = tensorstore::Open(
-        tensorstore::Spec::FromJson(spec).value(),
-        ts_context_,
-        tensorstore::OpenMode::open,
-        tensorstore::ReadWriteMode::read)
-        .result();
+    auto open_result =
+        tensorstore::Open(tensorstore::Spec::FromJson(spec).value(), ts_context_, tensorstore::OpenMode::open, tensorstore::ReadWriteMode::read)
+            .result();
 
     if (!open_result.ok()) {
         // Network/auth errors abort, leave target unchanged (R8.9).
-        std::string err_msg =
-            std::string(open_result.status().message());
+        std::string err_msg = std::string(open_result.status().message());
         std::string category = categorize_error(err_msg);
-        std::string full_msg =
-            "Zarr_Driver: failed to open TensorStore for reading (" +
-            category + "): " + err_msg;
+        std::string full_msg = "Zarr_Driver: failed to open TensorStore for reading (" + category + "): " + err_msg;
 #ifdef AMIO_HAS_ECKIT
         throw eckit::Exception(full_msg, Here);
 #else
@@ -568,8 +569,7 @@ void Zarr_Driver::open_read(const eckit::Configuration& config) {
 
 void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
     if (!is_open_ || !is_write_mode_) {
-        std::string msg =
-            "Zarr_Driver: write called on driver not open for writing";
+        std::string msg = "Zarr_Driver: write called on driver not open for writing";
 #ifdef AMIO_HAS_ECKIT
         throw eckit::Exception(msg, Here);
 #else
@@ -586,17 +586,13 @@ void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
     // Build the domain from the variable shape.
     std::vector<tensorstore::Index> shape_vec;
     for (int d = 0; d < meta.shape.rank; ++d) {
-        shape_vec.push_back(
-            static_cast<tensorstore::Index>(meta.shape.extents[d]));
+        shape_vec.push_back(static_cast<tensorstore::Index>(meta.shape.extents[d]));
     }
 
     // Create a shared array view over the staging buffer data.
     // The non-owning shared_ptr ensures TensorStore does not free
     // the staging buffer (ownership remains with Staging_Pool).
-    auto array = tensorstore::MakeArray(
-        std::shared_ptr<const void>(src.data, [](const void*) {}),
-        shape_vec,
-        tensorstore::dtype_v<float>);
+    auto array = tensorstore::MakeArray(std::shared_ptr<const void>(src.data, [](const void*) {}), shape_vec, tensorstore::dtype_v<float>);
 
     // Write the data to TensorStore.  The codec chain configured in
     // open_write applies Byte-Shuffle + compression automatically.
@@ -605,11 +601,9 @@ void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
 
     if (!write_result.ok()) {
         // Network/auth errors abort, leave target unchanged (R8.9).
-        std::string err_msg =
-            std::string(write_result.status().message());
+        std::string err_msg = std::string(write_result.status().message());
         std::string category = categorize_error(err_msg);
-        std::string full_msg =
-            "Zarr_Driver: write failed (" + category + "): " + err_msg;
+        std::string full_msg = "Zarr_Driver: write failed (" + category + "): " + err_msg;
 #ifdef AMIO_HAS_ECKIT
         throw eckit::Exception(full_msg, Here);
 #else
@@ -620,8 +614,7 @@ void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
 #else
     (void)src;
     (void)meta;
-    std::string msg =
-        "Zarr_Driver: TensorStore is not available in this build.";
+    std::string msg = "Zarr_Driver: TensorStore is not available in this build.";
 #ifdef AMIO_HAS_ECKIT
     throw eckit::Exception(msg, Here);
 #else
@@ -634,13 +627,9 @@ void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
 // read -- read from TensorStore into StagingBuffer (R8.1, R8.5).
 // ===================================================================
 
-void Zarr_Driver::read(StagingBuffer& dst,
-                       const VarMeta& meta,
-                       std::int64_t timestep,
-                       const std::optional<BoundingBox>& bbox) {
+void Zarr_Driver::read(StagingBuffer& dst, const VarMeta& meta, std::int64_t timestep, const std::optional<BoundingBox>& bbox) {
     if (!is_open_ || is_write_mode_) {
-        std::string msg =
-            "Zarr_Driver: read called on driver not open for reading";
+        std::string msg = "Zarr_Driver: read called on driver not open for reading";
 #ifdef AMIO_HAS_ECKIT
         throw eckit::Exception(msg, Here);
 #else
@@ -657,17 +646,13 @@ void Zarr_Driver::read(StagingBuffer& dst,
     // Calculate total bytes needed.
     std::size_t total_elements = 1;
     for (int d = 0; d < meta.shape.rank; ++d) {
-        total_elements *=
-            static_cast<std::size_t>(meta.shape.extents[d]);
+        total_elements *= static_cast<std::size_t>(meta.shape.extents[d]);
     }
     std::size_t total_bytes = total_elements * elem_size;
 
     if (total_bytes > dst.capacity_bytes) {
-        std::string msg =
-            "Zarr_Driver: staging buffer capacity (" +
-            std::to_string(dst.capacity_bytes) +
-            " bytes) insufficient for read payload (" +
-            std::to_string(total_bytes) + " bytes)";
+        std::string msg = "Zarr_Driver: staging buffer capacity (" + std::to_string(dst.capacity_bytes) + " bytes) insufficient for read payload (" +
+                          std::to_string(total_bytes) + " bytes)";
 #ifdef AMIO_HAS_ECKIT
         throw eckit::Exception(msg, Here);
 #else
@@ -678,15 +663,11 @@ void Zarr_Driver::read(StagingBuffer& dst,
     // Build the domain from the variable shape.
     std::vector<tensorstore::Index> shape_vec;
     for (int d = 0; d < meta.shape.rank; ++d) {
-        shape_vec.push_back(
-            static_cast<tensorstore::Index>(meta.shape.extents[d]));
+        shape_vec.push_back(static_cast<tensorstore::Index>(meta.shape.extents[d]));
     }
 
     // Create a target array view over the staging buffer.
-    auto array = tensorstore::MakeArray(
-        std::shared_ptr<void>(dst.data, [](void*) {}),
-        shape_vec,
-        tensorstore::dtype_v<float>);
+    auto array = tensorstore::MakeArray(std::shared_ptr<void>(dst.data, [](void*) {}), shape_vec, tensorstore::dtype_v<float>);
 
     // If bounding box is specified, apply domain restriction.
     tensorstore::TensorStore<> source = ts_store_;
@@ -696,8 +677,7 @@ void Zarr_Driver::read(StagingBuffer& dst,
         // only the intersecting byte ranges (R5.7).
         auto transform = tensorstore::IdentityTransform(bbox->rank);
         for (int d = 0; d < bbox->rank; ++d) {
-            auto end = bbox->offsets[d] +
-                       bbox->extents[d] * bbox->strides[d];
+            auto end = bbox->offsets[d] + bbox->extents[d] * bbox->strides[d];
             (void)end;  // Domain restriction applied below.
         }
         // Note: Full bounding-box restriction requires
@@ -713,11 +693,9 @@ void Zarr_Driver::read(StagingBuffer& dst,
 
     if (!read_result.ok()) {
         // Network/auth errors abort, leave target unchanged (R8.9).
-        std::string err_msg =
-            std::string(read_result.status().message());
+        std::string err_msg = std::string(read_result.status().message());
         std::string category = categorize_error(err_msg);
-        std::string full_msg =
-            "Zarr_Driver: read failed (" + category + "): " + err_msg;
+        std::string full_msg = "Zarr_Driver: read failed (" + category + "): " + err_msg;
 #ifdef AMIO_HAS_ECKIT
         throw eckit::Exception(full_msg, Here);
 #else
@@ -732,8 +710,7 @@ void Zarr_Driver::read(StagingBuffer& dst,
     (void)meta;
     (void)timestep;
     (void)bbox;
-    std::string msg =
-        "Zarr_Driver: TensorStore is not available in this build.";
+    std::string msg = "Zarr_Driver: TensorStore is not available in this build.";
 #ifdef AMIO_HAS_ECKIT
     throw eckit::Exception(msg, Here);
 #else

@@ -1,0 +1,32 @@
+# AMIO Manifest: GRIB2 Backend Configuration
+#
+# This manifest configures AMIO to use the GRIB2 backend driver
+# (nceplibs-g2c) for writing NWP model output in WMO GRIB2 format.
+
+amio:
+  version: "0.1.0"
+
+  # Staging pool configuration
+  staging:
+    buffer_count: 4
+    buffer_size_bytes: 10485760   # 10 MiB per buffer
+
+  # Worker pool configuration
+  workers:
+    thread_count: 1
+    pin_threads: false
+
+  # Backend driver selection
+  backend:
+    name: "grib2"
+    options:
+      packing: "complex_second_order"
+      discipline: 0              # Meteorological products
+      compression:
+        algorithm: "jpeg2000"
+        target_ratio: 20
+
+  # Dataset output path
+  output:
+    path: "output_grib2.grib2"
+    overwrite: true

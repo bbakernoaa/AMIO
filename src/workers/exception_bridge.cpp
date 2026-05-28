@@ -52,12 +52,10 @@ amio_err_t translate_exception_to_error(std::string* out_message) {
     catch (const eckit::UserError& e) {
         if (out_message) *out_message = e.what();
         return AMIO_ERR_INVALID_INPUT;
-    }
-    catch (const eckit::FileError& e) {
+    } catch (const eckit::FileError& e) {
         if (out_message) *out_message = e.what();
         return AMIO_ERR_MANIFEST_NOT_FOUND;
-    }
-    catch (const eckit::Exception& e) {
+    } catch (const eckit::Exception& e) {
         if (out_message) *out_message = e.what();
         // Generic eckit exception → backend failure.
         return AMIO_ERR_BACKEND_FAILURE;
@@ -66,12 +64,10 @@ amio_err_t translate_exception_to_error(std::string* out_message) {
     catch (const std::invalid_argument& e) {
         if (out_message) *out_message = e.what();
         return AMIO_ERR_INVALID_INPUT;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
         if (out_message) *out_message = e.what();
         return AMIO_ERR_BACKEND_FAILURE;
-    }
-    catch (...) {
+    } catch (...) {
         if (out_message) *out_message = "Unknown exception (non-std)";
         return AMIO_ERR_BACKEND_FAILURE;
     }
@@ -79,27 +75,20 @@ amio_err_t translate_exception_to_error(std::string* out_message) {
 
 // ---- Parallel stack trace emission ----
 
-std::string emit_parallel_stacktrace(const IOCommunicator& io_comm,
-                                     amio_err_t error_code,
-                                     const std::string& message) {
+std::string emit_parallel_stacktrace(const IOCommunicator& io_comm, amio_err_t error_code, const std::string& message) {
     // Build a local stack trace record.
     std::ostringstream oss;
 
     // Timestamp for the diagnostic.
     std::time_t now = std::time(nullptr);
     char time_buf[64];
-    std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%dT%H:%M:%S",
-                  std::gmtime(&now));
+    std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%dT%H:%M:%S", std::gmtime(&now));
 
     oss << "[AMIO FATAL] " << time_buf << "\n"
-        << "  Error code: " << error_code
-        << " (" << amio_strerror(error_code) << ")\n"
+        << "  Error code: " << error_code << " (" << amio_strerror(error_code) << ")\n"
         << "  Message: " << message << "\n"
-        << "  I/O Communicator: "
-        << (io_comm.valid ? "valid" : "invalid")
-        << ", io_comm_id=" << io_comm.io_comm_id
-        << ", is_io_rank=" << (io_comm.is_io_rank ? "true" : "false")
-        << "\n";
+        << "  I/O Communicator: " << (io_comm.valid ? "valid" : "invalid") << ", io_comm_id=" << io_comm.io_comm_id
+        << ", is_io_rank=" << (io_comm.is_io_rank ? "true" : "false") << "\n";
 
 #ifdef AMIO_HAS_MPI
     // In a real MPI build, this would perform a collective operation
@@ -138,16 +127,14 @@ bool OutcomeRegistry::has_failure(std::uint64_t handle_id) const {
     return false;
 }
 
-std::vector<TaskOutcome> OutcomeRegistry::get_outcomes(
-    std::uint64_t handle_id) const {
+std::vector<TaskOutcome> OutcomeRegistry::get_outcomes(std::uint64_t handle_id) const {
     std::lock_guard<std::mutex> lock(mu_);
     auto it = outcomes_.find(handle_id);
     if (it == outcomes_.end()) return {};
     return it->second;
 }
 
-TaskOutcome OutcomeRegistry::get_first_failure(
-    std::uint64_t handle_id) const {
+TaskOutcome OutcomeRegistry::get_first_failure(std::uint64_t handle_id) const {
     std::lock_guard<std::mutex> lock(mu_);
     auto it = outcomes_.find(handle_id);
     if (it == outcomes_.end()) return TaskOutcome{};
@@ -183,12 +170,8 @@ std::size_t OutcomeRegistry::failure_count() const {
 
 // ---- Exception cordon execution ----
 
-TaskOutcome execute_with_exception_cordon(
-    const std::function<void()>& callback,
-    std::uint64_t handle_id,
-    const IOCommunicator& io_comm,
-    OutcomeRegistry& registry) {
-
+TaskOutcome execute_with_exception_cordon(const std::function<void()>& callback, std::uint64_t handle_id, const IOCommunicator& io_comm,
+                                          OutcomeRegistry& registry) {
     TaskOutcome outcome;
 
     try {
@@ -205,8 +188,7 @@ TaskOutcome execute_with_exception_cordon(
         outcome.message = e.what();
 
         // Emit parallel stack trace BEFORE recording outcome (R12.3, R12.4).
-        outcome.stack_trace = emit_parallel_stacktrace(
-            io_comm, outcome.error_code, outcome.message);
+        outcome.stack_trace = emit_parallel_stacktrace(io_comm, outcome.error_code, outcome.message);
 
         // Record the failure against the originating handle.
         registry.record(handle_id, outcome);
@@ -218,20 +200,17 @@ TaskOutcome execute_with_exception_cordon(
         outcome.message = e.what();
 
         // Emit parallel stack trace BEFORE recording outcome (R12.3, R12.4).
-        outcome.stack_trace = emit_parallel_stacktrace(
-            io_comm, outcome.error_code, outcome.message);
+        outcome.stack_trace = emit_parallel_stacktrace(io_comm, outcome.error_code, outcome.message);
 
         // Record the failure against the originating handle.
         registry.record(handle_id, outcome);
-    }
-    catch (...) {
+    } catch (...) {
         // Unknown exception → AMIO_ERR_BACKEND_FAILURE.
         outcome.error_code = AMIO_ERR_BACKEND_FAILURE;
         outcome.message = "Unknown exception (non-std)";
 
         // Emit parallel stack trace BEFORE recording outcome (R12.3, R12.4).
-        outcome.stack_trace = emit_parallel_stacktrace(
-            io_comm, outcome.error_code, outcome.message);
+        outcome.stack_trace = emit_parallel_stacktrace(io_comm, outcome.error_code, outcome.message);
 
         // Record the failure against the originating handle.
         registry.record(handle_id, outcome);

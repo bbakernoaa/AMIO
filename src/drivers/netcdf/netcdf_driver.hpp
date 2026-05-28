@@ -46,9 +46,10 @@
 #include "factory/backend_driver.hpp"
 
 #ifdef AMIO_HAS_NETCDF
-#include <netcdf>
-#include <netcdf_par.h>
 #include <mpi.h>
+#include <netcdf_par.h>
+
+#include <netcdf>
 #endif
 
 #include <string>
@@ -58,8 +59,8 @@ namespace amio::detail {
 
 // DataModel -- supported NetCDF-4 data models.
 enum class NetCDF4DataModel {
-    Classic,    // NC_CLASSIC_MODEL | NC_NETCDF4
-    Enhanced    // NC_NETCDF4 (full model)
+    Classic,  // NC_CLASSIC_MODEL | NC_NETCDF4
+    Enhanced  // NC_NETCDF4 (full model)
 };
 
 // NetCDF_Driver -- concrete Backend_Driver for NetCDF-4 via
@@ -68,7 +69,7 @@ enum class NetCDF4DataModel {
 // Factory key: "netcdf4"
 // Registration: BackendRegistrar<NetCDF_Driver>("netcdf4")
 class NetCDF_Driver : public Backend_Driver {
-public:
+   public:
     NetCDF_Driver();
     ~NetCDF_Driver() override;
 
@@ -76,14 +77,11 @@ public:
     void open_write(const eckit::Configuration& config) override;
     void open_read(const eckit::Configuration& config) override;
     void write(const StagingBuffer& src, const VarMeta& meta) override;
-    void read(StagingBuffer& dst,
-              const VarMeta& meta,
-              std::int64_t timestep,
-              const std::optional<BoundingBox>& bbox) override;
+    void read(StagingBuffer& dst, const VarMeta& meta, std::int64_t timestep, const std::optional<BoundingBox>& bbox) override;
     void flush() override;
     void close() override;
 
-private:
+   private:
     // Verify that the linked netCDF library has Parallel HDF5 + MPI-IO.
     static void verify_parallel_support();
 
@@ -91,8 +89,7 @@ private:
     static NetCDF4DataModel parse_data_model(const std::string& model_str);
 
     // Validate that a codec is on the lossless allow-list.
-    static void validate_codec(const std::string& codec,
-                               const std::vector<std::string>& allow_list);
+    static void validate_codec(const std::string& codec, const std::vector<std::string>& allow_list);
 
     // Map amio_dtype_t to netCDF type constant.
     static int dtype_to_nc_type(amio_dtype_t dtype);
@@ -102,9 +99,9 @@ private:
 
 #ifdef AMIO_HAS_NETCDF
     // Internal state.
-    int ncid_ = -1;                     // NetCDF file ID
-    MPI_Comm comm_ = MPI_COMM_NULL;     // MPI communicator for parallel I/O
-    MPI_Info info_ = MPI_INFO_NULL;     // MPI info object
+    int ncid_ = -1;                  // NetCDF file ID
+    MPI_Comm comm_ = MPI_COMM_NULL;  // MPI communicator for parallel I/O
+    MPI_Info info_ = MPI_INFO_NULL;  // MPI info object
 #endif
 
     NetCDF4DataModel data_model_ = NetCDF4DataModel::Classic;

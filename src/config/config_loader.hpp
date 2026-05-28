@@ -62,28 +62,28 @@ namespace amio::detail {
 
 // StagingPoolConfig -- buffer pool sizing.
 struct StagingPoolConfig {
-    std::size_t buffer_count         = 16;     // [1, 4096]
-    std::size_t buffer_capacity_bytes = 1048576; // [1, 1 GiB] (default 1 MiB)
+    std::size_t buffer_count = 16;                // [1, 4096]
+    std::size_t buffer_capacity_bytes = 1048576;  // [1, 1 GiB] (default 1 MiB)
 };
 
 // WorkerPoolConfig (config-level) -- thread pool sizing and pinning.
 struct WorkerPoolCfg {
-    std::size_t threads              = 1;      // [1, 256]
-    std::vector<int> cpu_cores;                // optional CPU core list
-    std::optional<int> numa_domain;            // optional NUMA domain
+    std::size_t threads = 1;         // [1, 256]
+    std::vector<int> cpu_cores;      // optional CPU core list
+    std::optional<int> numa_domain;  // optional NUMA domain
 };
 
 // PrefetchConfig -- look-ahead prefetch settings.
 struct PrefetchConfig {
-    std::size_t depth                = 4;      // [1, 1024]
-    std::size_t read_timeout_s       = 60;     // [1, 3600]
+    std::size_t depth = 4;            // [1, 1024]
+    std::size_t read_timeout_s = 60;  // [1, 3600]
 };
 
 // BackpressureConfig (config-level) -- queue admission control.
 struct BackpressureCfg {
-    std::size_t low_watermark        = 0;
-    std::size_t high_watermark       = 0;
-    std::size_t queue_capacity       = 1024;
+    std::size_t low_watermark = 0;
+    std::size_t high_watermark = 0;
+    std::size_t queue_capacity = 1024;
 };
 
 // CodecConfig -- lossless codec settings.
@@ -108,7 +108,7 @@ struct Config {
     PrefetchConfig prefetch;
 
     // Staging timeout in milliseconds [1, 60000], default 5000.
-    std::size_t staging_timeout_ms   = 5000;
+    std::size_t staging_timeout_ms = 5000;
 
     // Backpressure configuration.
     BackpressureCfg backpressure;
@@ -128,9 +128,9 @@ struct Config {
 // ===================================================================
 
 struct ValidationError {
-    std::string field_path;   // e.g., "staging_pool.buffer_count"
-    std::string message;      // human-readable description
-    int         line = 0;     // line number in source file (0 if unknown)
+    std::string field_path;  // e.g., "staging_pool.buffer_count"
+    std::string message;     // human-readable description
+    int line = 0;            // line number in source file (0 if unknown)
 };
 
 // ===================================================================
@@ -138,20 +138,20 @@ struct ValidationError {
 // ===================================================================
 
 class ConfigLoader {
-public:
+   public:
     // Numeric range constants (from design.md / requirements).
-    static constexpr std::size_t kMinBufferCount       = 1;
-    static constexpr std::size_t kMaxBufferCount       = 4096;
-    static constexpr std::size_t kMinBufferCapacity    = 1;
-    static constexpr std::size_t kMaxBufferCapacity    = 1'073'741'824;  // 1 GiB
-    static constexpr std::size_t kMinThreads           = 1;
-    static constexpr std::size_t kMaxThreads           = 256;
-    static constexpr std::size_t kMinPrefetchDepth     = 1;
-    static constexpr std::size_t kMaxPrefetchDepth     = 1024;
-    static constexpr std::size_t kMinReadTimeoutS      = 1;
-    static constexpr std::size_t kMaxReadTimeoutS      = 3600;
-    static constexpr std::size_t kMinStagingTimeoutMs  = 1;
-    static constexpr std::size_t kMaxStagingTimeoutMs  = 60000;
+    static constexpr std::size_t kMinBufferCount = 1;
+    static constexpr std::size_t kMaxBufferCount = 4096;
+    static constexpr std::size_t kMinBufferCapacity = 1;
+    static constexpr std::size_t kMaxBufferCapacity = 1'073'741'824;  // 1 GiB
+    static constexpr std::size_t kMinThreads = 1;
+    static constexpr std::size_t kMaxThreads = 256;
+    static constexpr std::size_t kMinPrefetchDepth = 1;
+    static constexpr std::size_t kMaxPrefetchDepth = 1024;
+    static constexpr std::size_t kMinReadTimeoutS = 1;
+    static constexpr std::size_t kMaxReadTimeoutS = 3600;
+    static constexpr std::size_t kMinStagingTimeoutMs = 1;
+    static constexpr std::size_t kMaxStagingTimeoutMs = 60000;
 
     // Lossless codec allow-list: the set of codec names that are
     // permitted in any AMIO manifest.  Any codec not in this set
@@ -165,17 +165,12 @@ public:
     // populates `error_out` with the first failing validation rule.
     //
     // The file format is auto-detected: .json → JSON, otherwise YAML.
-    static amio_err_t parse(const std::string& path,
-                            Config& config_out,
-                            ValidationError& error_out);
+    static amio_err_t parse(const std::string& path, Config& config_out, ValidationError& error_out);
 
     // parse_string -- parse a manifest from a string (for testing).
     //
     // `format` should be "yaml" or "json".
-    static amio_err_t parse_string(const std::string& content,
-                                   const std::string& format,
-                                   Config& config_out,
-                                   ValidationError& error_out);
+    static amio_err_t parse_string(const std::string& content, const std::string& format, Config& config_out, ValidationError& error_out);
 
     // serialize -- emit a YAML string from a Config struct.
     //
@@ -187,18 +182,17 @@ public:
     //
     // Returns AMIO_OK if valid, or the appropriate error code with
     // `error_out` populated on the first failing rule.
-    static amio_err_t validate(const Config& config,
-                               ValidationError& error_out);
+    static amio_err_t validate(const Config& config, ValidationError& error_out);
 
-private:
+   private:
     // Internal helpers for parsing key-value pairs from a simple
     // YAML/JSON representation.
     struct KeyValue {
         std::string key;
         std::string value;
-        int         line = 0;
-        int         indent = 0;
-        bool        is_list_item = false;
+        int line = 0;
+        int indent = 0;
+        bool is_list_item = false;
     };
 
     // Tokenize a YAML document into key-value pairs with line info.
@@ -208,9 +202,7 @@ private:
     static std::vector<KeyValue> tokenize_json(const std::string& content);
 
     // Populate Config from tokenized key-value pairs.
-    static amio_err_t populate_config(const std::vector<KeyValue>& tokens,
-                                      Config& config_out,
-                                      ValidationError& error_out);
+    static amio_err_t populate_config(const std::vector<KeyValue>& tokens, Config& config_out, ValidationError& error_out);
 
     // Check if a codec name is in the valid codecs list.
     static bool is_valid_codec(const std::string& name);
@@ -221,40 +213,28 @@ private:
 // ===================================================================
 
 inline bool operator==(const StagingPoolConfig& a, const StagingPoolConfig& b) {
-    return a.buffer_count == b.buffer_count &&
-           a.buffer_capacity_bytes == b.buffer_capacity_bytes;
+    return a.buffer_count == b.buffer_count && a.buffer_capacity_bytes == b.buffer_capacity_bytes;
 }
 
 inline bool operator==(const WorkerPoolCfg& a, const WorkerPoolCfg& b) {
-    return a.threads == b.threads &&
-           a.cpu_cores == b.cpu_cores &&
-           a.numa_domain == b.numa_domain;
+    return a.threads == b.threads && a.cpu_cores == b.cpu_cores && a.numa_domain == b.numa_domain;
 }
 
 inline bool operator==(const PrefetchConfig& a, const PrefetchConfig& b) {
-    return a.depth == b.depth &&
-           a.read_timeout_s == b.read_timeout_s;
+    return a.depth == b.depth && a.read_timeout_s == b.read_timeout_s;
 }
 
 inline bool operator==(const BackpressureCfg& a, const BackpressureCfg& b) {
-    return a.low_watermark == b.low_watermark &&
-           a.high_watermark == b.high_watermark &&
-           a.queue_capacity == b.queue_capacity;
+    return a.low_watermark == b.low_watermark && a.high_watermark == b.high_watermark && a.queue_capacity == b.queue_capacity;
 }
 
 inline bool operator==(const CodecConfig& a, const CodecConfig& b) {
-    return a.lossless_allow_list == b.lossless_allow_list &&
-           a.active_codec == b.active_codec;
+    return a.lossless_allow_list == b.lossless_allow_list && a.active_codec == b.active_codec;
 }
 
 inline bool operator==(const Config& a, const Config& b) {
-    return a.staging_pool == b.staging_pool &&
-           a.worker_pool == b.worker_pool &&
-           a.prefetch == b.prefetch &&
-           a.staging_timeout_ms == b.staging_timeout_ms &&
-           a.backpressure == b.backpressure &&
-           a.backend == b.backend &&
-           a.codec == b.codec &&
+    return a.staging_pool == b.staging_pool && a.worker_pool == b.worker_pool && a.prefetch == b.prefetch &&
+           a.staging_timeout_ms == b.staging_timeout_ms && a.backpressure == b.backpressure && a.backend == b.backend && a.codec == b.codec &&
            a.io_ranks == b.io_ranks;
 }
 

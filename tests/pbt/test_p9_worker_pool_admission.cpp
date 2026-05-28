@@ -9,11 +9,6 @@
 //
 // **Validates: Requirements R6.8, R6.9**
 
-#include "pbt_common.hpp"
-#include "generators.hpp"
-
-#include "workers/worker_pool.hpp"
-
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -23,6 +18,10 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+
+#include "generators.hpp"
+#include "pbt_common.hpp"
+#include "workers/worker_pool.hpp"
 
 namespace {
 
@@ -82,8 +81,7 @@ amio::detail::WorkerPoolConfig make_no_backpressure_config(std::size_t capacity)
 }
 
 // A DatasetVariableKey for testing.
-amio::detail::DatasetVariableKey test_dv_key(std::uint64_t ds = 1,
-                                             std::uint64_t var = 1) {
+amio::detail::DatasetVariableKey test_dv_key(std::uint64_t ds = 1, std::uint64_t var = 1) {
     amio::detail::DatasetVariableKey key;
     key.dataset_id = ds;
     key.variable_id = var;
@@ -105,152 +103,145 @@ amio::detail::DatasetVariableKey test_dv_key(std::uint64_t ds = 1,
 //   6. Verify that the blocked submission completes (unblocks).
 // ===================================================================
 
-TEST_CASE("P9a: Worker_Pool backpressure blocks at H, resumes at L",
-          "[pbt][p9][worker_pool][admission][backpressure]") {
-    auto result = rc::check(
-        "queue>=H blocks until depth<L (R6.8)",
-        []() {
-            auto wm = *genWatermarkConfig();
+TEST_CASE("P9a: Worker_Pool backpressure blocks at H, resumes at L", "[pbt][p9][worker_pool][admission][backpressure]") {
+    auto result = rc::check("queue>=H blocks until depth<L (R6.8)", []() {
+        auto wm = *genWatermarkConfig();
 
-            RC_TAG(wm.capacity);
-            RC_CLASSIFY(wm.high_watermark == wm.capacity,
-                        "H == capacity");
-            RC_CLASSIFY(wm.low_watermark == 0,
-                        "L == 0");
+        RC_TAG(wm.capacity);
+        RC_CLASSIFY(wm.high_watermark == wm.capacity, "H == capacity");
+        RC_CLASSIFY(wm.low_watermark == 0, "L == 0");
 
-            // --- Set up a WorkerPool with backpressure ---
-            auto config = make_backpressure_config(wm);
+        // --- Set up a WorkerPool with backpressure ---
+        auto config = make_backpressure_config(wm);
 
-            // Use a gate to block the worker thread from processing tasks.
-            // This lets us fill the queue to the high watermark.
-            std::mutex gate_mu;
-            std::condition_variable gate_cv;
-            bool gate_open = false;
+        // Use a gate to block the worker thread from processing tasks.
+        // This lets us fill the queue to the high watermark.
+        std::mutex gate_mu;
+        std::condition_variable gate_cv;
+        bool gate_open = false;
 
-            // Track how many tasks have been executed.
-            std::atomic<std::size_t> tasks_executed{0};
+        // Track how many tasks have been executed.
+        std::atomic<std::size_t> tasks_executed{0};
 
-            amio::detail::WorkerPool pool(config);
+        amio::detail::WorkerPool pool(config);
 
-            // Verify configuration was applied.
-            RC_ASSERT(pool.backpressure_enabled());
-            RC_ASSERT(pool.high_watermark() == wm.high_watermark);
-            RC_ASSERT(pool.low_watermark() == wm.low_watermark);
-            RC_ASSERT(pool.queue_capacity() == wm.capacity);
+        // Verify configuration was applied.
+        RC_ASSERT(pool.backpressure_enabled());
+        RC_ASSERT(pool.high_watermark() == wm.high_watermark);
+        RC_ASSERT(pool.low_watermark() == wm.low_watermark);
+        RC_ASSERT(pool.queue_capacity() == wm.capacity);
 
-            // --- Fill the queue to H by submitting tasks that block ---
-            // Each task waits on the gate before completing.
-            auto blocking_task = [&]() {
-                std::unique_lock<std::mutex> lock(gate_mu);
-                gate_cv.wait(lock, [&]() { return gate_open; });
-                tasks_executed.fetch_add(1, std::memory_order_release);
-            };
+        // --- Fill the queue to H by submitting tasks that block ---
+        // Each task waits on the gate before completing.
+        auto blocking_task = [&]() {
+            std::unique_lock<std::mutex> lock(gate_mu);
+            gate_cv.wait(lock, [&]() { return gate_open; });
+            tasks_executed.fetch_add(1, std::memory_order_release);
+        };
 
-            // Submit H tasks.  The first task will be dequeued by the
-            // worker immediately but will block on the gate.  The
-            // remaining H-1 tasks stay in the queue.  So after
-            // submitting H tasks, the queue depth is H-1 (one is
-            // in-flight).  We need to submit enough to get the queue
-            // depth to >= H.
-            //
-            // Since one task is immediately dequeued and blocks, we
-            // need to submit H+1 tasks to get queue depth == H.
-            // But we need to be careful: the worker dequeues one task
-            // immediately, so queue depth after N submissions is N-1
-            // (if the worker is blocked on the first task).
-            //
-            // Strategy: submit H tasks.  The worker picks up the first
-            // one and blocks.  Queue depth = H - 1.  If H - 1 >= H,
-            // that's impossible.  So we need to submit H + 1 tasks
-            // to get queue depth = H.
-            //
-            // Actually, let's think more carefully:
-            // - Worker thread starts and waits for work.
-            // - We submit task 1: worker wakes, dequeues it, starts
-            //   executing (blocks on gate).  Queue depth = 0.
-            // - We submit task 2: queue depth = 1.
-            // - ...
-            // - We submit task H+1: queue depth = H.
-            //
-            // At this point, queue depth == H == high_watermark, so
-            // the next submit should block.
-            //
-            // However, there's a race: the worker might not have
-            // dequeued the first task yet.  To handle this, we use
-            // a separate "first task started" signal.
+        // Submit H tasks.  The first task will be dequeued by the
+        // worker immediately but will block on the gate.  The
+        // remaining H-1 tasks stay in the queue.  So after
+        // submitting H tasks, the queue depth is H-1 (one is
+        // in-flight).  We need to submit enough to get the queue
+        // depth to >= H.
+        //
+        // Since one task is immediately dequeued and blocks, we
+        // need to submit H+1 tasks to get queue depth == H.
+        // But we need to be careful: the worker dequeues one task
+        // immediately, so queue depth after N submissions is N-1
+        // (if the worker is blocked on the first task).
+        //
+        // Strategy: submit H tasks.  The worker picks up the first
+        // one and blocks.  Queue depth = H - 1.  If H - 1 >= H,
+        // that's impossible.  So we need to submit H + 1 tasks
+        // to get queue depth = H.
+        //
+        // Actually, let's think more carefully:
+        // - Worker thread starts and waits for work.
+        // - We submit task 1: worker wakes, dequeues it, starts
+        //   executing (blocks on gate).  Queue depth = 0.
+        // - We submit task 2: queue depth = 1.
+        // - ...
+        // - We submit task H+1: queue depth = H.
+        //
+        // At this point, queue depth == H == high_watermark, so
+        // the next submit should block.
+        //
+        // However, there's a race: the worker might not have
+        // dequeued the first task yet.  To handle this, we use
+        // a separate "first task started" signal.
 
-            std::mutex started_mu;
-            std::condition_variable started_cv;
-            bool first_task_started = false;
+        std::mutex started_mu;
+        std::condition_variable started_cv;
+        bool first_task_started = false;
 
-            // Submit the first task with a "started" signal.
-            auto first_task = [&]() {
-                {
-                    std::lock_guard<std::mutex> lock(started_mu);
-                    first_task_started = true;
-                }
-                started_cv.notify_all();
-                // Now block on the gate.
-                std::unique_lock<std::mutex> lock(gate_mu);
-                gate_cv.wait(lock, [&]() { return gate_open; });
-                tasks_executed.fetch_add(1, std::memory_order_release);
-            };
+        // Submit the first task with a "started" signal.
+        auto first_task = [&]() {
+            {
+                std::lock_guard<std::mutex> lock(started_mu);
+                first_task_started = true;
+            }
+            started_cv.notify_all();
+            // Now block on the gate.
+            std::unique_lock<std::mutex> lock(gate_mu);
+            gate_cv.wait(lock, [&]() { return gate_open; });
+            tasks_executed.fetch_add(1, std::memory_order_release);
+        };
 
-            std::uint64_t seq = 0;
-            amio_err_t rc = pool.submit_write(test_dv_key(), first_task, &seq);
+        std::uint64_t seq = 0;
+        amio_err_t rc = pool.submit_write(test_dv_key(), first_task, &seq);
+        RC_ASSERT(rc == AMIO_OK);
+
+        // Wait for the worker to pick up the first task.
+        {
+            std::unique_lock<std::mutex> lock(started_mu);
+            started_cv.wait_for(lock, std::chrono::seconds(5), [&]() { return first_task_started; });
+        }
+        RC_ASSERT(first_task_started);
+
+        // Now the worker is blocked on the gate.  Submit H more
+        // tasks to fill the queue to depth H.
+        for (std::size_t i = 0; i < wm.high_watermark; ++i) {
+            rc = pool.submit_write(test_dv_key(2, i + 1), blocking_task, &seq);
             RC_ASSERT(rc == AMIO_OK);
+        }
 
-            // Wait for the worker to pick up the first task.
-            {
-                std::unique_lock<std::mutex> lock(started_mu);
-                started_cv.wait_for(lock, std::chrono::seconds(5), [&]() {
-                    return first_task_started;
-                });
-            }
-            RC_ASSERT(first_task_started);
+        // Queue depth should now be == H (the first task is
+        // in-flight, not in the queue).
+        RC_ASSERT(pool.write_queue_depth() >= wm.high_watermark);
 
-            // Now the worker is blocked on the gate.  Submit H more
-            // tasks to fill the queue to depth H.
-            for (std::size_t i = 0; i < wm.high_watermark; ++i) {
-                rc = pool.submit_write(test_dv_key(2, i + 1), blocking_task, &seq);
-                RC_ASSERT(rc == AMIO_OK);
-            }
-
-            // Queue depth should now be == H (the first task is
-            // in-flight, not in the queue).
-            RC_ASSERT(pool.write_queue_depth() >= wm.high_watermark);
-
-            // --- Verify that the next submission BLOCKS ---
-            // We submit from a separate thread and check that it
-            // doesn't return within a short timeout.
-            std::atomic<bool> submit_completed{false};
-            std::thread submitter([&]() {
-                std::uint64_t s = 0;
-                pool.submit_write(test_dv_key(3, 1), []() {}, &s);
-                submit_completed.store(true, std::memory_order_release);
-            });
-
-            // Give the submitter a chance to block.
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-            // The submitter should still be blocked (queue >= H).
-            RC_ASSERT(!submit_completed.load(std::memory_order_acquire));
-
-            // --- Open the gate to drain tasks ---
-            {
-                std::lock_guard<std::mutex> lock(gate_mu);
-                gate_open = true;
-            }
-            gate_cv.notify_all();
-
-            // Wait for the submitter to complete (it should unblock
-            // once queue depth drops below L).
-            submitter.join();
-            RC_ASSERT(submit_completed.load(std::memory_order_acquire));
-
-            // --- Shutdown and drain ---
-            pool.shutdown();
+        // --- Verify that the next submission BLOCKS ---
+        // We submit from a separate thread and check that it
+        // doesn't return within a short timeout.
+        std::atomic<bool> submit_completed{false};
+        std::thread submitter([&]() {
+            std::uint64_t s = 0;
+            pool.submit_write(test_dv_key(3, 1), []() {}, &s);
+            submit_completed.store(true, std::memory_order_release);
         });
+
+        // Give the submitter a chance to block.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        // The submitter should still be blocked (queue >= H).
+        RC_ASSERT(!submit_completed.load(std::memory_order_acquire));
+
+        // --- Open the gate to drain tasks ---
+        {
+            std::lock_guard<std::mutex> lock(gate_mu);
+            gate_open = true;
+        }
+        gate_cv.notify_all();
+
+        // Wait for the submitter to complete (it should unblock
+        // once queue depth drops below L).
+        submitter.join();
+        RC_ASSERT(submit_completed.load(std::memory_order_acquire));
+
+        // --- Shutdown and drain ---
+        pool.shutdown();
+    });
 
     REQUIRE(result);
 }
@@ -266,98 +257,92 @@ TEST_CASE("P9a: Worker_Pool backpressure blocks at H, resumes at L",
 //      immediately without enqueuing.
 // ===================================================================
 
-TEST_CASE("P9b: Worker_Pool no-backpressure returns AMIO_ERR_QUEUE_FULL",
-          "[pbt][p9][worker_pool][admission][queue_full]") {
-    auto result = rc::check(
-        "exceeding capacity without backpressure → AMIO_ERR_QUEUE_FULL (R6.9)",
-        []() {
-            // Generate a small capacity for fast testing.
-            std::size_t capacity = *rc::gen::inRange<std::size_t>(2, 33);
+TEST_CASE("P9b: Worker_Pool no-backpressure returns AMIO_ERR_QUEUE_FULL", "[pbt][p9][worker_pool][admission][queue_full]") {
+    auto result = rc::check("exceeding capacity without backpressure → AMIO_ERR_QUEUE_FULL (R6.9)", []() {
+        // Generate a small capacity for fast testing.
+        std::size_t capacity = *rc::gen::inRange<std::size_t>(2, 33);
 
-            RC_TAG(capacity);
+        RC_TAG(capacity);
 
-            // --- Set up a WorkerPool without backpressure ---
-            auto config = make_no_backpressure_config(capacity);
-            
-            // Gate to block the worker thread.
-            std::mutex gate_mu;
-            std::condition_variable gate_cv;
-            bool gate_open = false;
+        // --- Set up a WorkerPool without backpressure ---
+        auto config = make_no_backpressure_config(capacity);
 
-            std::atomic<std::size_t> tasks_executed{0};
+        // Gate to block the worker thread.
+        std::mutex gate_mu;
+        std::condition_variable gate_cv;
+        bool gate_open = false;
 
-            amio::detail::WorkerPool pool(config);
+        std::atomic<std::size_t> tasks_executed{0};
 
-            // Verify no backpressure.
-            RC_ASSERT(!pool.backpressure_enabled());
-            RC_ASSERT(pool.queue_capacity() == capacity);
+        amio::detail::WorkerPool pool(config);
 
-            // --- Block the worker with the first task ---
-            std::mutex started_mu;
-            std::condition_variable started_cv;
-            bool first_task_started = false;
+        // Verify no backpressure.
+        RC_ASSERT(!pool.backpressure_enabled());
+        RC_ASSERT(pool.queue_capacity() == capacity);
 
-            auto first_task = [&]() {
-                {
-                    std::lock_guard<std::mutex> lock(started_mu);
-                    first_task_started = true;
-                }
-                started_cv.notify_all();
-                std::unique_lock<std::mutex> lock(gate_mu);
-                gate_cv.wait(lock, [&]() { return gate_open; });
-                tasks_executed.fetch_add(1, std::memory_order_release);
-            };
+        // --- Block the worker with the first task ---
+        std::mutex started_mu;
+        std::condition_variable started_cv;
+        bool first_task_started = false;
 
-            auto blocking_task = [&]() {
-                std::unique_lock<std::mutex> lock(gate_mu);
-                gate_cv.wait(lock, [&]() { return gate_open; });
-                tasks_executed.fetch_add(1, std::memory_order_release);
-            };
+        auto first_task = [&]() {
+            {
+                std::lock_guard<std::mutex> lock(started_mu);
+                first_task_started = true;
+            }
+            started_cv.notify_all();
+            std::unique_lock<std::mutex> lock(gate_mu);
+            gate_cv.wait(lock, [&]() { return gate_open; });
+            tasks_executed.fetch_add(1, std::memory_order_release);
+        };
 
-            std::uint64_t seq = 0;
-            amio_err_t rc = pool.submit_write(test_dv_key(), first_task, &seq);
+        auto blocking_task = [&]() {
+            std::unique_lock<std::mutex> lock(gate_mu);
+            gate_cv.wait(lock, [&]() { return gate_open; });
+            tasks_executed.fetch_add(1, std::memory_order_release);
+        };
+
+        std::uint64_t seq = 0;
+        amio_err_t rc = pool.submit_write(test_dv_key(), first_task, &seq);
+        RC_ASSERT(rc == AMIO_OK);
+
+        // Wait for the worker to pick up the first task.
+        {
+            std::unique_lock<std::mutex> lock(started_mu);
+            started_cv.wait_for(lock, std::chrono::seconds(5), [&]() { return first_task_started; });
+        }
+        RC_ASSERT(first_task_started);
+
+        // --- Fill the queue to capacity ---
+        // The first task is in-flight (not in queue), so we can
+        // submit `capacity` more tasks to fill the queue.
+        for (std::size_t i = 0; i < capacity; ++i) {
+            rc = pool.submit_write(test_dv_key(2, i + 1), blocking_task, &seq);
             RC_ASSERT(rc == AMIO_OK);
+        }
 
-            // Wait for the worker to pick up the first task.
-            {
-                std::unique_lock<std::mutex> lock(started_mu);
-                started_cv.wait_for(lock, std::chrono::seconds(5), [&]() {
-                    return first_task_started;
-                });
-            }
-            RC_ASSERT(first_task_started);
+        // Queue depth should now be == capacity.
+        RC_ASSERT(pool.write_queue_depth() >= capacity);
 
-            // --- Fill the queue to capacity ---
-            // The first task is in-flight (not in queue), so we can
-            // submit `capacity` more tasks to fill the queue.
-            for (std::size_t i = 0; i < capacity; ++i) {
-                rc = pool.submit_write(test_dv_key(2, i + 1), blocking_task, &seq);
-                RC_ASSERT(rc == AMIO_OK);
-            }
+        // --- Verify that the next submission returns QUEUE_FULL ---
+        std::uint64_t rejected_seq = 999;
+        amio_err_t reject_rc = pool.submit_write(test_dv_key(3, 1), []() {}, &rejected_seq);
 
-            // Queue depth should now be == capacity.
-            RC_ASSERT(pool.write_queue_depth() >= capacity);
+        RC_ASSERT(reject_rc == AMIO_ERR_QUEUE_FULL);
+        RC_ASSERT(rejected_seq == 0);  // No sequence assigned.
 
-            // --- Verify that the next submission returns QUEUE_FULL ---
-            std::uint64_t rejected_seq = 999;
-            amio_err_t reject_rc = pool.submit_write(
-                test_dv_key(3, 1), []() {}, &rejected_seq);
+        // Queue depth should NOT have increased.
+        RC_ASSERT(pool.write_queue_depth() <= capacity);
 
-            RC_ASSERT(reject_rc == AMIO_ERR_QUEUE_FULL);
-            RC_ASSERT(rejected_seq == 0);  // No sequence assigned.
+        // --- Cleanup: open gate and shutdown ---
+        {
+            std::lock_guard<std::mutex> lock(gate_mu);
+            gate_open = true;
+        }
+        gate_cv.notify_all();
 
-            // Queue depth should NOT have increased.
-            RC_ASSERT(pool.write_queue_depth() <= capacity);
-
-            // --- Cleanup: open gate and shutdown ---
-            {
-                std::lock_guard<std::mutex> lock(gate_mu);
-                gate_open = true;
-            }
-            gate_cv.notify_all();
-
-            pool.shutdown();
-        });
+        pool.shutdown();
+    });
 
     REQUIRE(result);
 }

@@ -32,10 +32,10 @@
 #ifndef AMIO_SRC_STAGING_STAGING_POOL_HPP
 #define AMIO_SRC_STAGING_STAGING_POOL_HPP
 
-#include <cstddef>
-#include <cstdint>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -59,11 +59,11 @@ namespace amio::detail {
 //   seq            - generation counter, incremented on every
 //                    acquire; used to detect stale references
 struct StagingBuffer {
-    std::byte*  data            = nullptr;
-    std::size_t capacity_bytes  = 0;
-    std::size_t used_bytes      = 0;
-    int         ref_count       = 0;
-    std::uint64_t seq           = 0;
+    std::byte* data = nullptr;
+    std::size_t capacity_bytes = 0;
+    std::size_t used_bytes = 0;
+    int ref_count = 0;
+    std::uint64_t seq = 0;
 };
 
 // StagingPool -- bounded buffer pool with best-fit acquisition and
@@ -72,15 +72,15 @@ struct StagingBuffer {
 // Construction allocates all buffers up front; no additional memory
 // is allocated after construction.  Destruction frees all buffers.
 class StagingPool {
-public:
+   public:
     // Configuration limits (from design.md / requirements).
-    static constexpr std::size_t kMinBufferCount    = 1;
-    static constexpr std::size_t kMaxBufferCount    = 4096;
+    static constexpr std::size_t kMinBufferCount = 1;
+    static constexpr std::size_t kMaxBufferCount = 4096;
     static constexpr std::size_t kMinBufferCapacity = 1;
     static constexpr std::size_t kMaxBufferCapacity = 1'073'741'824;  // 1 GiB
 
-    static constexpr std::int64_t kMinTimeoutMs     = 1;
-    static constexpr std::int64_t kMaxTimeoutMs     = 60'000;
+    static constexpr std::int64_t kMinTimeoutMs = 1;
+    static constexpr std::int64_t kMaxTimeoutMs = 60'000;
     static constexpr std::int64_t kDefaultTimeoutMs = 5'000;
 
     // Construct a pool with `buffer_count` buffers, each of
@@ -93,9 +93,7 @@ public:
     //   buffer_count    in [kMinBufferCount, kMaxBufferCount]
     //   buffer_capacity in [kMinBufferCapacity, kMaxBufferCapacity]
     //   timeout_ms      in [kMinTimeoutMs, kMaxTimeoutMs]
-    StagingPool(std::size_t buffer_count,
-                std::size_t buffer_capacity,
-                std::int64_t timeout_ms = kDefaultTimeoutMs);
+    StagingPool(std::size_t buffer_count, std::size_t buffer_capacity, std::int64_t timeout_ms = kDefaultTimeoutMs);
 
     // Non-copyable, non-movable (owns raw memory).
     StagingPool(const StagingPool&) = delete;
@@ -150,7 +148,7 @@ public:
     // timeout_ms -- the configured staging timeout.
     std::int64_t timeout_ms() const noexcept;
 
-private:
+   private:
     // Find the best-fit-or-larger buffer in the free list.
     // Returns the index into free_list_, or free_list_.size() if
     // none is suitable.  Caller must hold mu_.
@@ -160,22 +158,22 @@ private:
     // Caller must hold mu_.
     StagingBuffer* remove_from_free_list(std::size_t free_idx);
 
-    mutable std::mutex          mu_;
-    std::condition_variable     cv_;
+    mutable std::mutex mu_;
+    std::condition_variable cv_;
 
     // All buffers owned by the pool (fixed after construction).
-    std::vector<StagingBuffer>  buffers_;
+    std::vector<StagingBuffer> buffers_;
 
     // Raw memory backing (one contiguous allocation per buffer).
     std::vector<std::unique_ptr<std::byte[]>> storage_;
 
     // Free list: indices into buffers_ that are currently available.
     // Kept sorted by capacity for efficient best-fit search.
-    std::vector<std::size_t>    free_list_;
+    std::vector<std::size_t> free_list_;
 
     // Configuration.
-    std::size_t  buffer_count_;
-    std::size_t  buffer_capacity_;
+    std::size_t buffer_count_;
+    std::size_t buffer_capacity_;
     std::int64_t timeout_ms_;
 };
 

@@ -55,26 +55,24 @@
 #include <utility>
 #include <vector>
 
-#include "workers/thread_pinning.hpp"
 #include "workers/comm_split.hpp"
 #include "workers/exception_bridge.hpp"
+#include "workers/thread_pinning.hpp"
 
 namespace amio::detail {
 
 // DatasetVariableKey -- identifies a unique (dataset, variable) pair
 // for ordering purposes.
 struct DatasetVariableKey {
-    std::uint64_t dataset_id  = 0;
+    std::uint64_t dataset_id = 0;
     std::uint64_t variable_id = 0;
 
     bool operator==(const DatasetVariableKey& other) const noexcept {
-        return dataset_id == other.dataset_id &&
-               variable_id == other.variable_id;
+        return dataset_id == other.dataset_id && variable_id == other.variable_id;
     }
 
     bool operator<(const DatasetVariableKey& other) const noexcept {
-        if (dataset_id != other.dataset_id)
-            return dataset_id < other.dataset_id;
+        if (dataset_id != other.dataset_id) return dataset_id < other.dataset_id;
         return variable_id < other.variable_id;
     }
 };
@@ -88,10 +86,10 @@ struct DatasetVariableKey {
 // The `handle_id` identifies the originating opaque handle so that
 // exceptions can be recorded against it (R12.1, R12.2).
 struct WriteTask {
-    DatasetVariableKey  dv_key;       // (dataset, variable) pair
-    std::uint64_t       dv_seq = 0;   // per-(dataset, variable) sequence number
-    std::uint64_t       handle_id = 0; // originating opaque handle for outcome recording
-    std::function<void()> callback;   // backend serialize functor
+    DatasetVariableKey dv_key;       // (dataset, variable) pair
+    std::uint64_t dv_seq = 0;        // per-(dataset, variable) sequence number
+    std::uint64_t handle_id = 0;     // originating opaque handle for outcome recording
+    std::function<void()> callback;  // backend serialize functor
 };
 
 // PrefetchTask -- descriptor for a prefetch task on the worker queue.
@@ -102,11 +100,11 @@ struct WriteTask {
 // The `handle_id` identifies the originating opaque handle so that
 // exceptions can be recorded against it (R12.1, R12.2).
 struct PrefetchTask {
-    std::int64_t  timestep = 0;       // target timestep
-    std::int64_t  distance = 0;       // distance from current read position
-    std::uint64_t dataset_id = 0;     // owning dataset
-    std::uint64_t handle_id = 0;      // originating opaque handle for outcome recording
-    std::function<void()> callback;   // backend read functor
+    std::int64_t timestep = 0;       // target timestep
+    std::int64_t distance = 0;       // distance from current read position
+    std::uint64_t dataset_id = 0;    // owning dataset
+    std::uint64_t handle_id = 0;     // originating opaque handle for outcome recording
+    std::function<void()> callback;  // backend read functor
 
     // Higher priority = smaller distance (min-heap).
     bool operator>(const PrefetchTask& other) const noexcept {
@@ -126,8 +124,8 @@ struct PrefetchTask {
 // queue capacity limit: if the queue is full, submit_write returns
 // AMIO_ERR_QUEUE_FULL immediately without blocking (R6.9).
 struct BackpressureConfig {
-    bool        enabled        = false;
-    std::size_t low_watermark  = 0;
+    bool enabled = false;
+    std::size_t low_watermark = 0;
     std::size_t high_watermark = 0;
     std::size_t queue_capacity = 1024;  // default queue capacity
 };
@@ -140,7 +138,7 @@ struct BackpressureConfig {
 // route Backend_Driver MPI calls through the I/O communicator,
 // and enforce queue admission control (R6.8, R6.9).
 struct WorkerPoolConfig {
-    std::size_t   thread_count = 1;
+    std::size_t thread_count = 1;
 
     // Per-thread pinning configs.  If non-empty, element [i] is
     // applied to worker thread i.  If the vector is shorter than
@@ -164,10 +162,10 @@ struct WorkerPoolConfig {
 // Construction starts N worker threads.  Destruction signals shutdown,
 // drains remaining tasks, and joins all threads.
 class WorkerPool {
-public:
+   public:
     // Configuration limits (from design.md / requirements).
-    static constexpr std::size_t kMinThreadCount    = 1;
-    static constexpr std::size_t kMaxThreadCount    = 256;
+    static constexpr std::size_t kMinThreadCount = 1;
+    static constexpr std::size_t kMaxThreadCount = 256;
     static constexpr std::size_t kDefaultThreadCount = 1;
 
     // Construct a pool with `thread_count` worker threads.
@@ -217,17 +215,14 @@ public:
     // parameter `seq_out`).  Returns AMIO_OK on success, or
     // AMIO_ERR_QUEUE_FULL if the queue is at capacity and no
     // backpressure is configured.
-    amio_err_t submit_write(DatasetVariableKey dv_key,
-                            std::function<void()> callback,
-                            std::uint64_t* seq_out);
+    amio_err_t submit_write(DatasetVariableKey dv_key, std::function<void()> callback, std::uint64_t* seq_out);
 
     // submit_write -- convenience overload (legacy interface).
     //
     // Returns the assigned sequence number on success, or 0 if
     // the pool is shut down or the queue is full.  Prefer the
     // error-returning overload for new code.
-    std::uint64_t submit_write(DatasetVariableKey dv_key,
-                               std::function<void()> callback);
+    std::uint64_t submit_write(DatasetVariableKey dv_key, std::function<void()> callback);
 
     // submit_write with handle_id -- enqueue a write task with an
     // associated opaque handle for exception cordon outcome recording.
@@ -238,25 +233,17 @@ public:
     //
     // Returns the assigned sequence number on success, or 0 if
     // the pool is shut down or the queue is full.
-    std::uint64_t submit_write(DatasetVariableKey dv_key,
-                               std::uint64_t handle_id,
-                               std::function<void()> callback);
+    std::uint64_t submit_write(DatasetVariableKey dv_key, std::uint64_t handle_id, std::function<void()> callback);
 
     // submit_prefetch -- enqueue a prefetch task.
     //
     // The task is prioritized by `distance` from the current read
     // position (smaller distance = higher priority).
-    void submit_prefetch(std::int64_t timestep,
-                         std::int64_t distance,
-                         std::uint64_t dataset_id,
-                         std::function<void()> callback);
+    void submit_prefetch(std::int64_t timestep, std::int64_t distance, std::uint64_t dataset_id, std::function<void()> callback);
 
     // submit_prefetch with handle_id -- enqueue a prefetch task with
     // an associated opaque handle for exception cordon outcome recording.
-    void submit_prefetch(std::int64_t timestep,
-                         std::int64_t distance,
-                         std::uint64_t dataset_id,
-                         std::uint64_t handle_id,
+    void submit_prefetch(std::int64_t timestep, std::int64_t distance, std::uint64_t dataset_id, std::uint64_t handle_id,
                          std::function<void()> callback);
 
     // drain -- block until all currently enqueued tasks complete.
@@ -327,7 +314,7 @@ public:
     OutcomeRegistry& outcome_registry() noexcept;
     const OutcomeRegistry& outcome_registry() const noexcept;
 
-private:
+   private:
     // Worker thread main loop (no pinning).
     void worker_loop();
 
@@ -341,27 +328,25 @@ private:
 
     // Get or create the per-(dataset, variable) ordering state.
     struct DvOrderState {
-        std::mutex   mu;              // ordering mutex
-        std::uint64_t next_seq = 0;   // next sequence number to assign
-        std::uint64_t exec_seq = 0;   // next sequence number to execute
+        std::mutex mu;               // ordering mutex
+        std::uint64_t next_seq = 0;  // next sequence number to assign
+        std::uint64_t exec_seq = 0;  // next sequence number to execute
     };
 
     DvOrderState& get_dv_state(const DatasetVariableKey& key);
 
     // ---- Members ----
 
-    mutable std::mutex          mu_;
-    std::condition_variable     cv_;
-    std::condition_variable     drain_cv_;
-    std::condition_variable     backpressure_cv_;  // for blocking writers (R6.8)
+    mutable std::mutex mu_;
+    std::condition_variable cv_;
+    std::condition_variable drain_cv_;
+    std::condition_variable backpressure_cv_;  // for blocking writers (R6.8)
 
     // Write queue: FIFO order.
-    std::queue<WriteTask>       write_queue_;
+    std::queue<WriteTask> write_queue_;
 
     // Prefetch queue: min-heap by distance.
-    std::priority_queue<PrefetchTask,
-                        std::vector<PrefetchTask>,
-                        std::greater<PrefetchTask>> prefetch_queue_;
+    std::priority_queue<PrefetchTask, std::vector<PrefetchTask>, std::greater<PrefetchTask>> prefetch_queue_;
 
     // Per-(dataset, variable) ordering state.
     // Protected by mu_ for map access; individual DvOrderState::mu
@@ -369,36 +354,36 @@ private:
     std::map<DatasetVariableKey, std::unique_ptr<DvOrderState>> dv_states_;
 
     // Worker threads.
-    std::vector<std::thread>    workers_;
+    std::vector<std::thread> workers_;
 
     // Shutdown flag.
-    std::atomic<bool>           shutdown_{false};
+    std::atomic<bool> shutdown_{false};
 
     // In-flight task count (for drain).
-    std::atomic<std::uint64_t>  in_flight_{0};
+    std::atomic<std::uint64_t> in_flight_{0};
 
     // Completion counters.
-    std::atomic<std::uint64_t>  writes_completed_{0};
-    std::atomic<std::uint64_t>  prefetches_completed_{0};
+    std::atomic<std::uint64_t> writes_completed_{0};
+    std::atomic<std::uint64_t> prefetches_completed_{0};
 
     // Configuration.
-    std::size_t                 thread_count_;
+    std::size_t thread_count_;
 
     // Per-thread pinning configurations (R3.2).
-    std::vector<ThreadConfig>   thread_configs_;
+    std::vector<ThreadConfig> thread_configs_;
 
     // I/O communicator for Backend_Driver MPI calls (R3.5).
-    IOCommunicator              io_comm_;
+    IOCommunicator io_comm_;
 
     // Count of threads that failed to apply pinning at start.
-    std::atomic<std::size_t>    pinning_errors_{0};
+    std::atomic<std::size_t> pinning_errors_{0};
 
     // Backpressure configuration (R6.8, R6.9).
-    BackpressureConfig          backpressure_;
+    BackpressureConfig backpressure_;
 
     // Exception cordon outcome registry (R12.1, R12.2, R12.9, R12.10).
     // Records task outcomes against originating opaque handles.
-    OutcomeRegistry             outcome_registry_;
+    OutcomeRegistry outcome_registry_;
 };
 
 }  // namespace amio::detail

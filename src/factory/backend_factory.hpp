@@ -55,7 +55,7 @@ namespace amio::detail {
 // Mimics eckit::Factory<Backend_Driver> keyed by string.  Concrete
 // drivers register via BackendRegistrar<T> at static init time.
 class BackendFactory {
-public:
+   public:
     // Builder function type: creates a new Backend_Driver instance.
     using BuilderFn = std::function<std::unique_ptr<Backend_Driver>()>;
 
@@ -82,8 +82,7 @@ public:
     // no internal state is modified (R4.6).
     //
     // Thread-safe (shared lock for lookup).
-    std::unique_ptr<Backend_Driver> build(const std::string& key,
-                                          amio_err_t& err_out) const;
+    std::unique_ptr<Backend_Driver> build(const std::string& key, amio_err_t& err_out) const;
 
     // has -- check if a key is registered (case-sensitive).
     //
@@ -106,7 +105,7 @@ public:
     BackendFactory(BackendFactory&&) = delete;
     BackendFactory& operator=(BackendFactory&&) = delete;
 
-private:
+   private:
     BackendFactory() = default;
 
     mutable std::shared_mutex mu_;
@@ -130,13 +129,9 @@ private:
 // lifetime).
 template <typename ConcreteDriver>
 class BackendRegistrar {
-public:
+   public:
     explicit BackendRegistrar(const std::string& key) {
-        BackendFactory::instance().register_driver(
-            key,
-            []() -> std::unique_ptr<Backend_Driver> {
-                return std::make_unique<ConcreteDriver>();
-            });
+        BackendFactory::instance().register_driver(key, []() -> std::unique_ptr<Backend_Driver> { return std::make_unique<ConcreteDriver>(); });
     }
 };
 

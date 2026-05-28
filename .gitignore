@@ -11,5 +11,19 @@ cmake-build-*/
 # Installed/exported package artifacts
 *.mod
 
+# Generated Doxygen documentation (legacy HTML output)
+docs/html/
+
+# Documentation pipeline generated files
+docs/xml/
+docs/site/api/*.md
+!docs/site/api/README.md
+docs/_build/
+node_modules/
 
 build*/
+
+*.xml
+
+# Pre-commit
+.pre-commit-cache/

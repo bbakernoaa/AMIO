@@ -7,23 +7,17 @@
 
 #include "prefetch/prefetch_queue.hpp"
 
+#include <algorithm>
+#include <cassert>
+
 #include "factory/backend_driver.hpp"
 #include "staging/staging_pool.hpp"
 #include "workers/worker_pool.hpp"
 
-#include <algorithm>
-#include <cassert>
-
 namespace amio::detail {
 
-PrefetchQueue::PrefetchQueue(std::size_t depth,
-                             std::int64_t read_timeout_s,
-                             StagingPool* pool,
-                             WorkerPool* workers,
-                             Backend_Driver* driver,
-                             std::uint64_t dataset_id,
-                             const std::string& var_name,
-                             std::int64_t total_timesteps)
+PrefetchQueue::PrefetchQueue(std::size_t depth, std::int64_t read_timeout_s, StagingPool* pool, WorkerPool* workers, Backend_Driver* driver,
+                             std::uint64_t dataset_id, const std::string& var_name, std::int64_t total_timesteps)
     : depth_(depth),
       read_timeout_s_(read_timeout_s),
       total_timesteps_(total_timesteps),
@@ -47,17 +41,14 @@ PrefetchQueue::~PrefetchQueue() {
 
 void PrefetchQueue::schedule_initial() {
     // Schedule min(N, M) fetches for timesteps [0, min(N, M)).
-    std::int64_t count = static_cast<std::int64_t>(
-        std::min(static_cast<std::int64_t>(depth_), total_timesteps_));
+    std::int64_t count = static_cast<std::int64_t>(std::min(static_cast<std::int64_t>(depth_), total_timesteps_));
 
     for (std::int64_t t = 0; t < count; ++t) {
         schedule_fetch(t, nullptr);
     }
 }
 
-amio_status_t PrefetchQueue::get_buffer(std::int64_t timestep,
-                                        const amio_bbox_t* bbox,
-                                        StagingBuffer** out_buf) {
+amio_status_t PrefetchQueue::get_buffer(std::int64_t timestep, const amio_bbox_t* bbox, StagingBuffer** out_buf) {
     assert(out_buf != nullptr);
     *out_buf = nullptr;
 
@@ -88,8 +79,7 @@ amio_status_t PrefetchQueue::get_buffer(std::int64_t timestep,
     }
 
     // Block until the fetch completes, fails, or timeout expires.
-    auto deadline = std::chrono::steady_clock::now() +
-                    std::chrono::seconds(read_timeout_s_);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(read_timeout_s_);
 
     while (true) {
         // Check completed.
@@ -139,9 +129,7 @@ void PrefetchQueue::schedule_next(std::int64_t current_timestep) {
     if (next_t < total_timesteps_) {
         // Only schedule if not already pending, completed, or failed.
         std::lock_guard<std::mutex> lock(mu_);
-        if (pending_.find(next_t) == pending_.end() &&
-            completed_.find(next_t) == completed_.end() &&
-            failed_.find(next_t) == failed_.end()) {
+        if (pending_.find(next_t) == pending_.end() && completed_.find(next_t) == completed_.end() && failed_.find(next_t) == failed_.end()) {
             // Release lock before scheduling to avoid holding mu_
             // during potentially blocking operations.
         } else {
@@ -161,13 +149,8 @@ void PrefetchQueue::schedule_next(std::int64_t current_timestep) {
         auto self = this;
         auto timestep_to_fetch = next_t;
 
-        workers_->submit_prefetch(
-            timestep_to_fetch,
-            distance,
-            dataset_id_,
-            [self, timestep_to_fetch]() {
-                self->sync_fetch(timestep_to_fetch, nullptr);
-            });
+        workers_->submit_prefetch(timestep_to_fetch, distance, dataset_id_,
+                                  [self, timestep_to_fetch]() { self->sync_fetch(timestep_to_fetch, nullptr); });
     } else {
         // Synchronous fallback: perform the fetch directly.
         // Note: pending_ was already marked above under the lock.
@@ -222,16 +205,13 @@ std::size_t PrefetchQueue::failed_count() const noexcept {
     return failed_.size();
 }
 
-void PrefetchQueue::schedule_fetch(std::int64_t timestep,
-                                   const amio_bbox_t* bbox) {
+void PrefetchQueue::schedule_fetch(std::int64_t timestep, const amio_bbox_t* bbox) {
     {
         std::lock_guard<std::mutex> lock(mu_);
         if (cancelled_) return;
 
         // Check if already tracked.
-        if (pending_.count(timestep) > 0 ||
-            completed_.count(timestep) > 0 ||
-            failed_.count(timestep) > 0) {
+        if (pending_.count(timestep) > 0 || completed_.count(timestep) > 0 || failed_.count(timestep) > 0) {
             return;
         }
         pending_.insert(timestep);
@@ -242,13 +222,9 @@ void PrefetchQueue::schedule_fetch(std::int64_t timestep,
         auto self = this;
         auto ts = timestep;
 
-        workers_->submit_prefetch(
-            timestep,
-            timestep,  // distance = timestep (from position 0)
-            dataset_id_,
-            [self, ts, bbox]() {
-                self->sync_fetch(ts, bbox);
-            });
+        workers_->submit_prefetch(timestep,
+                                  timestep,  // distance = timestep (from position 0)
+                                  dataset_id_, [self, ts, bbox]() { self->sync_fetch(ts, bbox); });
     } else {
         // Synchronous fallback: perform the fetch directly on the
         // calling thread.
@@ -256,8 +232,7 @@ void PrefetchQueue::schedule_fetch(std::int64_t timestep,
     }
 }
 
-void PrefetchQueue::sync_fetch(std::int64_t timestep,
-                               const amio_bbox_t* bbox) {
+void PrefetchQueue::sync_fetch(std::int64_t timestep, const amio_bbox_t* bbox) {
     // Check cancellation before doing work.
     {
         std::lock_guard<std::mutex> lock(mu_);

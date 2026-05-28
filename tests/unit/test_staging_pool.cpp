@@ -26,8 +26,6 @@
 //     the waiting thread wakes and acquires it.
 //   * Generation counter (seq) increments on each acquire.
 
-#include "staging/staging_pool.hpp"
-
 #include <atomic>
 #include <cassert>
 #include <chrono>
@@ -35,6 +33,8 @@
 #include <cstring>
 #include <string>
 #include <thread>
+
+#include "staging/staging_pool.hpp"
 
 namespace {
 
@@ -48,21 +48,18 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char* expr, const char* file, int line, const std::string& context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
 // ---- Test: construction allocates correct buffers ----
@@ -74,14 +71,10 @@ void test_construction_allocates_buffers() {
 
     StagingPool pool(count, capacity, timeout);
 
-    EXPECT_TRUE(pool.total_buffer_count() == count,
-                "total_buffer_count mismatch");
-    EXPECT_TRUE(pool.free_buffer_count() == count,
-                "all buffers should be free after construction");
-    EXPECT_TRUE(pool.buffer_capacity() == capacity,
-                "buffer_capacity mismatch");
-    EXPECT_TRUE(pool.timeout_ms() == timeout,
-                "timeout_ms mismatch");
+    EXPECT_TRUE(pool.total_buffer_count() == count, "total_buffer_count mismatch");
+    EXPECT_TRUE(pool.free_buffer_count() == count, "all buffers should be free after construction");
+    EXPECT_TRUE(pool.buffer_capacity() == capacity, "buffer_capacity mismatch");
+    EXPECT_TRUE(pool.timeout_ms() == timeout, "timeout_ms mismatch");
 }
 
 // ---- Test: acquire returns valid buffer ----
@@ -91,18 +84,12 @@ void test_acquire_returns_valid_buffer() {
 
     StagingBuffer* buf = pool.acquire(512);
     EXPECT_TRUE(buf != nullptr, "acquire returned nullptr for available pool");
-    EXPECT_TRUE(buf->capacity_bytes >= 512,
-                "acquired buffer capacity < requested");
-    EXPECT_TRUE(buf->capacity_bytes == 2048,
-                "acquired buffer should have pool's capacity");
-    EXPECT_TRUE(buf->ref_count == 1,
-                "acquired buffer ref_count should be 1");
-    EXPECT_TRUE(buf->seq == 1,
-                "first acquire should set seq to 1");
-    EXPECT_TRUE(buf->data != nullptr,
-                "acquired buffer data pointer is null");
-    EXPECT_TRUE(pool.free_buffer_count() == 3,
-                "free count should decrease by 1 after acquire");
+    EXPECT_TRUE(buf->capacity_bytes >= 512, "acquired buffer capacity < requested");
+    EXPECT_TRUE(buf->capacity_bytes == 2048, "acquired buffer should have pool's capacity");
+    EXPECT_TRUE(buf->ref_count == 1, "acquired buffer ref_count should be 1");
+    EXPECT_TRUE(buf->seq == 1, "first acquire should set seq to 1");
+    EXPECT_TRUE(buf->data != nullptr, "acquired buffer data pointer is null");
+    EXPECT_TRUE(pool.free_buffer_count() == 3, "free count should decrease by 1 after acquire");
 
     pool.release(buf);
 }
@@ -116,20 +103,17 @@ void test_acquire_all_buffers_exhausts_pool() {
     StagingBuffer* bufs[3];
     for (std::size_t i = 0; i < count; ++i) {
         bufs[i] = pool.acquire(256);
-        EXPECT_TRUE(bufs[i] != nullptr,
-                    "acquire failed before pool exhaustion");
+        EXPECT_TRUE(bufs[i] != nullptr, "acquire failed before pool exhaustion");
     }
 
-    EXPECT_TRUE(pool.free_buffer_count() == 0,
-                "free count should be 0 after acquiring all");
+    EXPECT_TRUE(pool.free_buffer_count() == 0, "free count should be 0 after acquiring all");
 
     // Release all.
     for (std::size_t i = 0; i < count; ++i) {
         pool.release(bufs[i]);
     }
 
-    EXPECT_TRUE(pool.free_buffer_count() == count,
-                "free count should be restored after releasing all");
+    EXPECT_TRUE(pool.free_buffer_count() == count, "free count should be restored after releasing all");
 }
 
 // ---- Test: backpressure timeout returns nullptr ----
@@ -145,14 +129,11 @@ void test_backpressure_timeout_returns_nullptr() {
     StagingBuffer* timeout_buf = pool.acquire(512);
     auto elapsed = std::chrono::steady_clock::now() - start;
 
-    EXPECT_TRUE(timeout_buf == nullptr,
-                "acquire should return nullptr on timeout");
+    EXPECT_TRUE(timeout_buf == nullptr, "acquire should return nullptr on timeout");
 
-    auto elapsed_ms = std::chrono::duration_cast<
-        std::chrono::milliseconds>(elapsed).count();
+    auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
     EXPECT_TRUE(elapsed_ms >= 9,  // allow 1ms jitter
-                "timeout should wait at least ~10ms, got " +
-                std::to_string(elapsed_ms) + "ms");
+                "timeout should wait at least ~10ms, got " + std::to_string(elapsed_ms) + "ms");
 
     pool.release(buf);
 }
@@ -190,8 +171,7 @@ void test_release_wakes_waiting_thread() {
 
     waiter.join();
 
-    EXPECT_TRUE(acquired.load(std::memory_order_acquire),
-                "waiter should have acquired buffer after release");
+    EXPECT_TRUE(acquired.load(std::memory_order_acquire), "waiter should have acquired buffer after release");
 }
 
 // ---- Test: ref_count and add_ref ----
@@ -209,15 +189,12 @@ void test_ref_count_and_add_ref() {
 
     // First release: ref_count drops to 1, buffer stays in-use.
     pool.release(buf);
-    EXPECT_TRUE(buf->ref_count == 1,
-                "ref_count should be 1 after first release");
-    EXPECT_TRUE(pool.free_buffer_count() == 1,
-                "buffer should NOT be on free list with ref_count=1");
+    EXPECT_TRUE(buf->ref_count == 1, "ref_count should be 1 after first release");
+    EXPECT_TRUE(pool.free_buffer_count() == 1, "buffer should NOT be on free list with ref_count=1");
 
     // Second release: ref_count drops to 0, buffer returns to pool.
     pool.release(buf);
-    EXPECT_TRUE(pool.free_buffer_count() == 2,
-                "buffer should be on free list after final release");
+    EXPECT_TRUE(pool.free_buffer_count() == 2, "buffer should be on free list after final release");
 }
 
 // ---- Test: generation counter increments on each acquire ----
@@ -257,12 +234,9 @@ void test_buffer_data_is_writable() {
     buf->used_bytes = 128;
 
     // Verify the write.
-    EXPECT_TRUE(static_cast<unsigned char>(buf->data[0]) == 0xAB,
-                "buffer data should be writable and readable");
-    EXPECT_TRUE(static_cast<unsigned char>(buf->data[127]) == 0xAB,
-                "buffer data end should be writable");
-    EXPECT_TRUE(buf->used_bytes == 128,
-                "used_bytes should reflect the payload size");
+    EXPECT_TRUE(static_cast<unsigned char>(buf->data[0]) == 0xAB, "buffer data should be writable and readable");
+    EXPECT_TRUE(static_cast<unsigned char>(buf->data[127]) == 0xAB, "buffer data end should be writable");
+    EXPECT_TRUE(buf->used_bytes == 128, "used_bytes should reflect the payload size");
 
     pool.release(buf);
 }
@@ -274,8 +248,7 @@ void test_acquire_oversized_request_times_out() {
     StagingPool pool(2, 512, 10);  // 10ms timeout
 
     StagingBuffer* buf = pool.acquire(1024);
-    EXPECT_TRUE(buf == nullptr,
-                "acquire for oversized request should return nullptr");
+    EXPECT_TRUE(buf == nullptr, "acquire for oversized request should return nullptr");
 }
 
 // ---- Test: concurrent acquire and release ----
@@ -314,11 +287,8 @@ void test_concurrent_acquire_release() {
         w.join();
     }
 
-    EXPECT_TRUE(failures.load(std::memory_order_relaxed) == 0,
-                "concurrent acquire/release had " +
-                std::to_string(failures.load()) + " failures");
-    EXPECT_TRUE(pool.free_buffer_count() == count,
-                "all buffers should be free after concurrent test");
+    EXPECT_TRUE(failures.load(std::memory_order_relaxed) == 0, "concurrent acquire/release had " + std::to_string(failures.load()) + " failures");
+    EXPECT_TRUE(pool.free_buffer_count() == count, "all buffers should be free after concurrent test");
 }
 
 }  // namespace
@@ -335,9 +305,7 @@ int main() {
     test_acquire_oversized_request_times_out();
     test_concurrent_acquire_release();
 
-    std::fprintf(stdout,
-                 "test_staging_pool: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_staging_pool: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

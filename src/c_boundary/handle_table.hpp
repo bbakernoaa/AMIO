@@ -43,8 +43,8 @@
 #ifndef AMIO_SRC_C_BOUNDARY_HANDLE_TABLE_HPP
 #define AMIO_SRC_C_BOUNDARY_HANDLE_TABLE_HPP
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <mutex>
 #include <vector>
 
@@ -58,10 +58,10 @@ namespace amio::detail {
 // (e.g. a view handle passed to amio_finalize) and report it as
 // AMIO_ERR_INVALID_HANDLE without dereferencing the payload.
 enum class HandleKind : std::uint8_t {
-    Core    = 1,
+    Core = 1,
     Dataset = 2,
-    Io      = 3,
-    View    = 4,
+    Io = 3,
+    View = 4,
 };
 
 // HandleTable -- a slab of generation-stamped slots that hands out
@@ -84,7 +84,7 @@ enum class HandleKind : std::uint8_t {
 // every supported platform sizeof(void*) >= 8, but we still guard
 // against narrower pointers with a static_assert below.
 class HandleTable {
-public:
+   public:
     using Token = std::uint64_t;
 
     static constexpr std::uint32_t kMinGeneration = 1;
@@ -119,9 +119,7 @@ public:
     // is also checked; mismatches yield AMIO_ERR_INVALID_HANDLE so
     // the C-Boundary can refuse cross-kind misuse without ever
     // dereferencing the payload pointer.
-    amio_status_t lookup(Token token,
-                         HandleKind expected,
-                         void **out_payload) const noexcept;
+    amio_status_t lookup(Token token, HandleKind expected, void **out_payload) const noexcept;
 
     // release -- mark `token` as released and bump the slot's
     //            generation so subsequent lookups return
@@ -137,8 +135,7 @@ public:
     // re-allocated by a future insert().  The released payload is
     // *not* dereferenced -- the caller is responsible for any
     // resource cleanup before calling release.
-    amio_status_t release(Token token,
-                          HandleKind expected) noexcept;
+    amio_status_t release(Token token, HandleKind expected) noexcept;
 
     // size_for_test -- diagnostics-only count of currently live
     // slots.  Inexpensive; used by the unit tests.  Does not lock
@@ -154,10 +151,8 @@ public:
     // header lets the public-API translation unit avoid a function
     // call on the hot validation path.
 
-    static constexpr Token pack(std::uint32_t slot,
-                                std::uint32_t generation) noexcept {
-        return (static_cast<Token>(slot) << 32) |
-               static_cast<Token>(generation);
+    static constexpr Token pack(std::uint32_t slot, std::uint32_t generation) noexcept {
+        return (static_cast<Token>(slot) << 32) | static_cast<Token>(generation);
     }
 
     static constexpr std::uint32_t unpack_slot(Token t) noexcept {
@@ -178,16 +173,16 @@ public:
         return static_cast<Token>(reinterpret_cast<std::uintptr_t>(p));
     }
 
-private:
+   private:
     struct Slot {
         std::uint32_t generation = 0;  // 0 means "never used"
-        bool          live       = false;
-        HandleKind    kind       = HandleKind::Core;
-        void         *payload    = nullptr;
+        bool live = false;
+        HandleKind kind = HandleKind::Core;
+        void *payload = nullptr;
     };
 
-    mutable std::mutex      mu_;
-    std::vector<Slot>       slots_;
+    mutable std::mutex mu_;
+    std::vector<Slot> slots_;
     std::vector<std::uint32_t> free_list_;  // slot indices ready for reuse
 };
 

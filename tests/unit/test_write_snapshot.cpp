@@ -27,11 +27,11 @@
 #include "amio/amio.h"
 
 // Private headers for test setup.
-#include "factory/backend_factory.hpp"
-#include "factory/backend_driver.hpp"
-#include "staging/staging_pool.hpp"
 #include "c_boundary/amio_core.hpp"
 #include "c_boundary/handle_table.hpp"
+#include "factory/backend_driver.hpp"
+#include "factory/backend_factory.hpp"
+#include "staging/staging_pool.hpp"
 
 namespace {
 
@@ -42,49 +42,41 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char *expr, const char *file, int line, const std::string &context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
-#define EXPECT_EQ(a, b, ctx)                                         \
-    do {                                                             \
-        if ((a) != (b)) {                                            \
-            char buf[256];                                            \
-            std::snprintf(buf, sizeof(buf),                           \
-                          "%s: expected %d, got %d", (ctx),           \
-                          static_cast<int>(b), static_cast<int>(a));  \
-            report_failure(#a " == " #b, __FILE__, __LINE__, buf);   \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_EQ(a, b, ctx)                                                                                             \
+    do {                                                                                                                 \
+        if ((a) != (b)) {                                                                                                \
+            char buf[256];                                                                                               \
+            std::snprintf(buf, sizeof(buf), "%s: expected %d, got %d", (ctx), static_cast<int>(b), static_cast<int>(a)); \
+            report_failure(#a " == " #b, __FILE__, __LINE__, buf);                                                       \
+        } else {                                                                                                         \
+            ++g_result.passed;                                                                                           \
+        }                                                                                                                \
     } while (0)
 
 // ---------------------------------------------------------------
 // MockDriver -- minimal Backend_Driver for testing.
 // ---------------------------------------------------------------
 class MockDriver : public amio::detail::Backend_Driver {
-public:
+   public:
     void open_write(const eckit::Configuration &) override {}
     void open_read(const eckit::Configuration &) override {}
-    void write(const amio::detail::StagingBuffer &,
-               const amio::detail::VarMeta &) override {}
-    void read(amio::detail::StagingBuffer &,
-              const amio::detail::VarMeta &,
-              std::int64_t,
-              const std::optional<amio::detail::BoundingBox> &) override {}
+    void write(const amio::detail::StagingBuffer &, const amio::detail::VarMeta &) override {}
+    void read(amio::detail::StagingBuffer &, const amio::detail::VarMeta &, std::int64_t, const std::optional<amio::detail::BoundingBox> &) override {
+    }
     void flush() override {}
     void close() override {}
 };
@@ -133,10 +125,7 @@ amio_shape_t make_shape_2d(int64_t rows, int64_t cols) {
 // ---------------------------------------------------------------
 void test_write_null_host_data() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_null_data");
 
@@ -166,10 +155,7 @@ void test_write_null_host_data() {
 // ---------------------------------------------------------------
 void test_write_unsupported_dtype() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_bad_dtype");
 
@@ -186,8 +172,7 @@ void test_write_unsupported_dtype() {
     amio_io_handle io = nullptr;
 
     // Use an invalid dtype value (beyond the defined enum range).
-    rc = amio_write(ds, "var", data,
-                    static_cast<amio_dtype_t>(99), &shape, &io);
+    rc = amio_write(ds, "var", data, static_cast<amio_dtype_t>(99), &shape, &io);
     EXPECT_EQ(rc, AMIO_ERR_INVALID_INPUT, "write(unsupported dtype)");
     EXPECT_TRUE(io == nullptr, "no io_handle on unsupported dtype");
 
@@ -201,10 +186,7 @@ void test_write_unsupported_dtype() {
 // ---------------------------------------------------------------
 void test_write_invalid_shape_rank_zero() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_rank0");
 
@@ -235,10 +217,7 @@ void test_write_invalid_shape_rank_zero() {
 // ---------------------------------------------------------------
 void test_write_invalid_shape_zero_extent() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_zero_ext");
 
@@ -271,10 +250,7 @@ void test_write_invalid_shape_zero_extent() {
 // ---------------------------------------------------------------
 void test_write_invalid_shape_negative_extent() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_neg_ext");
 
@@ -306,10 +282,7 @@ void test_write_invalid_shape_negative_extent() {
 // ---------------------------------------------------------------
 void test_write_invalid_shape_rank_too_high() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_rank8");
 
@@ -341,10 +314,7 @@ void test_write_invalid_shape_rank_too_high() {
 // ---------------------------------------------------------------
 void test_write_success_returns_handle() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_success");
 
@@ -381,10 +351,7 @@ void test_write_success_returns_handle() {
 // ---------------------------------------------------------------
 void test_write_snapshot_decouples_host_buffer() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_snapshot");
 
@@ -427,10 +394,7 @@ void test_write_snapshot_decouples_host_buffer() {
 // ---------------------------------------------------------------
 void test_write_multiple_returns_distinct_handles() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_multi");
 
@@ -469,10 +433,7 @@ void test_write_multiple_returns_distinct_handles() {
 // ---------------------------------------------------------------
 void test_write_all_supported_dtypes() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_dtypes");
 
@@ -488,15 +449,9 @@ void test_write_all_supported_dtypes() {
     uint8_t buf[64] = {};
     amio_shape_t shape = make_shape_1d(8);
 
-    amio_dtype_t dtypes[] = {
-        AMIO_DTYPE_F32, AMIO_DTYPE_F64,
-        AMIO_DTYPE_I8,  AMIO_DTYPE_I16, AMIO_DTYPE_I32, AMIO_DTYPE_I64,
-        AMIO_DTYPE_U8,  AMIO_DTYPE_U16, AMIO_DTYPE_U32, AMIO_DTYPE_U64
-    };
-    const char *names[] = {
-        "f32", "f64", "i8", "i16", "i32", "i64",
-        "u8", "u16", "u32", "u64"
-    };
+    amio_dtype_t dtypes[] = {AMIO_DTYPE_F32, AMIO_DTYPE_F64, AMIO_DTYPE_I8,  AMIO_DTYPE_I16, AMIO_DTYPE_I32,
+                             AMIO_DTYPE_I64, AMIO_DTYPE_U8,  AMIO_DTYPE_U16, AMIO_DTYPE_U32, AMIO_DTYPE_U64};
+    const char *names[] = {"f32", "f64", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"};
 
     for (int i = 0; i < 10; ++i) {
         amio_io_handle io = nullptr;
@@ -517,10 +472,7 @@ void test_write_all_supported_dtypes() {
 // ---------------------------------------------------------------
 void test_write_null_var_name() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_write",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_write", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("_null_var");
 
@@ -560,9 +512,7 @@ int main() {
     test_write_all_supported_dtypes();
     test_write_null_var_name();
 
-    std::fprintf(stdout,
-                 "test_write_snapshot: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_write_snapshot: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

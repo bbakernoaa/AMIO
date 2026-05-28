@@ -102,41 +102,41 @@ module amio_mod
 
     !> Dataset open mode constants
     integer(c_int32_t), parameter :: AMIO_MODE_WRITE = 0
-    integer(c_int32_t), parameter :: AMIO_MODE_READ  = 1
+    integer(c_int32_t), parameter :: AMIO_MODE_READ = 1
 
     ! ---------------------------------------------------------------
     ! Error codes (amio_status_t = int32_t)
     ! Values are ABI-frozen and match include/amio/amio_errors.h
     ! ---------------------------------------------------------------
-    integer(c_int32_t), parameter :: AMIO_OK                        = 0
-    integer(c_int32_t), parameter :: AMIO_ERR_NULL_HANDLE           = 1
-    integer(c_int32_t), parameter :: AMIO_ERR_INVALID_HANDLE        = 2
-    integer(c_int32_t), parameter :: AMIO_ERR_MANIFEST_NOT_FOUND    = 3
-    integer(c_int32_t), parameter :: AMIO_ERR_MANIFEST_INVALID      = 4
-    integer(c_int32_t), parameter :: AMIO_ERR_ALREADY_INITIALIZED   = 5
-    integer(c_int32_t), parameter :: AMIO_ERR_FINALIZE_TIMEOUT      = 6
-    integer(c_int32_t), parameter :: AMIO_ERR_STAGING_BACKPRESSURE  = 7
-    integer(c_int32_t), parameter :: AMIO_ERR_INVALID_BINDING       = 8
-    integer(c_int32_t), parameter :: AMIO_ERR_COMM_SPLIT_FAILED     = 9
+    integer(c_int32_t), parameter :: AMIO_OK = 0
+    integer(c_int32_t), parameter :: AMIO_ERR_NULL_HANDLE = 1
+    integer(c_int32_t), parameter :: AMIO_ERR_INVALID_HANDLE = 2
+    integer(c_int32_t), parameter :: AMIO_ERR_MANIFEST_NOT_FOUND = 3
+    integer(c_int32_t), parameter :: AMIO_ERR_MANIFEST_INVALID = 4
+    integer(c_int32_t), parameter :: AMIO_ERR_ALREADY_INITIALIZED = 5
+    integer(c_int32_t), parameter :: AMIO_ERR_FINALIZE_TIMEOUT = 6
+    integer(c_int32_t), parameter :: AMIO_ERR_STAGING_BACKPRESSURE = 7
+    integer(c_int32_t), parameter :: AMIO_ERR_INVALID_BINDING = 8
+    integer(c_int32_t), parameter :: AMIO_ERR_COMM_SPLIT_FAILED = 9
     integer(c_int32_t), parameter :: AMIO_ERR_THREADING_UNSUPPORTED = 10
-    integer(c_int32_t), parameter :: AMIO_ERR_UNKNOWN_BACKEND       = 11
+    integer(c_int32_t), parameter :: AMIO_ERR_UNKNOWN_BACKEND = 11
     integer(c_int32_t), parameter :: AMIO_ERR_LOSSY_CODEC_FORBIDDEN = 12
-    integer(c_int32_t), parameter :: AMIO_ERR_VIEWS_OUTSTANDING     = 13
-    integer(c_int32_t), parameter :: AMIO_ERR_QUEUE_FULL            = 14
-    integer(c_int32_t), parameter :: AMIO_ERR_TIMEOUT               = 15
-    integer(c_int32_t), parameter :: AMIO_ERR_BACKEND_FAILURE       = 16
-    integer(c_int32_t), parameter :: AMIO_ERR_INVALID_INPUT         = 17
+    integer(c_int32_t), parameter :: AMIO_ERR_VIEWS_OUTSTANDING = 13
+    integer(c_int32_t), parameter :: AMIO_ERR_QUEUE_FULL = 14
+    integer(c_int32_t), parameter :: AMIO_ERR_TIMEOUT = 15
+    integer(c_int32_t), parameter :: AMIO_ERR_BACKEND_FAILURE = 16
+    integer(c_int32_t), parameter :: AMIO_ERR_INVALID_INPUT = 17
 
     ! ---------------------------------------------------------------
     ! Data type tags (amio_dtype_t = enum/int in C)
     ! ---------------------------------------------------------------
     integer(c_int), parameter :: AMIO_DTYPE_F32 = 0
     integer(c_int), parameter :: AMIO_DTYPE_F64 = 1
-    integer(c_int), parameter :: AMIO_DTYPE_I8  = 2
+    integer(c_int), parameter :: AMIO_DTYPE_I8 = 2
     integer(c_int), parameter :: AMIO_DTYPE_I16 = 3
     integer(c_int), parameter :: AMIO_DTYPE_I32 = 4
     integer(c_int), parameter :: AMIO_DTYPE_I64 = 5
-    integer(c_int), parameter :: AMIO_DTYPE_U8  = 6
+    integer(c_int), parameter :: AMIO_DTYPE_U8 = 6
     integer(c_int), parameter :: AMIO_DTYPE_U16 = 7
     integer(c_int), parameter :: AMIO_DTYPE_U32 = 8
     integer(c_int), parameter :: AMIO_DTYPE_U64 = 9
@@ -171,7 +171,7 @@ module amio_mod
         !!   amio_status_t amio_init(const char *manifest_path,
         !!                           amio_core_handle *out_core);
         function amio_init(manifest_path, out_core) result(status) &
-                bind(C, name="amio_init")
+            bind(C, name="amio_init")
             import :: c_char, c_ptr, c_int32_t
             character(kind=c_char), intent(in) :: manifest_path(*)
             type(c_ptr), intent(out) :: out_core
@@ -182,7 +182,7 @@ module amio_mod
         !! C signature:
         !!   amio_status_t amio_finalize(amio_core_handle core);
         function amio_finalize(core) result(status) &
-                bind(C, name="amio_finalize")
+            bind(C, name="amio_finalize")
             import :: c_ptr, c_int32_t
             type(c_ptr), value, intent(in) :: core
             integer(c_int32_t) :: status
@@ -195,7 +195,7 @@ module amio_mod
         !!                                   int32_t mode,
         !!                                   amio_dataset_handle *out_dataset);
         function amio_open_dataset(core, config_path, mode, out_dataset) &
-                result(status) bind(C, name="amio_open_dataset")
+            result(status) bind(C, name="amio_open_dataset")
             import :: c_ptr, c_char, c_int32_t
             type(c_ptr), value, intent(in) :: core
             character(kind=c_char), intent(in) :: config_path(*)
@@ -208,7 +208,7 @@ module amio_mod
         !! C signature:
         !!   amio_status_t amio_close_dataset(amio_dataset_handle dataset);
         function amio_close_dataset(dataset) result(status) &
-                bind(C, name="amio_close_dataset")
+            bind(C, name="amio_close_dataset")
             import :: c_ptr, c_int32_t
             type(c_ptr), value, intent(in) :: dataset
             integer(c_int32_t) :: status
@@ -223,7 +223,7 @@ module amio_mod
         !!                            const amio_shape_t *shape,
         !!                            amio_io_handle *out_io);
         function amio_write(dataset, var_name, host_data, dtype, shape, &
-                out_io) result(status) bind(C, name="amio_write")
+                            out_io) result(status) bind(C, name="amio_write")
             import :: c_ptr, c_char, c_int, c_int32_t
             import :: amio_shape_t
             type(c_ptr), value, intent(in) :: dataset
@@ -243,7 +243,7 @@ module amio_mod
         !!                           const amio_bbox_t *bbox,
         !!                           amio_view_handle *out_view);
         function amio_read(dataset, var_name, timestep, bbox, out_view) &
-                result(status) bind(C, name="amio_read")
+            result(status) bind(C, name="amio_read")
             import :: c_ptr, c_char, c_int64_t, c_int32_t
             import :: amio_bbox_t
             type(c_ptr), value, intent(in) :: dataset
@@ -259,7 +259,7 @@ module amio_mod
         !!   amio_status_t amio_flush(amio_dataset_handle dataset,
         !!                            int64_t timeout_ms);
         function amio_flush(dataset, timeout_ms) result(status) &
-                bind(C, name="amio_flush")
+            bind(C, name="amio_flush")
             import :: c_ptr, c_int64_t, c_int32_t
             type(c_ptr), value, intent(in) :: dataset
             integer(c_int64_t), value, intent(in) :: timeout_ms
@@ -270,7 +270,7 @@ module amio_mod
         !! C signature:
         !!   amio_status_t amio_close(amio_dataset_handle dataset);
         function amio_close(dataset) result(status) &
-                bind(C, name="amio_close")
+            bind(C, name="amio_close")
             import :: c_ptr, c_int32_t
             type(c_ptr), value, intent(in) :: dataset
             integer(c_int32_t) :: status
@@ -281,7 +281,7 @@ module amio_mod
         !!   amio_status_t amio_wait(amio_io_handle io,
         !!                           int64_t timeout_ms);
         function amio_wait(io, timeout_ms) result(status) &
-                bind(C, name="amio_wait")
+            bind(C, name="amio_wait")
             import :: c_ptr, c_int64_t, c_int32_t
             type(c_ptr), value, intent(in) :: io
             integer(c_int64_t), value, intent(in) :: timeout_ms
@@ -292,7 +292,7 @@ module amio_mod
         !! C signature:
         !!   amio_status_t amio_release_view(amio_view_handle view);
         function amio_release_view(view) result(status) &
-                bind(C, name="amio_release_view")
+            bind(C, name="amio_release_view")
             import :: c_ptr, c_int32_t
             type(c_ptr), value, intent(in) :: view
             integer(c_int32_t) :: status
@@ -303,7 +303,7 @@ module amio_mod
         !!   const char *amio_strerror(int err);
         !! Returns a c_ptr to a null-terminated C string.
         function amio_strerror(err) result(msg_ptr) &
-                bind(C, name="amio_strerror")
+            bind(C, name="amio_strerror")
             import :: c_int, c_ptr
             integer(c_int), value, intent(in) :: err
             type(c_ptr) :: msg_ptr
@@ -354,9 +354,9 @@ contains
         type(amio_shape_t) :: shp
         type(c_ptr)        :: data_ptr
 
-        shp%rank       = 1_c_int32_t
-        shp%extents    = 0_c_int64_t
-        shp%strides    = 0_c_int64_t
+        shp%rank = 1_c_int32_t
+        shp%extents = 0_c_int64_t
+        shp%strides = 0_c_int64_t
         shp%extents(1) = int(size(array, 1), c_int64_t)
 
         data_ptr = c_loc(array(lbound(array, 1)))
@@ -367,15 +367,15 @@ contains
     subroutine amio_write_f32_2d(dataset, var_name, array, out_io, status)
         type(c_ptr), value, intent(in)          :: dataset
         character(kind=c_char), intent(in)      :: var_name(*)
-        real(c_float), intent(in), target       :: array(:,:)
+        real(c_float), intent(in), target       :: array(:, :)
         type(c_ptr), intent(out)                :: out_io
         integer(c_int32_t), intent(out)         :: status
         type(amio_shape_t) :: shp
         type(c_ptr)        :: data_ptr
 
-        shp%rank       = 2_c_int32_t
-        shp%extents    = 0_c_int64_t
-        shp%strides    = 0_c_int64_t
+        shp%rank = 2_c_int32_t
+        shp%extents = 0_c_int64_t
+        shp%strides = 0_c_int64_t
         shp%extents(1) = int(size(array, 1), c_int64_t)
         shp%extents(2) = int(size(array, 2), c_int64_t)
 
@@ -387,15 +387,15 @@ contains
     subroutine amio_write_f32_3d(dataset, var_name, array, out_io, status)
         type(c_ptr), value, intent(in)          :: dataset
         character(kind=c_char), intent(in)      :: var_name(*)
-        real(c_float), intent(in), target       :: array(:,:,:)
+        real(c_float), intent(in), target       :: array(:, :, :)
         type(c_ptr), intent(out)                :: out_io
         integer(c_int32_t), intent(out)         :: status
         type(amio_shape_t) :: shp
         type(c_ptr)        :: data_ptr
 
-        shp%rank       = 3_c_int32_t
-        shp%extents    = 0_c_int64_t
-        shp%strides    = 0_c_int64_t
+        shp%rank = 3_c_int32_t
+        shp%extents = 0_c_int64_t
+        shp%strides = 0_c_int64_t
         shp%extents(1) = int(size(array, 1), c_int64_t)
         shp%extents(2) = int(size(array, 2), c_int64_t)
         shp%extents(3) = int(size(array, 3), c_int64_t)
@@ -415,9 +415,9 @@ contains
         type(amio_shape_t) :: shp
         type(c_ptr)        :: data_ptr
 
-        shp%rank       = 1_c_int32_t
-        shp%extents    = 0_c_int64_t
-        shp%strides    = 0_c_int64_t
+        shp%rank = 1_c_int32_t
+        shp%extents = 0_c_int64_t
+        shp%strides = 0_c_int64_t
         shp%extents(1) = int(size(array, 1), c_int64_t)
 
         data_ptr = c_loc(array(lbound(array, 1)))
@@ -428,15 +428,15 @@ contains
     subroutine amio_write_f64_2d(dataset, var_name, array, out_io, status)
         type(c_ptr), value, intent(in)          :: dataset
         character(kind=c_char), intent(in)      :: var_name(*)
-        real(c_double), intent(in), target      :: array(:,:)
+        real(c_double), intent(in), target      :: array(:, :)
         type(c_ptr), intent(out)                :: out_io
         integer(c_int32_t), intent(out)         :: status
         type(amio_shape_t) :: shp
         type(c_ptr)        :: data_ptr
 
-        shp%rank       = 2_c_int32_t
-        shp%extents    = 0_c_int64_t
-        shp%strides    = 0_c_int64_t
+        shp%rank = 2_c_int32_t
+        shp%extents = 0_c_int64_t
+        shp%strides = 0_c_int64_t
         shp%extents(1) = int(size(array, 1), c_int64_t)
         shp%extents(2) = int(size(array, 2), c_int64_t)
 
@@ -448,15 +448,15 @@ contains
     subroutine amio_write_f64_3d(dataset, var_name, array, out_io, status)
         type(c_ptr), value, intent(in)          :: dataset
         character(kind=c_char), intent(in)      :: var_name(*)
-        real(c_double), intent(in), target      :: array(:,:,:)
+        real(c_double), intent(in), target      :: array(:, :, :)
         type(c_ptr), intent(out)                :: out_io
         integer(c_int32_t), intent(out)         :: status
         type(amio_shape_t) :: shp
         type(c_ptr)        :: data_ptr
 
-        shp%rank       = 3_c_int32_t
-        shp%extents    = 0_c_int64_t
-        shp%strides    = 0_c_int64_t
+        shp%rank = 3_c_int32_t
+        shp%extents = 0_c_int64_t
+        shp%strides = 0_c_int64_t
         shp%extents(1) = int(size(array, 1), c_int64_t)
         shp%extents(2) = int(size(array, 2), c_int64_t)
         shp%extents(3) = int(size(array, 3), c_int64_t)
@@ -476,9 +476,9 @@ contains
         type(amio_shape_t) :: shp
         type(c_ptr)        :: data_ptr
 
-        shp%rank       = 1_c_int32_t
-        shp%extents    = 0_c_int64_t
-        shp%strides    = 0_c_int64_t
+        shp%rank = 1_c_int32_t
+        shp%extents = 0_c_int64_t
+        shp%strides = 0_c_int64_t
         shp%extents(1) = int(size(array, 1), c_int64_t)
 
         data_ptr = c_loc(array(lbound(array, 1)))
@@ -489,15 +489,15 @@ contains
     subroutine amio_write_i32_2d(dataset, var_name, array, out_io, status)
         type(c_ptr), value, intent(in)          :: dataset
         character(kind=c_char), intent(in)      :: var_name(*)
-        integer(c_int32_t), intent(in), target  :: array(:,:)
+        integer(c_int32_t), intent(in), target  :: array(:, :)
         type(c_ptr), intent(out)                :: out_io
         integer(c_int32_t), intent(out)         :: status
         type(amio_shape_t) :: shp
         type(c_ptr)        :: data_ptr
 
-        shp%rank       = 2_c_int32_t
-        shp%extents    = 0_c_int64_t
-        shp%strides    = 0_c_int64_t
+        shp%rank = 2_c_int32_t
+        shp%extents = 0_c_int64_t
+        shp%strides = 0_c_int64_t
         shp%extents(1) = int(size(array, 1), c_int64_t)
         shp%extents(2) = int(size(array, 2), c_int64_t)
 
@@ -509,15 +509,15 @@ contains
     subroutine amio_write_i32_3d(dataset, var_name, array, out_io, status)
         type(c_ptr), value, intent(in)          :: dataset
         character(kind=c_char), intent(in)      :: var_name(*)
-        integer(c_int32_t), intent(in), target  :: array(:,:,:)
+        integer(c_int32_t), intent(in), target  :: array(:, :, :)
         type(c_ptr), intent(out)                :: out_io
         integer(c_int32_t), intent(out)         :: status
         type(amio_shape_t) :: shp
         type(c_ptr)        :: data_ptr
 
-        shp%rank       = 3_c_int32_t
-        shp%extents    = 0_c_int64_t
-        shp%strides    = 0_c_int64_t
+        shp%rank = 3_c_int32_t
+        shp%extents = 0_c_int64_t
+        shp%strides = 0_c_int64_t
         shp%extents(1) = int(size(array, 1), c_int64_t)
         shp%extents(2) = int(size(array, 2), c_int64_t)
         shp%extents(3) = int(size(array, 3), c_int64_t)

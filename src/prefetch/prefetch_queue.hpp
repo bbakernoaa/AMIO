@@ -60,14 +60,14 @@ struct VarMeta;
 // PrefetchTasks.  When no Worker_Pool is available (stub mode),
 // fetches are performed synchronously through the Backend_Driver.
 class PrefetchQueue {
-public:
+   public:
     // Configuration limits.
-    static constexpr std::size_t kMinDepth     = 1;
-    static constexpr std::size_t kMaxDepth     = 1024;
+    static constexpr std::size_t kMinDepth = 1;
+    static constexpr std::size_t kMaxDepth = 1024;
     static constexpr std::size_t kDefaultDepth = 4;
 
-    static constexpr std::int64_t kMinReadTimeoutS     = 1;
-    static constexpr std::int64_t kMaxReadTimeoutS     = 3600;
+    static constexpr std::int64_t kMinReadTimeoutS = 1;
+    static constexpr std::int64_t kMaxReadTimeoutS = 3600;
     static constexpr std::int64_t kDefaultReadTimeoutS = 60;
 
     // Construct a PrefetchQueue with the given look-ahead depth,
@@ -83,14 +83,8 @@ public:
     //   dataset_id     - owning dataset identifier
     //   var_name       - variable name for reads
     //   total_timesteps - total number of timesteps in the dataset
-    PrefetchQueue(std::size_t depth,
-                  std::int64_t read_timeout_s,
-                  StagingPool* pool,
-                  WorkerPool* workers,
-                  Backend_Driver* driver,
-                  std::uint64_t dataset_id,
-                  const std::string& var_name,
-                  std::int64_t total_timesteps);
+    PrefetchQueue(std::size_t depth, std::int64_t read_timeout_s, StagingPool* pool, WorkerPool* workers, Backend_Driver* driver,
+                  std::uint64_t dataset_id, const std::string& var_name, std::int64_t total_timesteps);
 
     ~PrefetchQueue();
 
@@ -117,9 +111,7 @@ public:
     //   AMIO_ERR_TIMEOUT if the read timeout expires.
     //   AMIO_ERR_BACKEND_FAILURE (or other AMIO_ERR_*) if the
     //     background fetch failed.
-    amio_status_t get_buffer(std::int64_t timestep,
-                             const amio_bbox_t* bbox,
-                             StagingBuffer** out_buf);
+    amio_status_t get_buffer(std::int64_t timestep, const amio_bbox_t* bbox, StagingBuffer** out_buf);
 
     // schedule_next -- schedule fetch for timestep T+N if within bounds.
     //
@@ -147,13 +139,17 @@ public:
 
     // ----- Diagnostics / test helpers -----
 
-    std::size_t depth() const noexcept { return depth_; }
-    std::int64_t total_timesteps() const noexcept { return total_timesteps_; }
+    std::size_t depth() const noexcept {
+        return depth_;
+    }
+    std::int64_t total_timesteps() const noexcept {
+        return total_timesteps_;
+    }
     std::size_t completed_count() const noexcept;
     std::size_t pending_count() const noexcept;
     std::size_t failed_count() const noexcept;
 
-private:
+   private:
     // Schedule a single fetch for the given timestep.
     // Caller must NOT hold mu_.
     void schedule_fetch(std::int64_t timestep, const amio_bbox_t* bbox);
@@ -164,28 +160,28 @@ private:
 
     // ---- Members ----
 
-    mutable std::mutex          mu_;
-    std::condition_variable     cv_;
+    mutable std::mutex mu_;
+    std::condition_variable cv_;
 
     // Configuration.
-    std::size_t                 depth_;
-    std::int64_t                read_timeout_s_;
-    std::int64_t                total_timesteps_;
-    std::uint64_t               dataset_id_;
-    std::string                 var_name_;
+    std::size_t depth_;
+    std::int64_t read_timeout_s_;
+    std::int64_t total_timesteps_;
+    std::uint64_t dataset_id_;
+    std::string var_name_;
 
     // External references (not owned).
-    StagingPool*                pool_;
-    WorkerPool*                 workers_;
-    Backend_Driver*             driver_;
+    StagingPool* pool_;
+    WorkerPool* workers_;
+    Backend_Driver* driver_;
 
     // State tracking.
     std::map<std::int64_t, StagingBuffer*> completed_;  // timestep -> buffer
-    std::set<std::int64_t>                 pending_;    // timesteps being fetched
-    std::map<std::int64_t, amio_err_t>     failed_;     // timestep -> error code
+    std::set<std::int64_t> pending_;                    // timesteps being fetched
+    std::map<std::int64_t, amio_err_t> failed_;         // timestep -> error code
 
     // Cancellation flag.
-    bool                        cancelled_ = false;
+    bool cancelled_ = false;
 };
 
 }  // namespace amio::detail

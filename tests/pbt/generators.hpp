@@ -16,14 +16,15 @@
 #ifndef AMIO_TESTS_PBT_GENERATORS_HPP
 #define AMIO_TESTS_PBT_GENERATORS_HPP
 
-#include "pbt_common.hpp"
-
 #include <rapidcheck.h>
+
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
-#include <algorithm>
+
+#include "pbt_common.hpp"
 
 namespace rc {
 
@@ -34,18 +35,8 @@ namespace rc {
 template <>
 struct Arbitrary<amio_dtype_t> {
     static Gen<amio_dtype_t> arbitrary() {
-        return gen::elementOf(std::vector<amio_dtype_t>{
-            AMIO_DTYPE_F32,
-            AMIO_DTYPE_F64,
-            AMIO_DTYPE_I8,
-            AMIO_DTYPE_I16,
-            AMIO_DTYPE_I32,
-            AMIO_DTYPE_I64,
-            AMIO_DTYPE_U8,
-            AMIO_DTYPE_U16,
-            AMIO_DTYPE_U32,
-            AMIO_DTYPE_U64
-        });
+        return gen::elementOf(std::vector<amio_dtype_t>{AMIO_DTYPE_F32, AMIO_DTYPE_F64, AMIO_DTYPE_I8, AMIO_DTYPE_I16, AMIO_DTYPE_I32, AMIO_DTYPE_I64,
+                                                        AMIO_DTYPE_U8, AMIO_DTYPE_U16, AMIO_DTYPE_U32, AMIO_DTYPE_U64});
     }
 };
 
@@ -87,9 +78,7 @@ struct Arbitrary<amio_shape_t> {
             }
 
             for (int32_t d = 0; d < shape.rank; ++d) {
-                shape.extents[d] = *gen::inRange(
-                    static_cast<int64_t>(1),
-                    static_cast<int64_t>(max_extent + 1));
+                shape.extents[d] = *gen::inRange(static_cast<int64_t>(1), static_cast<int64_t>(max_extent + 1));
             }
 
             // Entries beyond rank must be zero (already initialized).
@@ -114,9 +103,7 @@ struct Arbitrary<amio::detail::CodecConfig> {
             amio::detail::CodecConfig cfg;
 
             // Valid codec names
-            static const std::vector<std::string> valid_codecs = {
-                "blosc", "zstandard", "libaec", "lossless_jpeg2000"
-            };
+            static const std::vector<std::string> valid_codecs = {"blosc", "zstandard", "libaec", "lossless_jpeg2000"};
 
             // Generate a non-empty subset of valid codecs for the allow-list
             std::size_t list_size = *gen::inRange<std::size_t>(1, valid_codecs.size() + 1);
@@ -157,22 +144,18 @@ struct Arbitrary<amio::detail::Config> {
 
             // Staging pool: buffer_count [1, 4096], capacity [1, 1 GiB]
             // For testing, cap capacity at 1 MiB to avoid OOM.
-            cfg.staging_pool.buffer_count =
-                *gen::inRange<std::size_t>(1, 4097);
-            cfg.staging_pool.buffer_capacity_bytes =
-                *gen::inRange<std::size_t>(1, 1048577);  // [1, 1 MiB] for tests
+            cfg.staging_pool.buffer_count = *gen::inRange<std::size_t>(1, 4097);
+            cfg.staging_pool.buffer_capacity_bytes = *gen::inRange<std::size_t>(1, 1048577);  // [1, 1 MiB] for tests
 
             // Worker pool: threads [1, 256]
-            cfg.worker_pool.threads =
-                *gen::inRange<std::size_t>(1, 257);
+            cfg.worker_pool.threads = *gen::inRange<std::size_t>(1, 257);
 
             // Optional CPU cores (empty or small list)
             bool has_cores = *gen::arbitrary<bool>();
             if (has_cores) {
                 std::size_t n_cores = *gen::inRange<std::size_t>(1, 5);
                 for (std::size_t i = 0; i < n_cores; ++i) {
-                    cfg.worker_pool.cpu_cores.push_back(
-                        *gen::inRange(0, 64));
+                    cfg.worker_pool.cpu_cores.push_back(*gen::inRange(0, 64));
                 }
             }
 
@@ -183,26 +166,19 @@ struct Arbitrary<amio::detail::Config> {
             }
 
             // Prefetch: depth [1, 1024], read_timeout_s [1, 3600]
-            cfg.prefetch.depth =
-                *gen::inRange<std::size_t>(1, 1025);
-            cfg.prefetch.read_timeout_s =
-                *gen::inRange<std::size_t>(1, 3601);
+            cfg.prefetch.depth = *gen::inRange<std::size_t>(1, 1025);
+            cfg.prefetch.read_timeout_s = *gen::inRange<std::size_t>(1, 3601);
 
             // Staging timeout [1, 60000] ms
-            cfg.staging_timeout_ms =
-                *gen::inRange<std::size_t>(1, 60001);
+            cfg.staging_timeout_ms = *gen::inRange<std::size_t>(1, 60001);
 
             // Backpressure: 0 <= L < H <= capacity
-            cfg.backpressure.queue_capacity =
-                *gen::inRange<std::size_t>(2, 4097);
-            cfg.backpressure.high_watermark =
-                *gen::inRange<std::size_t>(1, cfg.backpressure.queue_capacity + 1);
-            cfg.backpressure.low_watermark =
-                *gen::inRange<std::size_t>(0, cfg.backpressure.high_watermark);
+            cfg.backpressure.queue_capacity = *gen::inRange<std::size_t>(2, 4097);
+            cfg.backpressure.high_watermark = *gen::inRange<std::size_t>(1, cfg.backpressure.queue_capacity + 1);
+            cfg.backpressure.low_watermark = *gen::inRange<std::size_t>(0, cfg.backpressure.high_watermark);
 
             // Backend key
-            cfg.backend = *gen::elementOf(std::vector<std::string>{
-                "netcdf4", "zarr3", "grib2"});
+            cfg.backend = *gen::elementOf(std::vector<std::string>{"netcdf4", "zarr3", "grib2"});
 
             // Codec configuration
             cfg.codec = *gen::arbitrary<amio::detail::CodecConfig>();
@@ -234,8 +210,7 @@ struct Arbitrary<amio::pbt::Payload> {
             payload.dtype = *gen::arbitrary<amio_dtype_t>();
             payload.shape = *gen::arbitrary<amio_shape_t>();
 
-            std::size_t byte_count = amio::pbt::payload_byte_count(
-                payload.shape, payload.dtype);
+            std::size_t byte_count = amio::pbt::payload_byte_count(payload.shape, payload.dtype);
 
             // Cap payload size for testing speed (4 MiB max).
             if (byte_count > 4 * 1024 * 1024) {
@@ -245,14 +220,12 @@ struct Arbitrary<amio::pbt::Payload> {
                 for (int32_t d = 1; d < AMIO_MAX_RANK; ++d) {
                     payload.shape.extents[d] = 0;
                 }
-                byte_count = amio::pbt::payload_byte_count(
-                    payload.shape, payload.dtype);
+                byte_count = amio::pbt::payload_byte_count(payload.shape, payload.dtype);
             }
 
             payload.bytes.resize(byte_count);
             for (std::size_t i = 0; i < byte_count; ++i) {
-                payload.bytes[i] = static_cast<uint8_t>(
-                    *gen::inRange(0, 256));
+                payload.bytes[i] = static_cast<uint8_t>(*gen::inRange(0, 256));
             }
 
             return payload;
@@ -333,41 +306,35 @@ inline rc::Gen<amio::detail::Config> genInvalidManifest() {
             case 0: {
                 // buffer_count out of range
                 static const std::vector<std::size_t> bad_counts = {0, 4097, 10000};
-                cfg.staging_pool.buffer_count =
-                    *rc::gen::elementOf(bad_counts);
+                cfg.staging_pool.buffer_count = *rc::gen::elementOf(bad_counts);
                 break;
             }
             case 1:
                 // buffer_capacity out of range (> 1 GiB)
-                cfg.staging_pool.buffer_capacity_bytes =
-                    static_cast<std::size_t>(1'073'741'825);
+                cfg.staging_pool.buffer_capacity_bytes = static_cast<std::size_t>(1'073'741'825);
                 break;
             case 2: {
                 // threads out of range
                 static const std::vector<std::size_t> bad_threads = {0, 257, 1000};
-                cfg.worker_pool.threads =
-                    *rc::gen::elementOf(bad_threads);
+                cfg.worker_pool.threads = *rc::gen::elementOf(bad_threads);
                 break;
             }
             case 3: {
                 // prefetch depth out of range
                 static const std::vector<std::size_t> bad_depths = {0, 1025, 5000};
-                cfg.prefetch.depth =
-                    *rc::gen::elementOf(bad_depths);
+                cfg.prefetch.depth = *rc::gen::elementOf(bad_depths);
                 break;
             }
             case 4: {
                 // read_timeout_s out of range
                 static const std::vector<std::size_t> bad_timeouts = {0, 3601, 10000};
-                cfg.prefetch.read_timeout_s =
-                    *rc::gen::elementOf(bad_timeouts);
+                cfg.prefetch.read_timeout_s = *rc::gen::elementOf(bad_timeouts);
                 break;
             }
             case 5: {
                 // staging_timeout_ms out of range
                 static const std::vector<std::size_t> bad_staging = {0, 60001, 100000};
-                cfg.staging_timeout_ms =
-                    *rc::gen::elementOf(bad_staging);
+                cfg.staging_timeout_ms = *rc::gen::elementOf(bad_staging);
                 break;
             }
             case 6:
@@ -381,14 +348,12 @@ inline rc::Gen<amio::detail::Config> genInvalidManifest() {
 }
 
 // Generate a payload (random bytes) sized for a given shape + dtype.
-inline rc::Gen<std::vector<std::byte>> genPayload(const amio_shape_t& shape,
-                                                   amio_dtype_t dtype) {
+inline rc::Gen<std::vector<std::byte>> genPayload(const amio_shape_t& shape, amio_dtype_t dtype) {
     std::size_t byte_count = payload_byte_size(shape, dtype);
     return rc::gen::exec([byte_count]() {
         std::vector<std::byte> payload(byte_count);
         for (std::size_t i = 0; i < byte_count; ++i) {
-            payload[i] = static_cast<std::byte>(
-                *rc::gen::inRange(0, 256));
+            payload[i] = static_cast<std::byte>(*rc::gen::inRange(0, 256));
         }
         return payload;
     });
@@ -399,8 +364,7 @@ inline rc::Gen<std::vector<std::byte>> genPayloadOfSize(std::size_t byte_count) 
     return rc::gen::exec([byte_count]() {
         std::vector<std::byte> payload(byte_count);
         for (std::size_t i = 0; i < byte_count; ++i) {
-            payload[i] = static_cast<std::byte>(
-                *rc::gen::inRange(0, 256));
+            payload[i] = static_cast<std::byte>(*rc::gen::inRange(0, 256));
         }
         return payload;
     });

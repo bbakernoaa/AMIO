@@ -1,0 +1,33 @@
+# AMIO Manifest: NetCDF-4 Backend Configuration
+#
+# This manifest configures AMIO to use the NetCDF-4 backend driver
+# with parallel HDF5 for writing atmospheric model output.
+
+amio:
+  version: "0.1.0"
+
+  # Staging pool configuration
+  staging:
+    buffer_count: 8
+    buffer_size_bytes: 52428800   # 50 MiB per buffer
+
+  # Worker pool configuration
+  workers:
+    thread_count: 2
+    pin_threads: false
+
+  # Backend driver selection
+  backend:
+    name: "netcdf4"
+    options:
+      parallel_io: false
+      compression:
+        algorithm: "zlib"
+        level: 4
+      chunking:
+        auto: true
+
+  # Dataset output path
+  output:
+    path: "output_netcdf4.nc"
+    overwrite: true

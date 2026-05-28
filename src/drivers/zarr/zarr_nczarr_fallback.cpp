@@ -17,7 +17,8 @@
 
 #ifdef AMIO_NCZARR_FALLBACK
 
-#include "drivers/zarr/zarr_driver.hpp"
+#include <netcdf.h>
+#include <netcdf_meta.h>
 
 #include <cstring>
 #include <iostream>
@@ -26,11 +27,9 @@
 #include <string>
 #include <vector>
 
+#include "drivers/zarr/zarr_driver.hpp"
 #include "factory/backend_factory.hpp"
 #include "staging/staging_pool.hpp"
-
-#include <netcdf.h>
-#include <netcdf_meta.h>
 
 // ===================================================================
 // eckit compatibility layer for NCZarr fallback.
@@ -45,14 +44,26 @@
 #ifndef AMIO_ECKIT_CONFIG_DEFINED
 namespace eckit {
 class Configuration {
-public:
+   public:
     virtual ~Configuration() = default;
-    virtual bool has(const std::string& /*key*/) const { return false; }
-    virtual std::string getString(const std::string& /*key*/) const { return ""; }
-    virtual std::string getString(const std::string& /*key*/, const std::string& def) const { return def; }
-    virtual long getLong(const std::string& /*key*/, long def = 0) const { return def; }
-    virtual std::vector<long> getLongVector(const std::string& /*key*/) const { return {}; }
-    virtual bool getBool(const std::string& /*key*/, bool def = false) const { return def; }
+    virtual bool has(const std::string& /*key*/) const {
+        return false;
+    }
+    virtual std::string getString(const std::string& /*key*/) const {
+        return "";
+    }
+    virtual std::string getString(const std::string& /*key*/, const std::string& def) const {
+        return def;
+    }
+    virtual long getLong(const std::string& /*key*/, long def = 0) const {
+        return def;
+    }
+    virtual std::vector<long> getLongVector(const std::string& /*key*/) const {
+        return {};
+    }
+    virtual bool getBool(const std::string& /*key*/, bool def = false) const {
+        return def;
+    }
 };
 }  // namespace eckit
 #endif  // AMIO_ECKIT_CONFIG_DEFINED
@@ -68,9 +79,7 @@ namespace {
 
 void nczarr_check(int status, const std::string& context) {
     if (status != NC_NOERR) {
-        std::string msg = "Zarr_Driver [NCZarr]: error in " + context +
-                          ": " + nc_strerror(status) +
-                          " (nc_errno=" + std::to_string(status) + ")";
+        std::string msg = "Zarr_Driver [NCZarr]: error in " + context + ": " + nc_strerror(status) + " (nc_errno=" + std::to_string(status) + ")";
         throw std::runtime_error(msg);
     }
 }
@@ -79,42 +88,48 @@ void nczarr_check(int status, const std::string& context) {
 // Uses eckit::Log when available, falls back to std::cerr.
 void emit_sharding_unavailable_diagnostic() {
 #ifdef AMIO_HAS_ECKIT
-    eckit::Log::warning()
-        << "Zarr_Driver [NCZarr fallback]: sharding is unavailable. "
-           "The zarr3_sharding_indexed codec requires TensorStore. "
-           "This build uses netCDF-c NCZarr mode with flat chunk "
-           "layout only. Rebuild with AMIO_HAS_TENSORSTORE=ON to "
-           "enable sharding and cloud KvStore support."
-        << std::endl;
+    eckit::Log::warning() << "Zarr_Driver [NCZarr fallback]: sharding is unavailable. "
+                             "The zarr3_sharding_indexed codec requires TensorStore. "
+                             "This build uses netCDF-c NCZarr mode with flat chunk "
+                             "layout only. Rebuild with AMIO_HAS_TENSORSTORE=ON to "
+                             "enable sharding and cloud KvStore support."
+                          << std::endl;
 #else
-    std::cerr
-        << "[AMIO WARNING] Zarr_Driver [NCZarr fallback]: sharding is "
-           "unavailable. The zarr3_sharding_indexed codec requires "
-           "TensorStore. This build uses netCDF-c NCZarr mode with "
-           "flat chunk layout only. Rebuild with "
-           "AMIO_HAS_TENSORSTORE=ON to enable sharding and cloud "
-           "KvStore support."
-        << std::endl;
+    std::cerr << "[AMIO WARNING] Zarr_Driver [NCZarr fallback]: sharding is "
+                 "unavailable. The zarr3_sharding_indexed codec requires "
+                 "TensorStore. This build uses netCDF-c NCZarr mode with "
+                 "flat chunk layout only. Rebuild with "
+                 "AMIO_HAS_TENSORSTORE=ON to enable sharding and cloud "
+                 "KvStore support."
+              << std::endl;
 #endif
 }
 
 // Map amio_dtype_t to netCDF type constant.
 int nczarr_dtype_to_nc_type(amio_dtype_t dtype) {
     switch (dtype) {
-        case AMIO_DTYPE_F32: return NC_FLOAT;
-        case AMIO_DTYPE_F64: return NC_DOUBLE;
-        case AMIO_DTYPE_I8:  return NC_BYTE;
-        case AMIO_DTYPE_I16: return NC_SHORT;
-        case AMIO_DTYPE_I32: return NC_INT;
-        case AMIO_DTYPE_I64: return NC_INT64;
-        case AMIO_DTYPE_U8:  return NC_UBYTE;
-        case AMIO_DTYPE_U16: return NC_USHORT;
-        case AMIO_DTYPE_U32: return NC_UINT;
-        case AMIO_DTYPE_U64: return NC_UINT64;
+        case AMIO_DTYPE_F32:
+            return NC_FLOAT;
+        case AMIO_DTYPE_F64:
+            return NC_DOUBLE;
+        case AMIO_DTYPE_I8:
+            return NC_BYTE;
+        case AMIO_DTYPE_I16:
+            return NC_SHORT;
+        case AMIO_DTYPE_I32:
+            return NC_INT;
+        case AMIO_DTYPE_I64:
+            return NC_INT64;
+        case AMIO_DTYPE_U8:
+            return NC_UBYTE;
+        case AMIO_DTYPE_U16:
+            return NC_USHORT;
+        case AMIO_DTYPE_U32:
+            return NC_UINT;
+        case AMIO_DTYPE_U64:
+            return NC_UINT64;
         default:
-            throw std::runtime_error(
-                "Zarr_Driver [NCZarr]: unsupported dtype " +
-                std::to_string(static_cast<int>(dtype)));
+            throw std::runtime_error("Zarr_Driver [NCZarr]: unsupported dtype " + std::to_string(static_cast<int>(dtype)));
     }
 }
 
@@ -124,8 +139,7 @@ std::string to_nczarr_uri(const std::string& path) {
     // NCZarr requires a file:// URI with mode fragment.
     // Format: file://<absolute_path>#mode=nczarr,file
     if (path.empty()) {
-        throw std::runtime_error(
-            "Zarr_Driver [NCZarr]: empty path is not valid");
+        throw std::runtime_error("Zarr_Driver [NCZarr]: empty path is not valid");
     }
 
     // If already a file:// URI, append mode fragment if missing.
@@ -137,12 +151,12 @@ std::string to_nczarr_uri(const std::string& path) {
     }
 
     // Reject cloud URIs -- NCZarr fallback is local-only.
-    if (path.rfind("s3://", 0) == 0 ||
-        path.rfind("gs://", 0) == 0 ||
-        path.rfind("https://", 0) == 0) {
+    if (path.rfind("s3://", 0) == 0 || path.rfind("gs://", 0) == 0 || path.rfind("https://", 0) == 0) {
         throw std::runtime_error(
             "Zarr_Driver [NCZarr fallback]: cloud URIs are not "
-            "supported in NCZarr mode. URI '" + path + "' requires "
+            "supported in NCZarr mode. URI '" +
+            path +
+            "' requires "
             "TensorStore. Rebuild with AMIO_HAS_TENSORSTORE=ON.");
     }
 
@@ -183,7 +197,8 @@ void Zarr_Driver::open_write(const eckit::Configuration& config) {
         throw std::runtime_error(
             "Zarr_Driver [NCZarr fallback]: cloud URIs (s3://, gs://, "
             "https://) are not supported in NCZarr mode. URI '" +
-            config_.uri + "' requires TensorStore. Rebuild with "
+            config_.uri +
+            "' requires TensorStore. Rebuild with "
             "AMIO_HAS_TENSORSTORE=ON.");
     }
 
@@ -224,7 +239,8 @@ void Zarr_Driver::open_read(const eckit::Configuration& config) {
         throw std::runtime_error(
             "Zarr_Driver [NCZarr fallback]: cloud URIs (s3://, gs://, "
             "https://) are not supported in NCZarr mode. URI '" +
-            config_.uri + "' requires TensorStore. Rebuild with "
+            config_.uri +
+            "' requires TensorStore. Rebuild with "
             "AMIO_HAS_TENSORSTORE=ON.");
     }
 
@@ -251,8 +267,7 @@ void Zarr_Driver::open_read(const eckit::Configuration& config) {
 
 void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
     if (!is_open_ || !is_write_mode_) {
-        throw std::runtime_error(
-            "Zarr_Driver: write called on driver not open for writing");
+        throw std::runtime_error("Zarr_Driver: write called on driver not open for writing");
     }
 
     // Look up or create the variable in the NCZarr store.
@@ -273,23 +288,19 @@ void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
         for (int32_t d = 0; d < meta.shape.rank; ++d) {
             std::string dim_name = meta.name + "_dim" + std::to_string(d);
             int existing_dimid = -1;
-            int dim_status = nc_inq_dimid(ncid_, dim_name.c_str(),
-                                          &existing_dimid);
+            int dim_status = nc_inq_dimid(ncid_, dim_name.c_str(), &existing_dimid);
             if (dim_status == NC_NOERR) {
                 dimids[d] = existing_dimid;
             } else {
-                std::size_t dim_len = static_cast<std::size_t>(
-                    meta.shape.extents[d]);
-                status = nc_def_dim(ncid_, dim_name.c_str(), dim_len,
-                                    &dimids[d]);
+                std::size_t dim_len = static_cast<std::size_t>(meta.shape.extents[d]);
+                status = nc_def_dim(ncid_, dim_name.c_str(), dim_len, &dimids[d]);
                 nczarr_check(status, "nc_def_dim('" + dim_name + "')");
             }
         }
 
         // Define the variable with the appropriate netCDF type.
         int nc_type = nczarr_dtype_to_nc_type(meta.dtype);
-        status = nc_def_var(ncid_, meta.name.c_str(), nc_type,
-                            meta.shape.rank, dimids.data(), &varid);
+        status = nc_def_var(ncid_, meta.name.c_str(), nc_type, meta.shape.rank, dimids.data(), &varid);
         nczarr_check(status, "nc_def_var('" + meta.name + "')");
 
         // Set chunking based on config chunk_shape (flat chunks, no
@@ -298,17 +309,13 @@ void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
             std::vector<std::size_t> chunks(meta.shape.rank);
             for (int32_t d = 0; d < meta.shape.rank; ++d) {
                 if (d < static_cast<int32_t>(config_.chunk_shape.size())) {
-                    chunks[d] = static_cast<std::size_t>(
-                        config_.chunk_shape[d]);
+                    chunks[d] = static_cast<std::size_t>(config_.chunk_shape[d]);
                 } else {
-                    chunks[d] = static_cast<std::size_t>(
-                        meta.shape.extents[d]);
+                    chunks[d] = static_cast<std::size_t>(meta.shape.extents[d]);
                 }
             }
-            status = nc_def_var_chunking(ncid_, varid, NC_CHUNKED,
-                                         chunks.data());
-            nczarr_check(status,
-                         "nc_def_var_chunking('" + meta.name + "')");
+            status = nc_def_var_chunking(ncid_, varid, NC_CHUNKED, chunks.data());
+            nczarr_check(status, "nc_def_var_chunking('" + meta.name + "')");
         }
 
         // Apply lossless compression: exactly one of {Blosc, Zstandard}
@@ -323,61 +330,54 @@ void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
 #if defined(NC_HAS_BLOSC) && NC_HAS_BLOSC
             // Use native Blosc support.
             unsigned int blosc_params[7] = {
-                0,    // version (auto)
-                2,    // compressor: lz4
-                4,    // element size (bytes) -- will be overridden
-                0,    // chunk size (auto)
-                5,    // compression level
-                1,    // shuffle (byte shuffle)
-                0     // number of threads (auto)
+                0,  // version (auto)
+                2,  // compressor: lz4
+                4,  // element size (bytes) -- will be overridden
+                0,  // chunk size (auto)
+                5,  // compression level
+                1,  // shuffle (byte shuffle)
+                0   // number of threads (auto)
             };
-            blosc_params[2] = static_cast<unsigned int>(
-                dtype_size(meta.dtype));
-            status = nc_def_var_filter(ncid_, varid, 32001, 7,
-                                       blosc_params);
+            blosc_params[2] = static_cast<unsigned int>(dtype_size(meta.dtype));
+            status = nc_def_var_filter(ncid_, varid, 32001, 7, blosc_params);
             if (status != NC_NOERR) {
                 // Blosc filter not available -- fall back to deflate.
                 status = nc_def_var_deflate(ncid_, varid,
-                                           /*shuffle=*/1,
-                                           /*deflate=*/1,
-                                           /*deflate_level=*/5);
-                nczarr_check(status,
-                             "nc_def_var_deflate('" + meta.name + "')");
+                                            /*shuffle=*/1,
+                                            /*deflate=*/1,
+                                            /*deflate_level=*/5);
+                nczarr_check(status, "nc_def_var_deflate('" + meta.name + "')");
             }
 #else
             // Blosc not compiled into netCDF -- use deflate with
             // shuffle as portable lossless compression.
             status = nc_def_var_deflate(ncid_, varid,
-                                       /*shuffle=*/1,
-                                       /*deflate=*/1,
-                                       /*deflate_level=*/5);
-            nczarr_check(status,
-                         "nc_def_var_deflate('" + meta.name + "')");
+                                        /*shuffle=*/1,
+                                        /*deflate=*/1,
+                                        /*deflate_level=*/5);
+            nczarr_check(status, "nc_def_var_deflate('" + meta.name + "')");
 #endif
         } else if (config_.codec == "zstandard") {
             // Attempt Zstandard filter (HDF5 filter ID 32015).
 #if defined(NC_HAS_ZSTD) && NC_HAS_ZSTD
             unsigned int zstd_params[1] = {3};  // compression level
-            status = nc_def_var_filter(ncid_, varid, 32015, 1,
-                                       zstd_params);
+            status = nc_def_var_filter(ncid_, varid, 32015, 1, zstd_params);
             if (status != NC_NOERR) {
                 // Zstandard filter not available -- fall back to deflate.
                 status = nc_def_var_deflate(ncid_, varid,
-                                           /*shuffle=*/1,
-                                           /*deflate=*/1,
-                                           /*deflate_level=*/5);
-                nczarr_check(status,
-                             "nc_def_var_deflate('" + meta.name + "')");
+                                            /*shuffle=*/1,
+                                            /*deflate=*/1,
+                                            /*deflate_level=*/5);
+                nczarr_check(status, "nc_def_var_deflate('" + meta.name + "')");
             }
 #else
             // Zstandard not compiled into netCDF -- use deflate with
             // shuffle as portable lossless compression.
             status = nc_def_var_deflate(ncid_, varid,
-                                       /*shuffle=*/1,
-                                       /*deflate=*/1,
-                                       /*deflate_level=*/5);
-            nczarr_check(status,
-                         "nc_def_var_deflate('" + meta.name + "')");
+                                        /*shuffle=*/1,
+                                        /*deflate=*/1,
+                                        /*deflate_level=*/5);
+            nczarr_check(status, "nc_def_var_deflate('" + meta.name + "')");
 #endif
         }
 
@@ -396,8 +396,7 @@ void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
         count[d] = static_cast<std::size_t>(meta.shape.extents[d]);
     }
 
-    status = nc_put_vara(ncid_, varid, start.data(), count.data(),
-                         src.data);
+    status = nc_put_vara(ncid_, varid, start.data(), count.data(), src.data);
     nczarr_check(status, "nc_put_vara('" + meta.name + "')");
 }
 
@@ -405,13 +404,9 @@ void Zarr_Driver::write(const StagingBuffer& src, const VarMeta& meta) {
 // read -- NCZarr fallback: read from NCZarr store into StagingBuffer.
 // ===================================================================
 
-void Zarr_Driver::read(StagingBuffer& dst,
-                       const VarMeta& meta,
-                       std::int64_t timestep,
-                       const std::optional<BoundingBox>& bbox) {
+void Zarr_Driver::read(StagingBuffer& dst, const VarMeta& meta, std::int64_t timestep, const std::optional<BoundingBox>& bbox) {
     if (!is_open_ || is_write_mode_) {
-        throw std::runtime_error(
-            "Zarr_Driver: read called on driver not open for reading");
+        throw std::runtime_error("Zarr_Driver: read called on driver not open for reading");
     }
 
     (void)timestep;  // Timestep encoded in variable path/index.
@@ -447,11 +442,8 @@ void Zarr_Driver::read(StagingBuffer& dst,
     std::size_t total_bytes = total_elems * elem_size;
 
     if (total_bytes > dst.capacity_bytes) {
-        throw std::runtime_error(
-            "Zarr_Driver [NCZarr]: staging buffer capacity (" +
-            std::to_string(dst.capacity_bytes) +
-            " bytes) insufficient for read payload (" +
-            std::to_string(total_bytes) + " bytes)");
+        throw std::runtime_error("Zarr_Driver [NCZarr]: staging buffer capacity (" + std::to_string(dst.capacity_bytes) +
+                                 " bytes) insufficient for read payload (" + std::to_string(total_bytes) + " bytes)");
     }
 
     // Handle strided reads if bounding box has strides.
@@ -467,17 +459,14 @@ void Zarr_Driver::read(StagingBuffer& dst,
         }
 
         if (has_strides) {
-            status = nc_get_vars(ncid_, varid, start.data(), count.data(),
-                                 strides.data(), dst.data);
+            status = nc_get_vars(ncid_, varid, start.data(), count.data(), strides.data(), dst.data);
             nczarr_check(status, "nc_get_vars('" + meta.name + "')");
         } else {
-            status = nc_get_vara(ncid_, varid, start.data(), count.data(),
-                                 dst.data);
+            status = nc_get_vara(ncid_, varid, start.data(), count.data(), dst.data);
             nczarr_check(status, "nc_get_vara('" + meta.name + "')");
         }
     } else {
-        status = nc_get_vara(ncid_, varid, start.data(), count.data(),
-                             dst.data);
+        status = nc_get_vara(ncid_, varid, start.data(), count.data(), dst.data);
         nczarr_check(status, "nc_get_vara('" + meta.name + "')");
     }
 

@@ -33,13 +33,12 @@
 // of the AMIO_API macro, not by build-flag handshakes.
 #define AMIO_BUILDING_LIBRARY 1
 
-#include "amio/amio.h"
-
 #include <cstdint>
 #include <exception>
-#include <new>          // std::bad_alloc
+#include <new>  // std::bad_alloc
 #include <type_traits>
 
+#include "amio/amio.h"
 #include "c_boundary/amio_core.hpp"
 #include "c_boundary/handle_table.hpp"
 
@@ -51,7 +50,7 @@
 // eckit::Exception by inheritance.  Either way the host application
 // never observes a C++ exception (R12.2).
 #if defined(AMIO_HAS_ECKIT)
-#  include <eckit/exception/Exceptions.h>
+#include <eckit/exception/Exceptions.h>
 #endif
 
 namespace {
@@ -80,15 +79,13 @@ constexpr amio_status_t translate_unknown() noexcept {
 // happen before `kind_dispatch` is called so we don't pay the
 // table-lookup cost for inputs we already know are bad.
 template <typename Op>
-amio_status_t
-kind_dispatch(void *handle, HandleKind expected, Op &&op) noexcept {
+amio_status_t kind_dispatch(void *handle, HandleKind expected, Op &&op) noexcept {
     if (handle == nullptr) {
         return AMIO_ERR_NULL_HANDLE;
     }
     void *payload = nullptr;
     const auto token = HandleTable::from_ptr(handle);
-    const amio_status_t lookup_rc =
-        process_handle_table().lookup(token, expected, &payload);
+    const amio_status_t lookup_rc = process_handle_table().lookup(token, expected, &payload);
     if (lookup_rc != AMIO_OK) {
         return lookup_rc;
     }
@@ -122,11 +119,7 @@ kind_dispatch(void *handle, HandleKind expected, Op &&op) noexcept {
 
 extern "C" {
 
-AMIO_API amio_status_t
-amio_open_dataset(amio_core_handle core,
-                  const char *config_path,
-                  int32_t mode,
-                  amio_dataset_handle *out_dataset) {
+AMIO_API amio_status_t amio_open_dataset(amio_core_handle core, const char *config_path, int32_t mode, amio_dataset_handle *out_dataset) {
     if (out_dataset == nullptr) {
         return AMIO_ERR_INVALID_INPUT;
     }
@@ -137,25 +130,15 @@ amio_open_dataset(amio_core_handle core,
     if (mode != AMIO_MODE_WRITE && mode != AMIO_MODE_READ) {
         return AMIO_ERR_INVALID_INPUT;
     }
-    return kind_dispatch(
-        core, HandleKind::Core,
-        [&](void *payload) -> amio_status_t {
-            return amio::detail::open_dataset(payload, config_path,
-                                             mode, out_dataset);
-        });
+    return kind_dispatch(core, HandleKind::Core,
+                         [&](void *payload) -> amio_status_t { return amio::detail::open_dataset(payload, config_path, mode, out_dataset); });
 }
 
-AMIO_API amio_status_t
-amio_close_dataset(amio_dataset_handle dataset) {
-    return kind_dispatch(
-        dataset, HandleKind::Dataset,
-        [](void *payload) -> amio_status_t {
-            return amio::detail::close_dataset(payload);
-        });
+AMIO_API amio_status_t amio_close_dataset(amio_dataset_handle dataset) {
+    return kind_dispatch(dataset, HandleKind::Dataset, [](void *payload) -> amio_status_t { return amio::detail::close_dataset(payload); });
 }
 
-AMIO_API amio_status_t
-amio_init(const char *manifest_path, amio_core_handle *out_core) {
+AMIO_API amio_status_t amio_init(const char *manifest_path, amio_core_handle *out_core) {
     if (out_core == nullptr) {
         return AMIO_ERR_INVALID_INPUT;
     }
@@ -182,21 +165,12 @@ amio_init(const char *manifest_path, amio_core_handle *out_core) {
     }
 }
 
-AMIO_API amio_status_t
-amio_finalize(amio_core_handle core) {
-    return kind_dispatch(core, HandleKind::Core,
-                         [](void *payload) -> amio_status_t {
-                             return amio::detail::finalize(payload);
-                         });
+AMIO_API amio_status_t amio_finalize(amio_core_handle core) {
+    return kind_dispatch(core, HandleKind::Core, [](void *payload) -> amio_status_t { return amio::detail::finalize(payload); });
 }
 
-AMIO_API amio_status_t
-amio_write(amio_dataset_handle dataset,
-           const char *var_name,
-           const void *host_data,
-           amio_dtype_t dtype,
-           const amio_shape_t *shape,
-           amio_io_handle *out_io) {
+AMIO_API amio_status_t amio_write(amio_dataset_handle dataset, const char *var_name, const void *host_data, amio_dtype_t dtype,
+                                  const amio_shape_t *shape, amio_io_handle *out_io) {
     if (out_io == nullptr) {
         // We refuse to validate the dataset handle when the out
         // pointer is invalid; this preserves the contract that
@@ -207,20 +181,12 @@ amio_write(amio_dataset_handle dataset,
     if (var_name == nullptr || host_data == nullptr || shape == nullptr) {
         return AMIO_ERR_INVALID_INPUT;
     }
-    return kind_dispatch(
-        dataset, HandleKind::Dataset,
-        [&](void *payload) -> amio_status_t {
-            return amio::detail::write(payload, var_name, host_data,
-                                       dtype, shape, out_io);
-        });
+    return kind_dispatch(dataset, HandleKind::Dataset,
+                         [&](void *payload) -> amio_status_t { return amio::detail::write(payload, var_name, host_data, dtype, shape, out_io); });
 }
 
-AMIO_API amio_status_t
-amio_read(amio_dataset_handle dataset,
-          const char *var_name,
-          int64_t timestep,
-          const amio_bbox_t *bbox,
-          amio_view_handle *out_view) {
+AMIO_API amio_status_t amio_read(amio_dataset_handle dataset, const char *var_name, int64_t timestep, const amio_bbox_t *bbox,
+                                 amio_view_handle *out_view) {
     if (out_view == nullptr) {
         return AMIO_ERR_INVALID_INPUT;
     }
@@ -228,48 +194,24 @@ amio_read(amio_dataset_handle dataset,
     if (var_name == nullptr) {
         return AMIO_ERR_INVALID_INPUT;
     }
-    return kind_dispatch(
-        dataset, HandleKind::Dataset,
-        [&](void *payload) -> amio_status_t {
-            return amio::detail::read(payload, var_name, timestep,
-                                      bbox, out_view);
-        });
+    return kind_dispatch(dataset, HandleKind::Dataset,
+                         [&](void *payload) -> amio_status_t { return amio::detail::read(payload, var_name, timestep, bbox, out_view); });
 }
 
-AMIO_API amio_status_t
-amio_flush(amio_dataset_handle dataset, int64_t timeout_ms) {
-    return kind_dispatch(
-        dataset, HandleKind::Dataset,
-        [&](void *payload) -> amio_status_t {
-            return amio::detail::flush(payload, timeout_ms);
-        });
+AMIO_API amio_status_t amio_flush(amio_dataset_handle dataset, int64_t timeout_ms) {
+    return kind_dispatch(dataset, HandleKind::Dataset, [&](void *payload) -> amio_status_t { return amio::detail::flush(payload, timeout_ms); });
 }
 
-AMIO_API amio_status_t
-amio_close(amio_dataset_handle dataset) {
-    return kind_dispatch(
-        dataset, HandleKind::Dataset,
-        [](void *payload) -> amio_status_t {
-            return amio::detail::close(payload);
-        });
+AMIO_API amio_status_t amio_close(amio_dataset_handle dataset) {
+    return kind_dispatch(dataset, HandleKind::Dataset, [](void *payload) -> amio_status_t { return amio::detail::close(payload); });
 }
 
-AMIO_API amio_status_t
-amio_wait(amio_io_handle io, int64_t timeout_ms) {
-    return kind_dispatch(
-        io, HandleKind::Io,
-        [&](void *payload) -> amio_status_t {
-            return amio::detail::wait(payload, timeout_ms);
-        });
+AMIO_API amio_status_t amio_wait(amio_io_handle io, int64_t timeout_ms) {
+    return kind_dispatch(io, HandleKind::Io, [&](void *payload) -> amio_status_t { return amio::detail::wait(payload, timeout_ms); });
 }
 
-AMIO_API amio_status_t
-amio_release_view(amio_view_handle view) {
-    return kind_dispatch(
-        view, HandleKind::View,
-        [](void *payload) -> amio_status_t {
-            return amio::detail::release_view(payload);
-        });
+AMIO_API amio_status_t amio_release_view(amio_view_handle view) {
+    return kind_dispatch(view, HandleKind::View, [](void *payload) -> amio_status_t { return amio::detail::release_view(payload); });
 }
 
 // amio_strerror is intentionally NOT defined in this translation

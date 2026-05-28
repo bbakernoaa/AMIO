@@ -16,8 +16,8 @@
 //
 // Validates: R4.1, R4.6, R6.4, R6.5
 
-#include <cstdio>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <string>
@@ -25,9 +25,9 @@
 #include "amio/amio.h"
 
 // Private headers for test setup (registering a mock driver).
-#include "factory/backend_factory.hpp"
-#include "factory/backend_driver.hpp"
 #include "c_boundary/handle_table.hpp"
+#include "factory/backend_driver.hpp"
+#include "factory/backend_factory.hpp"
 
 namespace {
 
@@ -38,41 +38,36 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char *expr, const char *file, int line, const std::string &context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
-#define EXPECT_EQ(a, b, ctx)                                         \
-    do {                                                             \
-        if ((a) != (b)) {                                            \
-            char buf[256];                                            \
-            std::snprintf(buf, sizeof(buf),                           \
-                          "%s: expected %d, got %d", (ctx),           \
-                          static_cast<int>(b), static_cast<int>(a));  \
-            report_failure(#a " == " #b, __FILE__, __LINE__, buf);   \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_EQ(a, b, ctx)                                                                                             \
+    do {                                                                                                                 \
+        if ((a) != (b)) {                                                                                                \
+            char buf[256];                                                                                               \
+            std::snprintf(buf, sizeof(buf), "%s: expected %d, got %d", (ctx), static_cast<int>(b), static_cast<int>(a)); \
+            report_failure(#a " == " #b, __FILE__, __LINE__, buf);                                                       \
+        } else {                                                                                                         \
+            ++g_result.passed;                                                                                           \
+        }                                                                                                                \
     } while (0)
 
 // ---------------------------------------------------------------
 // MockDriver -- a minimal Backend_Driver for testing the lifecycle.
 // ---------------------------------------------------------------
 class MockDriver : public amio::detail::Backend_Driver {
-public:
+   public:
     bool opened_write = false;
     bool opened_read = false;
     bool flushed = false;
@@ -84,19 +79,19 @@ public:
     void open_read(const eckit::Configuration &) override {
         opened_read = true;
     }
-    void write(const amio::detail::StagingBuffer &,
-               const amio::detail::VarMeta &) override {}
-    void read(amio::detail::StagingBuffer &,
-              const amio::detail::VarMeta &,
-              std::int64_t,
-              const std::optional<amio::detail::BoundingBox> &) override {}
-    void flush() override { flushed = true; }
-    void close() override { closed = true; }
+    void write(const amio::detail::StagingBuffer &, const amio::detail::VarMeta &) override {}
+    void read(amio::detail::StagingBuffer &, const amio::detail::VarMeta &, std::int64_t, const std::optional<amio::detail::BoundingBox> &) override {
+    }
+    void flush() override {
+        flushed = true;
+    }
+    void close() override {
+        closed = true;
+    }
 };
 
 // Helper: write a minimal YAML config file with a given backend key.
-std::string write_config_file(const std::string &backend_key,
-                              const std::string &suffix = "") {
+std::string write_config_file(const std::string &backend_key, const std::string &suffix = "") {
     std::string path = "/tmp/amio_test_config" + suffix + ".yaml";
     std::ofstream ofs(path);
     ofs << "backend: " << backend_key << "\n";
@@ -125,15 +120,12 @@ void test_open_dataset_null_arguments() {
 
     // NULL out_dataset
     int rc = amio_open_dataset(nullptr, "path.yaml", AMIO_MODE_WRITE, nullptr);
-    EXPECT_EQ(rc, AMIO_ERR_INVALID_INPUT,
-              "amio_open_dataset(NULL out_dataset)");
+    EXPECT_EQ(rc, AMIO_ERR_INVALID_INPUT, "amio_open_dataset(NULL out_dataset)");
 
     // NULL config_path
     rc = amio_open_dataset(nullptr, nullptr, AMIO_MODE_WRITE, &ds);
-    EXPECT_EQ(rc, AMIO_ERR_INVALID_INPUT,
-              "amio_open_dataset(NULL config_path)");
-    EXPECT_TRUE(ds == nullptr,
-                "out_dataset should be zeroed on failure");
+    EXPECT_EQ(rc, AMIO_ERR_INVALID_INPUT, "amio_open_dataset(NULL config_path)");
+    EXPECT_TRUE(ds == nullptr, "out_dataset should be zeroed on failure");
 
     // Invalid mode
     ds = reinterpret_cast<amio_dataset_handle>(0xDEAD);
@@ -141,20 +133,16 @@ void test_open_dataset_null_arguments() {
     amio_init("dummy.yaml", &core);  // Create a core for mode test
     if (core) {
         rc = amio_open_dataset(core, "path.yaml", 99, &ds);
-        EXPECT_EQ(rc, AMIO_ERR_INVALID_INPUT,
-                  "amio_open_dataset(invalid mode)");
-        EXPECT_TRUE(ds == nullptr,
-                    "out_dataset should be zeroed on invalid mode");
+        EXPECT_EQ(rc, AMIO_ERR_INVALID_INPUT, "amio_open_dataset(invalid mode)");
+        EXPECT_TRUE(ds == nullptr, "out_dataset should be zeroed on invalid mode");
         amio_finalize(core);
     }
 
     // NULL core handle
     ds = reinterpret_cast<amio_dataset_handle>(0xDEAD);
     rc = amio_open_dataset(nullptr, "path.yaml", AMIO_MODE_WRITE, &ds);
-    EXPECT_EQ(rc, AMIO_ERR_NULL_HANDLE,
-              "amio_open_dataset(NULL core)");
-    EXPECT_TRUE(ds == nullptr,
-                "out_dataset should be zeroed on NULL core");
+    EXPECT_EQ(rc, AMIO_ERR_NULL_HANDLE, "amio_open_dataset(NULL core)");
+    EXPECT_TRUE(ds == nullptr, "out_dataset should be zeroed on NULL core");
 }
 
 // ---------------------------------------------------------------
@@ -170,10 +158,8 @@ void test_open_dataset_unknown_backend() {
 
     amio_dataset_handle ds = nullptr;
     int rc = amio_open_dataset(core, path.c_str(), AMIO_MODE_WRITE, &ds);
-    EXPECT_EQ(rc, AMIO_ERR_UNKNOWN_BACKEND,
-              "open with unknown backend");
-    EXPECT_TRUE(ds == nullptr,
-                "no handle created on unknown backend");
+    EXPECT_EQ(rc, AMIO_ERR_UNKNOWN_BACKEND, "open with unknown backend");
+    EXPECT_TRUE(ds == nullptr, "no handle created on unknown backend");
 
     amio_finalize(core);
 }
@@ -184,10 +170,7 @@ void test_open_dataset_unknown_backend() {
 void test_open_dataset_success() {
     // Register a mock driver.
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_test",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_test", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("mock_test", "_success");
 
@@ -226,10 +209,7 @@ void test_open_dataset_success() {
 // ---------------------------------------------------------------
 void test_close_dataset_stale_handle() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_stale",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_stale", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("mock_stale", "_stale");
 
@@ -258,10 +238,7 @@ void test_close_dataset_stale_handle() {
 // ---------------------------------------------------------------
 void test_flush_no_pending_writes() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_flush",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_flush", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("mock_flush", "_flush");
 
@@ -289,10 +266,7 @@ void test_flush_no_pending_writes() {
 // ---------------------------------------------------------------
 void test_amio_close_as_close_dataset() {
     amio::detail::BackendFactory::instance().register_driver(
-        "mock_close",
-        []() -> std::unique_ptr<amio::detail::Backend_Driver> {
-            return std::make_unique<MockDriver>();
-        });
+        "mock_close", []() -> std::unique_ptr<amio::detail::Backend_Driver> { return std::make_unique<MockDriver>(); });
 
     std::string path = write_config_file("mock_close", "_close");
 
@@ -328,12 +302,10 @@ void test_close_dataset_null_handle() {
 // Test: amio_open_dataset with garbage core handle
 // ---------------------------------------------------------------
 void test_open_dataset_garbage_core() {
-    auto bogus = reinterpret_cast<amio_core_handle>(
-        static_cast<std::uintptr_t>(0xBADBADBADBADBADull));
+    auto bogus = reinterpret_cast<amio_core_handle>(static_cast<std::uintptr_t>(0xBADBADBADBADBADull));
     amio_dataset_handle ds = nullptr;
     int rc = amio_open_dataset(bogus, "path.yaml", AMIO_MODE_WRITE, &ds);
-    EXPECT_EQ(rc, AMIO_ERR_INVALID_HANDLE,
-              "open_dataset with garbage core");
+    EXPECT_EQ(rc, AMIO_ERR_INVALID_HANDLE, "open_dataset with garbage core");
     EXPECT_TRUE(ds == nullptr, "no handle on garbage core");
 }
 
@@ -349,9 +321,7 @@ int main() {
     test_close_dataset_null_handle();
     test_open_dataset_garbage_core();
 
-    std::fprintf(stdout,
-                 "test_dataset_lifecycle: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_dataset_lifecycle: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

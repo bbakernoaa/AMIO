@@ -44,7 +44,7 @@ namespace amio::detail {
 //                 cpu_cores takes precedence.
 struct ThreadConfig {
     std::vector<int> cpu_cores;
-    int              numa_domain = -1;
+    int numa_domain = -1;
 
     // Returns true if no pinning is requested (empty cores and
     // no NUMA domain).

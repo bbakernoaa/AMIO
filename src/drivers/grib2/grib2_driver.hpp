@@ -64,7 +64,7 @@ using WmoCodeTable = std::unordered_map<std::string, std::int64_t>;
 //   - 40 = Grid Point Data - JPEG2000 (Lossless JPEG2000)
 enum class GRIB2_DRT : std::int32_t {
     AdaptiveEntropyCoding = 42,  // libaec
-    LosslessJPEG2000      = 40   // JPEG2000 lossless mode
+    LosslessJPEG2000 = 40        // JPEG2000 lossless mode
 };
 
 // Map from human-readable DRT name to enum.
@@ -86,7 +86,7 @@ GRIB2_DRT parse_drt_name(const std::string& name);
 //   4. flush() is a no-op (GRIB2 records are self-contained).
 //   5. close() releases g2c resources.
 class GRIB2_Driver : public Backend_Driver {
-public:
+   public:
     // Constructor.  When AMIO_HAS_G2C is not defined, throws
     // immediately indicating g2c is not available in this build.
     GRIB2_Driver();
@@ -96,14 +96,11 @@ public:
     void open_write(const eckit::Configuration& config) override;
     void open_read(const eckit::Configuration& config) override;
     void write(const StagingBuffer& src, const VarMeta& meta) override;
-    void read(StagingBuffer& dst,
-              const VarMeta& meta,
-              std::int64_t timestep,
-              const std::optional<BoundingBox>& bbox) override;
+    void read(StagingBuffer& dst, const VarMeta& meta, std::int64_t timestep, const std::optional<BoundingBox>& bbox) override;
     void flush() override;
     void close() override;
 
-private:
+   private:
     // Initialize g2c library and WMO code table mapping.
     // Throws on failure or timeout (5s bound).
     // Called from open_write / open_read.
@@ -118,8 +115,7 @@ private:
     // Throws if any key is missing from the table.
     // On missing key: discards partial record, zero output bytes.
     // Returns a map of translated integer codes.
-    std::unordered_map<std::string, std::int64_t>
-    translate_metadata(const VarMeta& meta) const;
+    std::unordered_map<std::string, std::int64_t> translate_metadata(const VarMeta& meta) const;
 
     // Check if a buffer described by shape is contiguous and row-major.
     // Returns true if the data can be passed directly to g2c (fast path).
@@ -128,10 +124,7 @@ private:
 
     // Pack non-contiguous data into a contiguous row-major buffer (R9.5).
     // Returns the packed buffer as a vector of bytes.
-    static std::vector<std::byte> pack_row_major(
-        const std::byte* src_data,
-        const amio_shape_t& shape,
-        std::size_t element_size);
+    static std::vector<std::byte> pack_row_major(const std::byte* src_data, const amio_shape_t& shape, std::size_t element_size);
 
     // Compute total element count from shape.
     static std::size_t total_elements(const amio_shape_t& shape);

@@ -49,8 +49,8 @@
 #include "factory/backend_driver.hpp"
 
 #ifdef AMIO_HAS_TENSORSTORE
-#include <tensorstore/tensorstore.h>
 #include <tensorstore/context.h>
+#include <tensorstore/tensorstore.h>
 #endif
 
 namespace amio::detail {
@@ -85,7 +85,7 @@ struct ZarrConfig {
 // ---------------------------------------------------------------
 
 class Zarr_Driver : public Backend_Driver {
-public:
+   public:
     Zarr_Driver() = default;
     ~Zarr_Driver() override = default;
 
@@ -114,10 +114,7 @@ public:
     void write(const StagingBuffer& src, const VarMeta& meta) override;
 
     // read -- read from TensorStore into StagingBuffer.
-    void read(StagingBuffer& dst,
-              const VarMeta& meta,
-              std::int64_t timestep,
-              const std::optional<BoundingBox>& bbox) override;
+    void read(StagingBuffer& dst, const VarMeta& meta, std::int64_t timestep, const std::optional<BoundingBox>& bbox) override;
 
     // flush -- ensure all async TensorStore operations complete.
     void flush() override;
@@ -139,7 +136,7 @@ public:
     // Convert amio_dtype_t to element size in bytes.
     static std::size_t dtype_size(amio_dtype_t dtype);
 
-private:
+   private:
     // Parse and validate Zarr-specific configuration from eckit config.
     // Returns the parsed ZarrConfig.
     // Throws on missing required fields (R8.10) or invalid values (R8.3).

@@ -21,17 +21,17 @@
 //
 // Task 6.3 implements: open_dataset, close_dataset, flush, close.
 
-#include "c_boundary/amio_core.hpp"
-#include "config/config_loader.hpp"
-#include "factory/backend_factory.hpp"
-#include "staging/staging_pool.hpp"
-#include "workers/worker_pool.hpp"
-
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <memory>
 #include <thread>
+
+#include "c_boundary/amio_core.hpp"
+#include "config/config_loader.hpp"
+#include "factory/backend_factory.hpp"
+#include "staging/staging_pool.hpp"
+#include "workers/worker_pool.hpp"
 
 namespace amio::detail {
 
@@ -43,8 +43,7 @@ HandleTable &process_handle_table() {
 // ---------------------------------------------------------------
 // amio_init -- stub (task 9.4)
 // ---------------------------------------------------------------
-amio_status_t init(const char * /*manifest_path*/,
-                   amio_core_handle *out_core) {
+amio_status_t init(const char * /*manifest_path*/, amio_core_handle *out_core) {
     // Create a minimal AMIO_Core so that open_dataset can function.
     auto *core = new AMIO_Core{};
     auto token = process_handle_table().insert(HandleKind::Core, core);
@@ -96,17 +95,13 @@ amio_status_t finalize(void *core_payload) {
 // On factory lookup failure → AMIO_ERR_UNKNOWN_BACKEND, no handle.
 // On driver open failure → AMIO_ERR_BACKEND_FAILURE, no handle.
 // ---------------------------------------------------------------
-amio_status_t open_dataset(void *core_payload,
-                           const char *config_path,
-                           std::int32_t mode,
-                           amio_dataset_handle *out_dataset) {
+amio_status_t open_dataset(void *core_payload, const char *config_path, std::int32_t mode, amio_dataset_handle *out_dataset) {
     auto *core = static_cast<AMIO_Core *>(core_payload);
 
     // Parse the dataset configuration to extract the backend key.
     Config config{};
     ValidationError verr{};
-    amio_err_t parse_rc = ConfigLoader::parse(std::string(config_path),
-                                              config, verr);
+    amio_err_t parse_rc = ConfigLoader::parse(std::string(config_path), config, verr);
     if (parse_rc != AMIO_OK) {
         // If the file doesn't exist, return MANIFEST_NOT_FOUND;
         // otherwise return the parse error.
@@ -169,23 +164,20 @@ amio_status_t open_dataset(void *core_payload,
         record->total_timesteps = total_timesteps;
 
         // Create the PrefetchQueue with the configured depth.
-        record->prefetch_queue = std::make_unique<PrefetchQueue>(
-            prefetch_depth,
-            read_timeout_s,
-            core->staging_pool,   // may be null in stub mode
-            core->worker_pool,    // may be null in stub mode
-            record->driver.get(), // backend driver for reads
-            record->dataset_id,
-            "",                   // var_name filled per-read
-            total_timesteps);
+        record->prefetch_queue = std::make_unique<PrefetchQueue>(prefetch_depth, read_timeout_s,
+                                                                 core->staging_pool,    // may be null in stub mode
+                                                                 core->worker_pool,     // may be null in stub mode
+                                                                 record->driver.get(),  // backend driver for reads
+                                                                 record->dataset_id,
+                                                                 "",  // var_name filled per-read
+                                                                 total_timesteps);
 
         // Schedule initial min(N, M) background fetches (R5.2).
         record->prefetch_queue->schedule_initial();
     }
 
     // Insert into the handle table.
-    auto token = process_handle_table().insert(HandleKind::Dataset,
-                                               record.get());
+    auto token = process_handle_table().insert(HandleKind::Dataset, record.get());
     record->token = token;
 
     // Register in the core's dataset map.
@@ -261,8 +253,7 @@ amio_status_t close_dataset(void *dataset_payload) {
 // Block until all pending writes for dataset complete or fail.
 // Return aggregate status.
 // ---------------------------------------------------------------
-amio_status_t flush(void *dataset_payload,
-                    std::int64_t timeout_ms) {
+amio_status_t flush(void *dataset_payload, std::int64_t timeout_ms) {
     auto *record = static_cast<DatasetRecord *>(dataset_payload);
 
     // If no pending writes, return immediately.
@@ -277,8 +268,7 @@ amio_status_t flush(void *dataset_payload,
     // Block until pending writes drain or timeout.
     // In the full implementation (task 9.x), this would wait on a
     // condition variable signaled by the worker pool.
-    auto deadline = std::chrono::steady_clock::now() +
-                    std::chrono::milliseconds(timeout_ms > 0 ? timeout_ms : 86400000);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms > 0 ? timeout_ms : 86400000);
 
     while (record->pending_writes.load() > 0) {
         if (std::chrono::steady_clock::now() >= deadline) {
@@ -312,17 +302,28 @@ amio_status_t close(void *dataset_payload) {
 // ---------------------------------------------------------------
 static std::size_t dtype_element_size(amio_dtype_t dtype) noexcept {
     switch (dtype) {
-        case AMIO_DTYPE_F32: return 4;
-        case AMIO_DTYPE_F64: return 8;
-        case AMIO_DTYPE_I8:  return 1;
-        case AMIO_DTYPE_I16: return 2;
-        case AMIO_DTYPE_I32: return 4;
-        case AMIO_DTYPE_I64: return 8;
-        case AMIO_DTYPE_U8:  return 1;
-        case AMIO_DTYPE_U16: return 2;
-        case AMIO_DTYPE_U32: return 4;
-        case AMIO_DTYPE_U64: return 8;
-        default:             return 0;  // unsupported dtype
+        case AMIO_DTYPE_F32:
+            return 4;
+        case AMIO_DTYPE_F64:
+            return 8;
+        case AMIO_DTYPE_I8:
+            return 1;
+        case AMIO_DTYPE_I16:
+            return 2;
+        case AMIO_DTYPE_I32:
+            return 4;
+        case AMIO_DTYPE_I64:
+            return 8;
+        case AMIO_DTYPE_U8:
+            return 1;
+        case AMIO_DTYPE_U16:
+            return 2;
+        case AMIO_DTYPE_U32:
+            return 4;
+        case AMIO_DTYPE_U64:
+            return 8;
+        default:
+            return 0;  // unsupported dtype
     }
 }
 
@@ -368,11 +369,7 @@ static std::size_t compute_element_count(const amio_shape_t *shape) noexcept {
 //
 // Validates: R2.1, R2.2, R2.3, R2.4, R2.5, R2.7, R2.8, R2.10, R6.1
 // ---------------------------------------------------------------
-amio_status_t write(void *dataset_payload,
-                    const char *var_name,
-                    const void *host_data,
-                    amio_dtype_t dtype,
-                    const amio_shape_t *shape,
+amio_status_t write(void *dataset_payload, const char *var_name, const void *host_data, amio_dtype_t dtype, const amio_shape_t *shape,
                     amio_io_handle *out_io) {
     auto *record = static_cast<DatasetRecord *>(dataset_payload);
 
@@ -470,37 +467,35 @@ amio_status_t write(void *dataset_payload,
         StagingBuffer *buf_for_worker = staging_buf;
         std::uint64_t io_handle_id = io_token;
 
-        std::uint64_t seq = core->worker_pool->submit_write(
-            dv_key, io_handle_id,
-            [buf_for_worker, record, io_rec, core]() {
-                // Worker thread callback: serialize buffer via backend.
-                // The driver operates on the staging buffer, never
-                // the host pointer.
-                try {
-                    if (record->driver) {
-                        // TODO: When full driver integration lands,
-                        // call record->driver->write(...) here with
-                        // the staging buffer contents.
-                    }
-                    io_rec->completed.store(true);
-                } catch (...) {
-                    io_rec->failed.store(true);
-                    io_rec->failure_code = AMIO_ERR_BACKEND_FAILURE;
-                    record->has_failure.store(true);
-                    if (record->first_failure_code == AMIO_OK) {
-                        record->first_failure_code = AMIO_ERR_BACKEND_FAILURE;
-                    }
+        std::uint64_t seq = core->worker_pool->submit_write(dv_key, io_handle_id, [buf_for_worker, record, io_rec, core]() {
+            // Worker thread callback: serialize buffer via backend.
+            // The driver operates on the staging buffer, never
+            // the host pointer.
+            try {
+                if (record->driver) {
+                    // TODO: When full driver integration lands,
+                    // call record->driver->write(...) here with
+                    // the staging buffer contents.
                 }
-
-                // Release staging buffer back to pool after write
-                // completes (R3.10).
-                if (buf_for_worker != nullptr && core->staging_pool != nullptr) {
-                    core->staging_pool->release(buf_for_worker);
+                io_rec->completed.store(true);
+            } catch (...) {
+                io_rec->failed.store(true);
+                io_rec->failure_code = AMIO_ERR_BACKEND_FAILURE;
+                record->has_failure.store(true);
+                if (record->first_failure_code == AMIO_OK) {
+                    record->first_failure_code = AMIO_ERR_BACKEND_FAILURE;
                 }
+            }
 
-                // Decrement pending write count.
-                record->pending_writes.fetch_sub(1);
-            });
+            // Release staging buffer back to pool after write
+            // completes (R3.10).
+            if (buf_for_worker != nullptr && core->staging_pool != nullptr) {
+                core->staging_pool->release(buf_for_worker);
+            }
+
+            // Decrement pending write count.
+            record->pending_writes.fetch_sub(1);
+        });
 
         io_rec->dv_seq = seq;
 
@@ -512,8 +507,7 @@ amio_status_t write(void *dataset_payload,
         // acquired one from the pool.
         io_rec->completed.store(true);
 
-        if (is_pool_buffer && staging_buf != nullptr &&
-            core != nullptr && core->staging_pool != nullptr) {
+        if (is_pool_buffer && staging_buf != nullptr && core != nullptr && core->staging_pool != nullptr) {
             core->staging_pool->release(staging_buf);
         }
         // If fallback_storage was used, it will be freed when this
@@ -544,11 +538,7 @@ amio_status_t write(void *dataset_payload,
 //
 // Validates: R5.1, R5.2, R5.3, R5.4, R5.5, R5.7, R5.8
 // ---------------------------------------------------------------
-amio_status_t read(void *dataset_payload,
-                   const char *var_name,
-                   std::int64_t timestep,
-                   const amio_bbox_t *bbox,
-                   amio_view_handle *out_view) {
+amio_status_t read(void *dataset_payload, const char *var_name, std::int64_t timestep, const amio_bbox_t *bbox, amio_view_handle *out_view) {
     auto *record = static_cast<DatasetRecord *>(dataset_payload);
 
     // ---- Step 1: Validate inputs ----
@@ -652,8 +642,7 @@ amio_status_t release_view(void *view_payload) {
 
     // Release the staging buffer back to the pool.
     AMIO_Core *core = view_rec->core;
-    if (view_rec->staging_buf != nullptr && core != nullptr &&
-        core->staging_pool != nullptr) {
+    if (view_rec->staging_buf != nullptr && core != nullptr && core->staging_pool != nullptr) {
         core->staging_pool->release(view_rec->staging_buf);
     }
 

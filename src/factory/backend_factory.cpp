@@ -27,8 +27,7 @@ BackendFactory& BackendFactory::instance() {
     return factory;
 }
 
-bool BackendFactory::register_driver(const std::string& key,
-                                     BuilderFn builder) {
+bool BackendFactory::register_driver(const std::string& key, BuilderFn builder) {
     if (key.empty()) {
         return false;
     }
@@ -37,10 +36,7 @@ bool BackendFactory::register_driver(const std::string& key,
     return true;
 }
 
-std::unique_ptr<Backend_Driver> BackendFactory::build(
-    const std::string& key,
-    amio_err_t& err_out) const {
-
+std::unique_ptr<Backend_Driver> BackendFactory::build(const std::string& key, amio_err_t& err_out) const {
     // Empty or missing key → error, zero state mutation.
     if (key.empty()) {
         err_out = AMIO_ERR_UNKNOWN_BACKEND;

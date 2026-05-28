@@ -1,0 +1,33 @@
+# AMIO Manifest: Zarr v3 Backend Configuration (NCZarr mode)
+#
+# This manifest configures AMIO to use the Zarr v3 backend driver
+# in NCZarr fallback mode for writing ocean model output.
+
+amio:
+  version: "0.1.0"
+
+  # Staging pool configuration
+  staging:
+    buffer_count: 4
+    buffer_size_bytes: 20971520   # 20 MiB per buffer
+
+  # Worker pool configuration
+  workers:
+    thread_count: 2
+    pin_threads: false
+
+  # Backend driver selection
+  backend:
+    name: "zarr3"
+    options:
+      mode: "nczarr"             # Use NCZarr fallback (netCDF-c)
+      compression:
+        algorithm: "zstd"
+        level: 3
+      chunking:
+        auto: true
+
+  # Dataset output path
+  output:
+    path: "output_zarr.zarr"
+    overwrite: true

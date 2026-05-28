@@ -19,12 +19,12 @@
 //   * query_available_cpus returns a positive value on supported
 //     platforms.
 
-#include "workers/thread_pinning.hpp"
-
 #include <cassert>
 #include <cstdio>
 #include <string>
 #include <thread>
+
+#include "workers/thread_pinning.hpp"
 
 #if defined(__linux__)
 #include <pthread.h>
@@ -33,10 +33,10 @@
 
 namespace {
 
-using amio::detail::ThreadConfig;
 using amio::detail::apply_thread_pinning;
-using amio::detail::validate_thread_config;
 using amio::detail::query_available_cpus;
+using amio::detail::ThreadConfig;
+using amio::detail::validate_thread_config;
 
 struct TestResult {
     int passed = 0;
@@ -45,21 +45,18 @@ struct TestResult {
 
 TestResult g_result{};
 
-void report_failure(const char *expr, const char *file, int line,
-                    const std::string &context) {
-    std::fprintf(stderr,
-                 "FAIL %s:%d: %s   (%s)\n",
-                 file, line, expr, context.c_str());
+void report_failure(const char *expr, const char *file, int line, const std::string &context) {
+    std::fprintf(stderr, "FAIL %s:%d: %s   (%s)\n", file, line, expr, context.c_str());
     ++g_result.failed;
 }
 
-#define EXPECT_TRUE(cond, ctx)                                       \
-    do {                                                             \
-        if (!(cond)) {                                               \
-            report_failure(#cond, __FILE__, __LINE__, (ctx));        \
-        } else {                                                     \
-            ++g_result.passed;                                       \
-        }                                                            \
+#define EXPECT_TRUE(cond, ctx)                                \
+    do {                                                      \
+        if (!(cond)) {                                        \
+            report_failure(#cond, __FILE__, __LINE__, (ctx)); \
+        } else {                                              \
+            ++g_result.passed;                                \
+        }                                                     \
     } while (0)
 
 // ---- Test: default config is no-op ----
@@ -69,9 +66,7 @@ void test_default_config_returns_ok() {
     EXPECT_TRUE(config.is_default(), "default config should report is_default");
 
     amio_err_t rc = apply_thread_pinning(config);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "default config should return AMIO_OK, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_OK, "default config should return AMIO_OK, got " + std::to_string(rc));
 }
 
 // ---- Test: empty cores with explicit numa_domain=-1 is default ----
@@ -84,8 +79,7 @@ void test_explicit_default_config() {
     EXPECT_TRUE(config.is_default(), "explicit default should be is_default");
 
     amio_err_t rc = apply_thread_pinning(config);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "explicit default config should return AMIO_OK");
+    EXPECT_TRUE(rc == AMIO_OK, "explicit default config should return AMIO_OK");
 }
 
 // ---- Test: invalid CPU core (negative) returns INVALID_BINDING ----
@@ -97,9 +91,7 @@ void test_negative_cpu_core_returns_error() {
     EXPECT_TRUE(!config.is_default(), "non-default config");
 
     amio_err_t rc = apply_thread_pinning(config);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "negative core should return AMIO_ERR_INVALID_BINDING, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "negative core should return AMIO_ERR_INVALID_BINDING, got " + std::to_string(rc));
 }
 
 // ---- Test: invalid CPU core (way beyond available) returns INVALID_BINDING ----
@@ -110,9 +102,7 @@ void test_oversized_cpu_core_returns_error() {
     config.cpu_cores = {99999};
 
     amio_err_t rc = apply_thread_pinning(config);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "oversized core ID should return AMIO_ERR_INVALID_BINDING, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "oversized core ID should return AMIO_ERR_INVALID_BINDING, got " + std::to_string(rc));
 }
 
 // ---- Test: invalid NUMA domain returns INVALID_BINDING ----
@@ -122,9 +112,7 @@ void test_invalid_numa_domain_returns_error() {
     config.numa_domain = 9999;  // Almost certainly doesn't exist.
 
     amio_err_t rc = apply_thread_pinning(config);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "invalid NUMA domain should return AMIO_ERR_INVALID_BINDING, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "invalid NUMA domain should return AMIO_ERR_INVALID_BINDING, got " + std::to_string(rc));
 }
 
 // ---- Test: valid CPU core succeeds (Linux only) ----
@@ -144,13 +132,10 @@ void test_valid_cpu_core_succeeds() {
     amio_err_t rc = apply_thread_pinning(config);
 
 #if defined(__linux__)
-    EXPECT_TRUE(rc == AMIO_OK,
-                "pinning to core 0 should succeed on Linux, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_OK, "pinning to core 0 should succeed on Linux, got " + std::to_string(rc));
 #else
     // On non-Linux platforms, non-default configs return INVALID_BINDING.
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "non-Linux should return INVALID_BINDING for non-default config");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "non-Linux should return INVALID_BINDING for non-default config");
 #endif
 }
 
@@ -174,11 +159,9 @@ void test_pinning_from_worker_thread() {
     worker.join();
 
 #if defined(__linux__)
-    EXPECT_TRUE(thread_result == AMIO_OK,
-                "worker thread pinning to core 0 should succeed on Linux");
+    EXPECT_TRUE(thread_result == AMIO_OK, "worker thread pinning to core 0 should succeed on Linux");
 #else
-    EXPECT_TRUE(thread_result == AMIO_ERR_INVALID_BINDING,
-                "non-Linux worker thread should return INVALID_BINDING");
+    EXPECT_TRUE(thread_result == AMIO_ERR_INVALID_BINDING, "non-Linux worker thread should return INVALID_BINDING");
 #endif
 }
 
@@ -187,13 +170,10 @@ void test_pinning_from_worker_thread() {
 void test_query_available_cpus() {
     int cpus = query_available_cpus();
 #if defined(__linux__) || defined(__APPLE__)
-    EXPECT_TRUE(cpus > 0,
-                "query_available_cpus should return > 0 on Linux/macOS, got " +
-                std::to_string(cpus));
+    EXPECT_TRUE(cpus > 0, "query_available_cpus should return > 0 on Linux/macOS, got " + std::to_string(cpus));
 #else
     // On unsupported platforms, 0 is acceptable.
-    EXPECT_TRUE(cpus >= 0,
-                "query_available_cpus should return >= 0");
+    EXPECT_TRUE(cpus >= 0, "query_available_cpus should return >= 0");
 #endif
 }
 
@@ -226,12 +206,9 @@ void test_multiple_valid_cores() {
     amio_err_t rc = apply_thread_pinning(config);
 
 #if defined(__linux__)
-    EXPECT_TRUE(rc == AMIO_OK,
-                "pinning to cores {0,1} should succeed on Linux, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_OK, "pinning to cores {0,1} should succeed on Linux, got " + std::to_string(rc));
 #else
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "non-Linux should return INVALID_BINDING");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "non-Linux should return INVALID_BINDING");
 #endif
 }
 
@@ -242,9 +219,7 @@ void test_mixed_valid_invalid_cores() {
     config.cpu_cores = {0, 99999};  // 0 is valid, 99999 is not.
 
     amio_err_t rc = apply_thread_pinning(config);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "mix of valid/invalid cores should return INVALID_BINDING, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "mix of valid/invalid cores should return INVALID_BINDING, got " + std::to_string(rc));
 }
 
 // ---- Test: validate_thread_config default is OK ----
@@ -252,9 +227,7 @@ void test_mixed_valid_invalid_cores() {
 void test_validate_default_config() {
     ThreadConfig config;
     amio_err_t rc = validate_thread_config(config);
-    EXPECT_TRUE(rc == AMIO_OK,
-                "validate default config should return AMIO_OK, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_OK, "validate default config should return AMIO_OK, got " + std::to_string(rc));
 }
 
 // ---- Test: validate_thread_config with invalid core ----
@@ -264,9 +237,7 @@ void test_validate_invalid_core() {
     config.cpu_cores = {99999};
 
     amio_err_t rc = validate_thread_config(config);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "validate invalid core should return INVALID_BINDING, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "validate invalid core should return INVALID_BINDING, got " + std::to_string(rc));
 }
 
 // ---- Test: validate_thread_config with valid core ----
@@ -285,12 +256,9 @@ void test_validate_valid_core() {
     amio_err_t rc = validate_thread_config(config);
 
 #if defined(__linux__)
-    EXPECT_TRUE(rc == AMIO_OK,
-                "validate core 0 should succeed on Linux, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_OK, "validate core 0 should succeed on Linux, got " + std::to_string(rc));
 #else
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "non-Linux should return INVALID_BINDING for non-default config");
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "non-Linux should return INVALID_BINDING for non-default config");
 #endif
 }
 
@@ -301,9 +269,7 @@ void test_validate_invalid_numa() {
     config.numa_domain = 9999;
 
     amio_err_t rc = validate_thread_config(config);
-    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING,
-                "validate invalid NUMA domain should return INVALID_BINDING, got " +
-                std::to_string(rc));
+    EXPECT_TRUE(rc == AMIO_ERR_INVALID_BINDING, "validate invalid NUMA domain should return INVALID_BINDING, got " + std::to_string(rc));
 }
 
 }  // namespace
@@ -324,9 +290,7 @@ int main() {
     test_validate_valid_core();
     test_validate_invalid_numa();
 
-    std::fprintf(stdout,
-                 "test_thread_pinning: passed=%d failed=%d\n",
-                 g_result.passed, g_result.failed);
+    std::fprintf(stdout, "test_thread_pinning: passed=%d failed=%d\n", g_result.passed, g_result.failed);
 
     return g_result.failed == 0 ? 0 : 1;
 }

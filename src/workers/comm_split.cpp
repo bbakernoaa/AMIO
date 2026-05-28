@@ -17,13 +17,13 @@
 // In a full build, AMIO_HAS_MPI would be set by CMake when MPI is found.
 // For standalone compilation without MPI, the functions degrade gracefully.
 #if defined(AMIO_HAS_ECKIT) && defined(AMIO_HAS_MPI)
-#  include <eckit/mpi/Comm.h>
-#  define AMIO_CAN_SPLIT 1
+#include <eckit/mpi/Comm.h>
+#define AMIO_CAN_SPLIT 1
 #elif defined(AMIO_HAS_MPI)
-#  include <mpi.h>
-#  define AMIO_CAN_SPLIT 1
+#include <mpi.h>
+#define AMIO_CAN_SPLIT 1
 #else
-#  define AMIO_CAN_SPLIT 0
+#define AMIO_CAN_SPLIT 0
 #endif
 
 namespace amio::detail {
@@ -59,14 +59,12 @@ amio_err_t validate_comm_config(const CommConfig& config) {
     return AMIO_OK;
 }
 
-amio_err_t split_communicator(const CommConfig& config,
-                              int my_rank,
-                              IOCommunicator& result) {
+amio_err_t split_communicator(const CommConfig& config, int my_rank, IOCommunicator& result) {
     // Default: no split requested.  All ranks participate in I/O.
     if (config.is_default()) {
-        result.valid          = true;
-        result.is_io_rank     = true;
-        result.io_comm_id     = 0;  // Represents "world" / no split
+        result.valid = true;
+        result.is_io_rank = true;
+        result.io_comm_id = 0;  // Represents "world" / no split
         result.compute_comm_id = 0;
         return AMIO_OK;
     }
@@ -83,9 +81,7 @@ amio_err_t split_communicator(const CommConfig& config,
     }
 
     // Determine if this rank is in the I/O set.
-    bool is_io = std::find(config.io_ranks.begin(),
-                           config.io_ranks.end(),
-                           my_rank) != config.io_ranks.end();
+    bool is_io = std::find(config.io_ranks.begin(), config.io_ranks.end(), my_rank) != config.io_ranks.end();
 
 #if AMIO_CAN_SPLIT
 
@@ -97,11 +93,11 @@ amio_err_t split_communicator(const CommConfig& config,
         eckit::mpi::Comm& world = eckit::mpi::comm("world");
         eckit::mpi::Comm& split_comm = world.split(color, my_rank);
 
-        result.valid      = true;
+        result.valid = true;
         result.is_io_rank = is_io;
         // Store the communicator identifier.  In eckit, the Comm
         // object is managed by the library; we store a sentinel.
-        result.io_comm_id      = is_io ? 1 : 0;
+        result.io_comm_id = is_io ? 1 : 0;
         result.compute_comm_id = is_io ? 0 : 1;
         return AMIO_OK;
     } catch (...) {
@@ -118,9 +114,9 @@ amio_err_t split_communicator(const CommConfig& config,
         return AMIO_ERR_COMM_SPLIT_FAILED;
     }
 
-    result.valid      = true;
+    result.valid = true;
     result.is_io_rank = is_io;
-    result.io_comm_id      = static_cast<int64_t>(new_comm);
+    result.io_comm_id = static_cast<int64_t>(new_comm);
     result.compute_comm_id = static_cast<int64_t>(new_comm);
     return AMIO_OK;
 #endif

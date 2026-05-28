@@ -17,12 +17,12 @@
 //
 // **Validates: Requirements R1.6, R1.9, R1.10, R10.6, R10.7**
 
-#include "pbt_common.hpp"
-#include "generators.hpp"
-
 #include <cstdint>
 #include <cstring>
 #include <random>
+
+#include "generators.hpp"
+#include "pbt_common.hpp"
 
 // ===================================================================
 // Sentinel value used to verify output args are unmodified.
@@ -36,10 +36,10 @@ static constexpr uintptr_t kSentinelValue = 0xCAFEBABEDEADFACEULL;
 
 enum class BadHandleKind : int {
     Null = 0,
-    GarbageFixed = 1,     // (void*)0xDEADBEEF
-    GarbageRandom = 2,    // random non-zero pointer value
-    Finalized = 3,        // handle that was init'd then finalized
-    DoubleReleased = 4,   // handle that was released twice
+    GarbageFixed = 1,    // (void*)0xDEADBEEF
+    GarbageRandom = 2,   // random non-zero pointer value
+    Finalized = 3,       // handle that was init'd then finalized
+    DoubleReleased = 4,  // handle that was released twice
 };
 
 // Generate a bad handle of the specified kind.
@@ -110,13 +110,8 @@ namespace rc {
 template <>
 struct Arbitrary<BadHandleKind> {
     static Gen<BadHandleKind> arbitrary() {
-        return gen::elementOf(std::vector<BadHandleKind>{
-            BadHandleKind::Null,
-            BadHandleKind::GarbageFixed,
-            BadHandleKind::GarbageRandom,
-            BadHandleKind::Finalized,
-            BadHandleKind::DoubleReleased
-        });
+        return gen::elementOf(std::vector<BadHandleKind>{BadHandleKind::Null, BadHandleKind::GarbageFixed, BadHandleKind::GarbageRandom,
+                                                         BadHandleKind::Finalized, BadHandleKind::DoubleReleased});
     }
 };
 }  // namespace rc
@@ -134,196 +129,158 @@ static bool is_handle_error(amio_status_t rc) {
 // Property: amio_open_dataset with bad core handle.
 // ===================================================================
 
-TEST_CASE("P4: amio_open_dataset rejects bad core handles",
-          "[pbt][handles][safety][P4]") {
-    rc::check("bad core handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE, "
-              "output arg unmodified",
-              [](BadHandleKind kind) {
-                  void* bad_core = make_bad_handle(kind);
+TEST_CASE("P4: amio_open_dataset rejects bad core handles", "[pbt][handles][safety][P4]") {
+    rc::check(
+        "bad core handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE, "
+        "output arg unmodified",
+        [](BadHandleKind kind) {
+            void* bad_core = make_bad_handle(kind);
 
-                  // Set output arg to sentinel.
-                  amio_dataset_handle out_dataset =
-                      reinterpret_cast<amio_dataset_handle>(kSentinelValue);
-                  amio_dataset_handle sentinel_copy = out_dataset;
+            // Set output arg to sentinel.
+            amio_dataset_handle out_dataset = reinterpret_cast<amio_dataset_handle>(kSentinelValue);
+            amio_dataset_handle sentinel_copy = out_dataset;
 
-                  amio_status_t rc = amio_open_dataset(
-                      static_cast<amio_core_handle>(bad_core),
-                      "/nonexistent/path.yaml",
-                      AMIO_MODE_WRITE,
-                      &out_dataset);
+            amio_status_t rc = amio_open_dataset(static_cast<amio_core_handle>(bad_core), "/nonexistent/path.yaml", AMIO_MODE_WRITE, &out_dataset);
 
-                  RC_ASSERT(is_handle_error(rc));
-                  // Output arg should be set to nullptr on failure
-                  // (per API contract: on failure *out_dataset is set to NULL).
-                  // This is acceptable -- the API zeroes it before validation.
-                  // The key invariant is: no crash, no dereference.
-                  (void)sentinel_copy;
-              });
+            RC_ASSERT(is_handle_error(rc));
+            // Output arg should be set to nullptr on failure
+            // (per API contract: on failure *out_dataset is set to NULL).
+            // This is acceptable -- the API zeroes it before validation.
+            // The key invariant is: no crash, no dereference.
+            (void)sentinel_copy;
+        });
 }
 
 // ===================================================================
 // Property: amio_close_dataset with bad dataset handle.
 // ===================================================================
 
-TEST_CASE("P4: amio_close_dataset rejects bad dataset handles",
-          "[pbt][handles][safety][P4]") {
-    rc::check("bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE",
-              [](BadHandleKind kind) {
-                  void* bad_dataset = make_bad_handle(kind);
+TEST_CASE("P4: amio_close_dataset rejects bad dataset handles", "[pbt][handles][safety][P4]") {
+    rc::check("bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE", [](BadHandleKind kind) {
+        void* bad_dataset = make_bad_handle(kind);
 
-                  amio_status_t rc = amio_close_dataset(
-                      static_cast<amio_dataset_handle>(bad_dataset));
+        amio_status_t rc = amio_close_dataset(static_cast<amio_dataset_handle>(bad_dataset));
 
-                  RC_ASSERT(is_handle_error(rc));
-              });
+        RC_ASSERT(is_handle_error(rc));
+    });
 }
 
 // ===================================================================
 // Property: amio_write with bad dataset handle.
 // ===================================================================
 
-TEST_CASE("P4: amio_write rejects bad dataset handles",
-          "[pbt][handles][safety][P4]") {
-    rc::check("bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE, "
-              "output io handle unmodified",
-              [](BadHandleKind kind) {
-                  void* bad_dataset = make_bad_handle(kind);
+TEST_CASE("P4: amio_write rejects bad dataset handles", "[pbt][handles][safety][P4]") {
+    rc::check(
+        "bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE, "
+        "output io handle unmodified",
+        [](BadHandleKind kind) {
+            void* bad_dataset = make_bad_handle(kind);
 
-                  // Prepare valid-looking arguments.
-                  float data[4] = {1.0f, 2.0f, 3.0f, 4.0f};
-                  amio_shape_t shape = {};
-                  shape.rank = 1;
-                  shape.extents[0] = 4;
+            // Prepare valid-looking arguments.
+            float data[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+            amio_shape_t shape = {};
+            shape.rank = 1;
+            shape.extents[0] = 4;
 
-                  // Set output arg to sentinel.
-                  amio_io_handle out_io =
-                      reinterpret_cast<amio_io_handle>(kSentinelValue);
+            // Set output arg to sentinel.
+            amio_io_handle out_io = reinterpret_cast<amio_io_handle>(kSentinelValue);
 
-                  amio_status_t rc = amio_write(
-                      static_cast<amio_dataset_handle>(bad_dataset),
-                      "temperature",
-                      data,
-                      AMIO_DTYPE_F32,
-                      &shape,
-                      &out_io);
+            amio_status_t rc = amio_write(static_cast<amio_dataset_handle>(bad_dataset), "temperature", data, AMIO_DTYPE_F32, &shape, &out_io);
 
-                  RC_ASSERT(is_handle_error(rc));
-                  // Output should be zeroed (API contract) or sentinel.
-                  // Key: no crash, no dereference of bad handle.
-              });
+            RC_ASSERT(is_handle_error(rc));
+            // Output should be zeroed (API contract) or sentinel.
+            // Key: no crash, no dereference of bad handle.
+        });
 }
 
 // ===================================================================
 // Property: amio_read with bad dataset handle.
 // ===================================================================
 
-TEST_CASE("P4: amio_read rejects bad dataset handles",
-          "[pbt][handles][safety][P4]") {
-    rc::check("bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE, "
-              "output view handle unmodified",
-              [](BadHandleKind kind) {
-                  void* bad_dataset = make_bad_handle(kind);
+TEST_CASE("P4: amio_read rejects bad dataset handles", "[pbt][handles][safety][P4]") {
+    rc::check(
+        "bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE, "
+        "output view handle unmodified",
+        [](BadHandleKind kind) {
+            void* bad_dataset = make_bad_handle(kind);
 
-                  // Set output arg to sentinel.
-                  amio_view_handle out_view =
-                      reinterpret_cast<amio_view_handle>(kSentinelValue);
+            // Set output arg to sentinel.
+            amio_view_handle out_view = reinterpret_cast<amio_view_handle>(kSentinelValue);
 
-                  amio_status_t rc = amio_read(
-                      static_cast<amio_dataset_handle>(bad_dataset),
-                      "temperature",
-                      0,
-                      nullptr,
-                      &out_view);
+            amio_status_t rc = amio_read(static_cast<amio_dataset_handle>(bad_dataset), "temperature", 0, nullptr, &out_view);
 
-                  RC_ASSERT(is_handle_error(rc));
-              });
+            RC_ASSERT(is_handle_error(rc));
+        });
 }
 
 // ===================================================================
 // Property: amio_flush with bad dataset handle.
 // ===================================================================
 
-TEST_CASE("P4: amio_flush rejects bad dataset handles",
-          "[pbt][handles][safety][P4]") {
-    rc::check("bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE",
-              [](BadHandleKind kind) {
-                  void* bad_dataset = make_bad_handle(kind);
+TEST_CASE("P4: amio_flush rejects bad dataset handles", "[pbt][handles][safety][P4]") {
+    rc::check("bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE", [](BadHandleKind kind) {
+        void* bad_dataset = make_bad_handle(kind);
 
-                  amio_status_t rc = amio_flush(
-                      static_cast<amio_dataset_handle>(bad_dataset),
-                      1000);
+        amio_status_t rc = amio_flush(static_cast<amio_dataset_handle>(bad_dataset), 1000);
 
-                  RC_ASSERT(is_handle_error(rc));
-              });
+        RC_ASSERT(is_handle_error(rc));
+    });
 }
 
 // ===================================================================
 // Property: amio_close with bad dataset handle.
 // ===================================================================
 
-TEST_CASE("P4: amio_close rejects bad dataset handles",
-          "[pbt][handles][safety][P4]") {
-    rc::check("bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE",
-              [](BadHandleKind kind) {
-                  void* bad_dataset = make_bad_handle(kind);
+TEST_CASE("P4: amio_close rejects bad dataset handles", "[pbt][handles][safety][P4]") {
+    rc::check("bad dataset handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE", [](BadHandleKind kind) {
+        void* bad_dataset = make_bad_handle(kind);
 
-                  amio_status_t rc = amio_close(
-                      static_cast<amio_dataset_handle>(bad_dataset));
+        amio_status_t rc = amio_close(static_cast<amio_dataset_handle>(bad_dataset));
 
-                  RC_ASSERT(is_handle_error(rc));
-              });
+        RC_ASSERT(is_handle_error(rc));
+    });
 }
 
 // ===================================================================
 // Property: amio_wait with bad io handle.
 // ===================================================================
 
-TEST_CASE("P4: amio_wait rejects bad io handles",
-          "[pbt][handles][safety][P4]") {
-    rc::check("bad io handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE",
-              [](BadHandleKind kind) {
-                  void* bad_io = make_bad_handle(kind);
+TEST_CASE("P4: amio_wait rejects bad io handles", "[pbt][handles][safety][P4]") {
+    rc::check("bad io handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE", [](BadHandleKind kind) {
+        void* bad_io = make_bad_handle(kind);
 
-                  amio_status_t rc = amio_wait(
-                      static_cast<amio_io_handle>(bad_io),
-                      1000);
+        amio_status_t rc = amio_wait(static_cast<amio_io_handle>(bad_io), 1000);
 
-                  RC_ASSERT(is_handle_error(rc));
-              });
+        RC_ASSERT(is_handle_error(rc));
+    });
 }
 
 // ===================================================================
 // Property: amio_release_view with bad view handle.
 // ===================================================================
 
-TEST_CASE("P4: amio_release_view rejects bad view handles",
-          "[pbt][handles][safety][P4]") {
-    rc::check("bad view handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE",
-              [](BadHandleKind kind) {
-                  void* bad_view = make_bad_handle(kind);
+TEST_CASE("P4: amio_release_view rejects bad view handles", "[pbt][handles][safety][P4]") {
+    rc::check("bad view handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE", [](BadHandleKind kind) {
+        void* bad_view = make_bad_handle(kind);
 
-                  amio_status_t rc = amio_release_view(
-                      static_cast<amio_view_handle>(bad_view));
+        amio_status_t rc = amio_release_view(static_cast<amio_view_handle>(bad_view));
 
-                  RC_ASSERT(is_handle_error(rc));
-              });
+        RC_ASSERT(is_handle_error(rc));
+    });
 }
 
 // ===================================================================
 // Property: amio_finalize with bad core handle.
 // ===================================================================
 
-TEST_CASE("P4: amio_finalize rejects bad core handles",
-          "[pbt][handles][safety][P4]") {
-    rc::check("bad core handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE",
-              [](BadHandleKind kind) {
-                  void* bad_core = make_bad_handle(kind);
+TEST_CASE("P4: amio_finalize rejects bad core handles", "[pbt][handles][safety][P4]") {
+    rc::check("bad core handle → AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE", [](BadHandleKind kind) {
+        void* bad_core = make_bad_handle(kind);
 
-                  amio_status_t rc = amio_finalize(
-                      static_cast<amio_core_handle>(bad_core));
+        amio_status_t rc = amio_finalize(static_cast<amio_core_handle>(bad_core));
 
-                  RC_ASSERT(is_handle_error(rc));
-              });
+        RC_ASSERT(is_handle_error(rc));
+    });
 }
 
 // ===================================================================
@@ -333,8 +290,7 @@ TEST_CASE("P4: amio_finalize rejects bad core handles",
 // AMIO_ERR_INVALID_HANDLE.
 // ===================================================================
 
-TEST_CASE("P4: finalized handle returns AMIO_ERR_INVALID_HANDLE on all APIs",
-          "[pbt][handles][safety][P4][finalized]") {
+TEST_CASE("P4: finalized handle returns AMIO_ERR_INVALID_HANDLE on all APIs", "[pbt][handles][safety][P4][finalized]") {
     amio::pbt::TempDir tmp;
     std::string yaml = amio::pbt::make_manifest_yaml("netcdf4", 2, 4096, 1, 1000);
     std::string path = amio::pbt::write_manifest(tmp, yaml);
@@ -378,14 +334,12 @@ TEST_CASE("P4: finalized handle returns AMIO_ERR_INVALID_HANDLE on all APIs",
     shape.rank = 1;
     shape.extents[0] = 4;
     amio_io_handle io = nullptr;
-    rc = amio_write(static_cast<amio_dataset_handle>(core),
-                    "var", data, AMIO_DTYPE_F32, &shape, &io);
+    rc = amio_write(static_cast<amio_dataset_handle>(core), "var", data, AMIO_DTYPE_F32, &shape, &io);
     REQUIRE(rc == AMIO_ERR_INVALID_HANDLE);
 
     // amio_read with stale handle as dataset
     amio_view_handle view = nullptr;
-    rc = amio_read(static_cast<amio_dataset_handle>(core),
-                   "var", 0, nullptr, &view);
+    rc = amio_read(static_cast<amio_dataset_handle>(core), "var", 0, nullptr, &view);
     REQUIRE(rc == AMIO_ERR_INVALID_HANDLE);
 
     // amio_wait with stale handle as io
@@ -415,8 +369,7 @@ TEST_CASE("P4: finalized handle returns AMIO_ERR_INVALID_HANDLE on all APIs",
 // future, this test will be updated to assert that error code.
 // ===================================================================
 
-TEST_CASE("P4: double amio_init produces distinct valid handles",
-          "[pbt][handles][safety][P4][double_init]") {
+TEST_CASE("P4: double amio_init produces distinct valid handles", "[pbt][handles][safety][P4][double_init]") {
     amio::pbt::TempDir tmp;
     std::string yaml = amio::pbt::make_manifest_yaml("netcdf4", 2, 4096, 1, 1000);
     std::string path = amio::pbt::write_manifest(tmp, yaml);
@@ -449,88 +402,76 @@ TEST_CASE("P4: double amio_init produces distinct valid handles",
 // API entry point index, then verify the safety invariant holds.
 // ===================================================================
 
-TEST_CASE("P4: any bad handle × any API entry point → safe rejection",
-          "[pbt][handles][safety][P4][combined]") {
-    rc::check("for any bad handle kind and any API entry point: "
-              "returns AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE, "
-              "no crash, no state mutation",
-              [](BadHandleKind kind) {
-                  void* bad = make_bad_handle(kind);
+TEST_CASE("P4: any bad handle × any API entry point → safe rejection", "[pbt][handles][safety][P4][combined]") {
+    rc::check(
+        "for any bad handle kind and any API entry point: "
+        "returns AMIO_ERR_NULL_HANDLE or AMIO_ERR_INVALID_HANDLE, "
+        "no crash, no state mutation",
+        [](BadHandleKind kind) {
+            void* bad = make_bad_handle(kind);
 
-                  // Test all API entry points that take handles.
-                  // Each must return a handle error without crashing.
+            // Test all API entry points that take handles.
+            // Each must return a handle error without crashing.
 
-                  // 1. amio_open_dataset (core handle)
-                  {
-                      amio_dataset_handle out = reinterpret_cast<amio_dataset_handle>(kSentinelValue);
-                      amio_status_t rc = amio_open_dataset(
-                          static_cast<amio_core_handle>(bad),
-                          "/nonexistent.yaml", AMIO_MODE_WRITE, &out);
-                      RC_ASSERT(is_handle_error(rc));
-                  }
+            // 1. amio_open_dataset (core handle)
+            {
+                amio_dataset_handle out = reinterpret_cast<amio_dataset_handle>(kSentinelValue);
+                amio_status_t rc = amio_open_dataset(static_cast<amio_core_handle>(bad), "/nonexistent.yaml", AMIO_MODE_WRITE, &out);
+                RC_ASSERT(is_handle_error(rc));
+            }
 
-                  // 2. amio_close_dataset (dataset handle)
-                  {
-                      amio_status_t rc = amio_close_dataset(
-                          static_cast<amio_dataset_handle>(bad));
-                      RC_ASSERT(is_handle_error(rc));
-                  }
+            // 2. amio_close_dataset (dataset handle)
+            {
+                amio_status_t rc = amio_close_dataset(static_cast<amio_dataset_handle>(bad));
+                RC_ASSERT(is_handle_error(rc));
+            }
 
-                  // 3. amio_write (dataset handle)
-                  {
-                      float data[4] = {1.0f, 2.0f, 3.0f, 4.0f};
-                      amio_shape_t shape = {};
-                      shape.rank = 1;
-                      shape.extents[0] = 4;
-                      amio_io_handle out_io = reinterpret_cast<amio_io_handle>(kSentinelValue);
-                      amio_status_t rc = amio_write(
-                          static_cast<amio_dataset_handle>(bad),
-                          "var", data, AMIO_DTYPE_F32, &shape, &out_io);
-                      RC_ASSERT(is_handle_error(rc));
-                  }
+            // 3. amio_write (dataset handle)
+            {
+                float data[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+                amio_shape_t shape = {};
+                shape.rank = 1;
+                shape.extents[0] = 4;
+                amio_io_handle out_io = reinterpret_cast<amio_io_handle>(kSentinelValue);
+                amio_status_t rc = amio_write(static_cast<amio_dataset_handle>(bad), "var", data, AMIO_DTYPE_F32, &shape, &out_io);
+                RC_ASSERT(is_handle_error(rc));
+            }
 
-                  // 4. amio_read (dataset handle)
-                  {
-                      amio_view_handle out_view = reinterpret_cast<amio_view_handle>(kSentinelValue);
-                      amio_status_t rc = amio_read(
-                          static_cast<amio_dataset_handle>(bad),
-                          "var", 0, nullptr, &out_view);
-                      RC_ASSERT(is_handle_error(rc));
-                  }
+            // 4. amio_read (dataset handle)
+            {
+                amio_view_handle out_view = reinterpret_cast<amio_view_handle>(kSentinelValue);
+                amio_status_t rc = amio_read(static_cast<amio_dataset_handle>(bad), "var", 0, nullptr, &out_view);
+                RC_ASSERT(is_handle_error(rc));
+            }
 
-                  // 5. amio_flush (dataset handle)
-                  {
-                      amio_status_t rc = amio_flush(
-                          static_cast<amio_dataset_handle>(bad), 1000);
-                      RC_ASSERT(is_handle_error(rc));
-                  }
+            // 5. amio_flush (dataset handle)
+            {
+                amio_status_t rc = amio_flush(static_cast<amio_dataset_handle>(bad), 1000);
+                RC_ASSERT(is_handle_error(rc));
+            }
 
-                  // 6. amio_close (dataset handle)
-                  {
-                      amio_status_t rc = amio_close(
-                          static_cast<amio_dataset_handle>(bad));
-                      RC_ASSERT(is_handle_error(rc));
-                  }
+            // 6. amio_close (dataset handle)
+            {
+                amio_status_t rc = amio_close(static_cast<amio_dataset_handle>(bad));
+                RC_ASSERT(is_handle_error(rc));
+            }
 
-                  // 7. amio_wait (io handle)
-                  {
-                      amio_status_t rc = amio_wait(
-                          static_cast<amio_io_handle>(bad), 1000);
-                      RC_ASSERT(is_handle_error(rc));
-                  }
+            // 7. amio_wait (io handle)
+            {
+                amio_status_t rc = amio_wait(static_cast<amio_io_handle>(bad), 1000);
+                RC_ASSERT(is_handle_error(rc));
+            }
 
-                  // 8. amio_release_view (view handle)
-                  {
-                      amio_status_t rc = amio_release_view(
-                          static_cast<amio_view_handle>(bad));
-                      RC_ASSERT(is_handle_error(rc));
-                  }
+            // 8. amio_release_view (view handle)
+            {
+                amio_status_t rc = amio_release_view(static_cast<amio_view_handle>(bad));
+                RC_ASSERT(is_handle_error(rc));
+            }
 
-                  // 9. amio_finalize (core handle)
-                  {
-                      amio_status_t rc = amio_finalize(
-                          static_cast<amio_core_handle>(bad));
-                      RC_ASSERT(is_handle_error(rc));
-                  }
-              });
+            // 9. amio_finalize (core handle)
+            {
+                amio_status_t rc = amio_finalize(static_cast<amio_core_handle>(bad));
+                RC_ASSERT(is_handle_error(rc));
+            }
+        });
 }

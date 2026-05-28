@@ -13,9 +13,9 @@
 #include <thread>
 #include <vector>
 
+#include "factory/backend_driver.hpp"
 #include "prefetch/prefetch_queue.hpp"
 #include "staging/staging_pool.hpp"
-#include "factory/backend_driver.hpp"
 
 namespace amio::detail {
 namespace test {
@@ -25,16 +25,13 @@ namespace test {
 // filling buffers with a known pattern based on timestep.
 // ---------------------------------------------------------------
 class MockBackendDriver : public Backend_Driver {
-public:
+   public:
     void open_write(const eckit::Configuration&) override {}
     void open_read(const eckit::Configuration&) override {}
 
     void write(const StagingBuffer& /*src*/, const VarMeta& /*meta*/) override {}
 
-    void read(StagingBuffer& dst,
-              const VarMeta& /*meta*/,
-              std::int64_t timestep,
-              const std::optional<BoundingBox>& bbox) override {
+    void read(StagingBuffer& dst, const VarMeta& /*meta*/, std::int64_t timestep, const std::optional<BoundingBox>& bbox) override {
         // Fill the buffer with a pattern: each byte = (timestep & 0xFF).
         std::size_t fill_size = dst.capacity_bytes;
 
@@ -62,11 +59,17 @@ public:
     void close() override {}
 
     // Test inspection.
-    int read_count() const { return read_count_; }
-    std::int64_t last_timestep() const { return last_timestep_; }
-    bool last_had_bbox() const { return last_had_bbox_; }
+    int read_count() const {
+        return read_count_;
+    }
+    std::int64_t last_timestep() const {
+        return last_timestep_;
+    }
+    bool last_had_bbox() const {
+        return last_had_bbox_;
+    }
 
-private:
+   private:
     int read_count_ = 0;
     std::int64_t last_timestep_ = -1;
     bool last_had_bbox_ = false;
@@ -228,15 +231,12 @@ void test_schedule_next_bounds_check() {
 // Test: Failed prefetch surfaces error on amio_read (R5.8)
 // ---------------------------------------------------------------
 class FailingDriver : public Backend_Driver {
-public:
+   public:
     void open_write(const eckit::Configuration&) override {}
     void open_read(const eckit::Configuration&) override {}
     void write(const StagingBuffer&, const VarMeta&) override {}
 
-    void read(StagingBuffer& /*dst*/,
-              const VarMeta& /*meta*/,
-              std::int64_t timestep,
-              const std::optional<BoundingBox>&) override {
+    void read(StagingBuffer& /*dst*/, const VarMeta& /*meta*/, std::int64_t timestep, const std::optional<BoundingBox>&) override {
         if (timestep == fail_timestep_) {
             throw std::runtime_error("simulated read failure");
         }
@@ -247,9 +247,11 @@ public:
     void flush() override {}
     void close() override {}
 
-    void set_fail_timestep(std::int64_t t) { fail_timestep_ = t; }
+    void set_fail_timestep(std::int64_t t) {
+        fail_timestep_ = t;
+    }
 
-private:
+   private:
     std::int64_t fail_timestep_ = -1;
 };
 

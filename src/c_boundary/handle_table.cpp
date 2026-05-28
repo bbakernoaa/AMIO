@@ -11,8 +11,7 @@
 
 namespace amio::detail {
 
-HandleTable::Token
-HandleTable::insert(HandleKind kind, void *payload) {
+HandleTable::Token HandleTable::insert(HandleKind kind, void *payload) {
     std::lock_guard<std::mutex> guard(mu_);
 
     std::uint32_t slot_index;
@@ -45,18 +44,15 @@ HandleTable::insert(HandleKind kind, void *payload) {
     }
 
     Slot &s = slots_[slot_index];
-    s.live    = true;
-    s.kind    = kind;
+    s.live = true;
+    s.kind = kind;
     s.payload = payload;
     // generation already holds the next-to-issue value (set on
     // construction or on the prior `release()`).
     return pack(slot_index, s.generation);
 }
 
-amio_status_t
-HandleTable::lookup(Token token,
-                    HandleKind expected,
-                    void **out_payload) const noexcept {
+amio_status_t HandleTable::lookup(Token token, HandleKind expected, void **out_payload) const noexcept {
     if (out_payload == nullptr) {
         // Misuse from inside AMIO_Core; treat conservatively.
         return AMIO_ERR_INVALID_INPUT;
@@ -99,8 +95,7 @@ HandleTable::lookup(Token token,
     return AMIO_OK;
 }
 
-amio_status_t
-HandleTable::release(Token token, HandleKind expected) noexcept {
+amio_status_t HandleTable::release(Token token, HandleKind expected) noexcept {
     if (token == 0) {
         return AMIO_ERR_NULL_HANDLE;
     }
@@ -125,7 +120,7 @@ HandleTable::release(Token token, HandleKind expected) noexcept {
     // wraparound is theoretically possible after 2^32 releases of
     // the same slot, so we skip 0 to keep "token == 0" reserved as
     // the universal sentinel for "no handle".
-    s.live    = false;
+    s.live = false;
     s.payload = nullptr;
     s.generation += 1;
     if (s.generation == 0) {
@@ -135,8 +130,7 @@ HandleTable::release(Token token, HandleKind expected) noexcept {
     return AMIO_OK;
 }
 
-std::size_t
-HandleTable::size_for_test() const noexcept {
+std::size_t HandleTable::size_for_test() const noexcept {
     std::lock_guard<std::mutex> guard(mu_);
     return slots_.size() - free_list_.size();
 }

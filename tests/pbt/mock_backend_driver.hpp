@@ -15,9 +15,6 @@
 #ifndef AMIO_TESTS_PBT_MOCK_BACKEND_DRIVER_HPP
 #define AMIO_TESTS_PBT_MOCK_BACKEND_DRIVER_HPP
 
-#include "factory/backend_driver.hpp"
-#include "staging/staging_pool.hpp"
-
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -29,6 +26,9 @@
 #include <thread>
 #include <vector>
 
+#include "factory/backend_driver.hpp"
+#include "staging/staging_pool.hpp"
+
 namespace amio::pbt {
 
 // ===================================================================
@@ -36,27 +36,20 @@ namespace amio::pbt {
 // ===================================================================
 
 struct CallRecord {
-    enum class Method {
-        OpenWrite,
-        OpenRead,
-        Write,
-        Read,
-        Flush,
-        Close
-    };
+    enum class Method { OpenWrite, OpenRead, Write, Read, Flush, Close };
 
-    Method                                          method;
-    std::thread::id                                 thread_id;
-    std::chrono::steady_clock::time_point           timestamp;
-    std::uint64_t                                   sequence;    // global call order
+    Method method;
+    std::thread::id thread_id;
+    std::chrono::steady_clock::time_point timestamp;
+    std::uint64_t sequence;  // global call order
 
     // For write calls: dataset_id, variable_id, payload size
-    std::uint64_t                                   dataset_id  = 0;
-    std::uint64_t                                   variable_id = 0;
-    std::size_t                                     payload_size = 0;
+    std::uint64_t dataset_id = 0;
+    std::uint64_t variable_id = 0;
+    std::size_t payload_size = 0;
 
     // For read calls: timestep
-    std::int64_t                                    timestep    = -1;
+    std::int64_t timestep = -1;
 };
 
 // ===================================================================
@@ -66,7 +59,7 @@ struct CallRecord {
 // ===================================================================
 
 class MockBackendDriver : public amio::detail::Backend_Driver {
-public:
+   public:
     MockBackendDriver() = default;
     ~MockBackendDriver() override = default;
 
@@ -84,16 +77,15 @@ public:
         check_and_throw(CallRecord::Method::OpenRead);
     }
 
-    void write(const amio::detail::StagingBuffer& src,
-               const amio::detail::VarMeta& meta) override {
+    void write(const amio::detail::StagingBuffer& src, const amio::detail::VarMeta& meta) override {
         std::lock_guard<std::mutex> lock(mu_);
 
         CallRecord rec;
-        rec.method      = CallRecord::Method::Write;
-        rec.thread_id   = std::this_thread::get_id();
-        rec.timestamp   = std::chrono::steady_clock::now();
-        rec.sequence    = next_seq_++;
-        rec.dataset_id  = meta.dataset_id;
+        rec.method = CallRecord::Method::Write;
+        rec.thread_id = std::this_thread::get_id();
+        rec.timestamp = std::chrono::steady_clock::now();
+        rec.sequence = next_seq_++;
+        rec.dataset_id = meta.dataset_id;
         rec.variable_id = meta.variable_id;
         rec.payload_size = src.used_bytes;
         calls_.push_back(rec);
@@ -108,20 +100,18 @@ public:
         check_and_throw(CallRecord::Method::Write);
     }
 
-    void read(amio::detail::StagingBuffer& dst,
-              const amio::detail::VarMeta& meta,
-              std::int64_t timestep,
+    void read(amio::detail::StagingBuffer& dst, const amio::detail::VarMeta& meta, std::int64_t timestep,
               const std::optional<amio::detail::BoundingBox>& /*bbox*/) override {
         std::lock_guard<std::mutex> lock(mu_);
 
         CallRecord rec;
-        rec.method      = CallRecord::Method::Read;
-        rec.thread_id   = std::this_thread::get_id();
-        rec.timestamp   = std::chrono::steady_clock::now();
-        rec.sequence    = next_seq_++;
-        rec.dataset_id  = meta.dataset_id;
+        rec.method = CallRecord::Method::Read;
+        rec.thread_id = std::this_thread::get_id();
+        rec.timestamp = std::chrono::steady_clock::now();
+        rec.sequence = next_seq_++;
+        rec.dataset_id = meta.dataset_id;
         rec.variable_id = meta.variable_id;
-        rec.timestep    = timestep;
+        rec.timestep = timestep;
         calls_.push_back(rec);
 
         check_and_throw(CallRecord::Method::Read);
@@ -151,16 +141,13 @@ public:
     // ----- Test control interface -----
 
     // Inject a failure: the next call to `method` will throw.
-    void inject_failure(CallRecord::Method method,
-                        const std::string& message = "Injected failure") {
+    void inject_failure(CallRecord::Method method, const std::string& message = "Injected failure") {
         std::lock_guard<std::mutex> lock(mu_);
         pending_failures_.push_back({method, message});
     }
 
     // Inject a failure that triggers after N calls to `method`.
-    void inject_failure_after(CallRecord::Method method,
-                              std::size_t after_n_calls,
-                              const std::string& message = "Injected failure") {
+    void inject_failure_after(CallRecord::Method method, std::size_t after_n_calls, const std::string& message = "Injected failure") {
         std::lock_guard<std::mutex> lock(mu_);
         deferred_failures_.push_back({method, after_n_calls, message, 0});
     }
@@ -192,14 +179,11 @@ public:
     }
 
     // Get write calls for a specific (dataset, variable) pair, in order.
-    std::vector<CallRecord> get_writes_for(std::uint64_t dataset_id,
-                                           std::uint64_t variable_id) const {
+    std::vector<CallRecord> get_writes_for(std::uint64_t dataset_id, std::uint64_t variable_id) const {
         std::lock_guard<std::mutex> lock(mu_);
         std::vector<CallRecord> filtered;
         for (const auto& c : calls_) {
-            if (c.method == CallRecord::Method::Write &&
-                c.dataset_id == dataset_id &&
-                c.variable_id == variable_id) {
+            if (c.method == CallRecord::Method::Write && c.dataset_id == dataset_id && c.variable_id == variable_id) {
                 filtered.push_back(c);
             }
         }
@@ -240,8 +224,7 @@ public:
 
     // Check if all write calls for a (dataset, variable) pair arrived
     // in sequence order (useful for order-preservation tests).
-    bool writes_in_order(std::uint64_t dataset_id,
-                         std::uint64_t variable_id) const {
+    bool writes_in_order(std::uint64_t dataset_id, std::uint64_t variable_id) const {
         auto writes = get_writes_for(dataset_id, variable_id);
         for (std::size_t i = 1; i < writes.size(); ++i) {
             if (writes[i].sequence <= writes[i - 1].sequence) {
@@ -251,25 +234,25 @@ public:
         return true;
     }
 
-private:
+   private:
     struct PendingFailure {
         CallRecord::Method method;
-        std::string        message;
+        std::string message;
     };
 
     struct DeferredFailure {
         CallRecord::Method method;
-        std::size_t        trigger_after;
-        std::string        message;
-        std::size_t        current_count;
+        std::size_t trigger_after;
+        std::string message;
+        std::size_t current_count;
     };
 
     void record_call(CallRecord::Method method) {
         CallRecord rec;
-        rec.method    = method;
+        rec.method = method;
         rec.thread_id = std::this_thread::get_id();
         rec.timestamp = std::chrono::steady_clock::now();
-        rec.sequence  = next_seq_++;
+        rec.sequence = next_seq_++;
         calls_.push_back(rec);
     }
 
@@ -297,13 +280,13 @@ private:
         }
     }
 
-    mutable std::mutex                  mu_;
-    std::vector<CallRecord>             calls_;
+    mutable std::mutex mu_;
+    std::vector<CallRecord> calls_;
     std::vector<std::vector<std::byte>> stored_payloads_;
-    std::vector<PendingFailure>         pending_failures_;
-    std::vector<DeferredFailure>        deferred_failures_;
-    std::uint64_t                       next_seq_ = 0;
-    bool                                store_payloads_ = false;
+    std::vector<PendingFailure> pending_failures_;
+    std::vector<DeferredFailure> deferred_failures_;
+    std::uint64_t next_seq_ = 0;
+    bool store_payloads_ = false;
 };
 
 }  // namespace amio::pbt
