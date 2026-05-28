@@ -9,6 +9,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/amio-dev
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -19,7 +22,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}/amio-dev:latest
+      image: ghcr.io/${{ github.repository_owner }}/amio-dev:latest
     needs: lint
     strategy:
       matrix:
@@ -62,6 +65,6 @@ jobs:
           context: .
           file: .devcontainer/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/amio-dev:latest
+          tags: ghcr.io/${{ github.repository_owner }}/amio-dev:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
