@@ -47,9 +47,8 @@
 
 #ifdef AMIO_HAS_NETCDF
 #include <mpi.h>
+#include <netcdf.h>
 #include <netcdf_par.h>
-
-#include <netcdf>
 #endif
 
 #include <string>
