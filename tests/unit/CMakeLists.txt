@@ -236,9 +236,7 @@ set_tests_properties(unit.config_loader PROPERTIES LABELS "unit;config;loader" T
 #
 # Validates: R4.1, R4.6, R6.4, R6.5
 # ####################################################################################################################################################
-add_executable(test_dataset_lifecycle test_dataset_lifecycle.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp)
-
-target_include_directories(test_dataset_lifecycle PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_executable(test_dataset_lifecycle test_dataset_lifecycle.cpp)
 
 target_link_libraries(test_dataset_lifecycle PRIVATE AMIO::public_headers AMIO::amio_core)
 if(Threads_FOUND)
