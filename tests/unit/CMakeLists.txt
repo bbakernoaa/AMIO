@@ -310,3 +310,60 @@ endif()
 
 add_test(NAME unit.read_prefetch COMMAND test_read_prefetch)
 set_tests_properties(unit.read_prefetch PROPERTIES LABELS "unit;prefetch;read" TIMEOUT 60)
+
+# ####################################################################################################################################################
+# test_lifecycle_netcdf4
+#
+# Full lifecycle integration test for the NetCDF-4 backend.  Exercises the complete init → open → write → flush → close → finalize path with the REAL
+# netcdf4 driver writing to a temp file.  No mocks.  Accepts AMIO_ERR_BACKEND_FAILURE as valid if the underlying library isn't fully functional (e.g.,
+# netCDF without parallel HDF5).  The key assertion: the lifecycle completes without crashing.
+#
+# Validates: end-to-end lifecycle correctness for netcdf4 backend.
+# ####################################################################################################################################################
+add_executable(test_lifecycle_netcdf4 test_lifecycle_netcdf4.cpp)
+
+target_link_libraries(test_lifecycle_netcdf4 PRIVATE AMIO::public_headers AMIO::amio_core)
+if(Threads_FOUND)
+    target_link_libraries(test_lifecycle_netcdf4 PRIVATE Threads::Threads)
+endif()
+
+add_test(NAME unit.lifecycle_netcdf4 COMMAND test_lifecycle_netcdf4)
+set_tests_properties(unit.lifecycle_netcdf4 PROPERTIES LABELS "unit;lifecycle;netcdf4" TIMEOUT 60)
+
+# ####################################################################################################################################################
+# test_lifecycle_zarr
+#
+# Full lifecycle integration test for the Zarr v3 (NCZarr fallback) backend.  Exercises the complete init → open → write → flush → close → finalize
+# path with the REAL zarr3 driver writing to a temp directory.  No mocks.  Accepts AMIO_ERR_BACKEND_FAILURE as valid if the underlying library isn't
+# fully functional.  The key assertion: the lifecycle completes without crashing.
+#
+# Validates: end-to-end lifecycle correctness for zarr3 backend.
+# ####################################################################################################################################################
+add_executable(test_lifecycle_zarr test_lifecycle_zarr.cpp)
+
+target_link_libraries(test_lifecycle_zarr PRIVATE AMIO::public_headers AMIO::amio_core)
+if(Threads_FOUND)
+    target_link_libraries(test_lifecycle_zarr PRIVATE Threads::Threads)
+endif()
+
+add_test(NAME unit.lifecycle_zarr COMMAND test_lifecycle_zarr)
+set_tests_properties(unit.lifecycle_zarr PROPERTIES LABELS "unit;lifecycle;zarr3" TIMEOUT 60)
+
+# ####################################################################################################################################################
+# test_lifecycle_grib2
+#
+# Full lifecycle integration test for the GRIB2 backend.  Exercises the complete init → open → write → flush → close → finalize path with the REAL
+# grib2 driver writing to a temp file.  No mocks.  Includes WMO code table config and DRT: libaec.  Accepts AMIO_ERR_BACKEND_FAILURE as valid if the
+# underlying g2c library isn't fully functional or WMO tables aren't loaded.  The key assertion: the lifecycle completes without crashing.
+#
+# Validates: end-to-end lifecycle correctness for grib2 backend.
+# ####################################################################################################################################################
+add_executable(test_lifecycle_grib2 test_lifecycle_grib2.cpp)
+
+target_link_libraries(test_lifecycle_grib2 PRIVATE AMIO::public_headers AMIO::amio_core)
+if(Threads_FOUND)
+    target_link_libraries(test_lifecycle_grib2 PRIVATE Threads::Threads)
+endif()
+
+add_test(NAME unit.lifecycle_grib2 COMMAND test_lifecycle_grib2)
+set_tests_properties(unit.lifecycle_grib2 PROPERTIES LABELS "unit;lifecycle;grib2" TIMEOUT 60)
