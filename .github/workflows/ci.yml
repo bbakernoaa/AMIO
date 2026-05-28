@@ -21,28 +21,34 @@ jobs:
 
   build-and-test:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/${{ github.repository_owner }}/amio-dev:latest
     needs: lint
     strategy:
       matrix:
         build_type: [Debug, Release]
     steps:
       - uses: actions/checkout@v4
+      - name: Build dev container
+        run: docker build -t amio-dev:latest -f .devcontainer/Dockerfile .
       - name: Configure
         run: |
-          mkdir build && cd build
-          cmake .. -GNinja \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DAMIO_BUILD_TESTING=ON \
-            -DAMIO_BUILD_EXAMPLES=ON \
-            -DAMIO_FORCE_NCZARR=ON
+          docker run --rm -v ${{ github.workspace }}:/src:ro -w /tmp/build amio-dev:latest \
+            cmake /src -GNinja \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -DAMIO_BUILD_TESTING=ON \
+              -DAMIO_BUILD_EXAMPLES=ON \
+              -DAMIO_FORCE_NCZARR=ON
       - name: Build
-        run: ninja -C build -j$(nproc)
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/src:ro -w /tmp/build amio-dev:latest \
+            bash -c "cmake /src -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DAMIO_BUILD_TESTING=ON -DAMIO_BUILD_EXAMPLES=ON -DAMIO_FORCE_NCZARR=ON && ninja -j\$(nproc)"
       - name: Unit Tests
-        run: cd build && ctest --output-on-failure -L unit --timeout 60
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/src:ro -w /tmp/build amio-dev:latest \
+            bash -c "cmake /src -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DAMIO_BUILD_TESTING=ON -DAMIO_FORCE_NCZARR=ON && ninja -j\$(nproc) && ctest --output-on-failure -L unit --timeout 60"
       - name: PBT Tests
-        run: cd build && ctest --output-on-failure -L pbt --timeout 600
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/src:ro -w /tmp/build amio-dev:latest \
+            bash -c "cmake /src -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DAMIO_BUILD_TESTING=ON -DAMIO_FORCE_NCZARR=ON && ninja -j\$(nproc) && ctest --output-on-failure -L pbt --timeout 600"
         env:
           RC_PARAMS: "max_success=100"
 
