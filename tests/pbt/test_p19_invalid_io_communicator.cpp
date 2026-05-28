@@ -10,16 +10,15 @@
 //
 // **Validates: Requirements R3.6**
 
-#include "pbt_common.hpp"
-#include "generators.hpp"
-
-#include "workers/comm_split.hpp"
-
 #include <algorithm>
 #include <cstdint>
 #include <set>
 #include <string>
 #include <vector>
+
+#include "generators.hpp"
+#include "pbt_common.hpp"
+#include "workers/comm_split.hpp"
 
 using namespace amio::detail;
 using namespace amio::pbt;
@@ -36,10 +35,7 @@ using namespace amio::pbt;
 namespace {
 
 // Generate a manifest YAML with invalid I/O ranks.
-std::string make_manifest_with_invalid_io_ranks(
-    const TempDir& dir,
-    const std::vector<int>& io_ranks)
-{
+std::string make_manifest_with_invalid_io_ranks(const TempDir& dir, const std::vector<int>& io_ranks) {
     std::string yaml;
     yaml += "staging_pool:\n";
     yaml += "  buffer_count: 4\n";
@@ -73,38 +69,35 @@ std::string make_manifest_with_invalid_io_ranks(
 // split_communicator returns AMIO_ERR_COMM_SPLIT_FAILED.
 // ===================================================================
 
-TEST_CASE("P19: Invalid I/O communicator - ranks beyond world size",
-          "[pbt][p19][invalid_comm][beyond_world]") {
-    auto result = rc::check(
-        "I/O ranks beyond world_size return AMIO_ERR_COMM_SPLIT_FAILED",
-        []() {
-            // Simulate a single-rank environment (world_size = 1).
-            int world_size = 1;
-            int my_rank = 0;
+TEST_CASE("P19: Invalid I/O communicator - ranks beyond world size", "[pbt][p19][invalid_comm][beyond_world]") {
+    auto result = rc::check("I/O ranks beyond world_size return AMIO_ERR_COMM_SPLIT_FAILED", []() {
+        // Simulate a single-rank environment (world_size = 1).
+        int world_size = 1;
+        int my_rank = 0;
 
-            // Generate 1-4 invalid ranks (all >= world_size).
-            auto num_ranks = *rc::gen::inRange<std::size_t>(1, 5);
-            std::vector<int> invalid_ranks;
-            for (std::size_t i = 0; i < num_ranks; ++i) {
-                int bad_rank = world_size + *rc::gen::inRange(0, 100);
-                invalid_ranks.push_back(bad_rank);
-            }
+        // Generate 1-4 invalid ranks (all >= world_size).
+        auto num_ranks = *rc::gen::inRange<std::size_t>(1, 5);
+        std::vector<int> invalid_ranks;
+        for (std::size_t i = 0; i < num_ranks; ++i) {
+            int bad_rank = world_size + *rc::gen::inRange(0, 100);
+            invalid_ranks.push_back(bad_rank);
+        }
 
-            // Create CommConfig with invalid ranks.
-            CommConfig config;
-            config.io_ranks = invalid_ranks;
-            config.world_size = world_size;
+        // Create CommConfig with invalid ranks.
+        CommConfig config;
+        config.io_ranks = invalid_ranks;
+        config.world_size = world_size;
 
-            // Attempt split.
-            IOCommunicator result_comm;
-            amio_err_t err = split_communicator(config, my_rank, result_comm);
+        // Attempt split.
+        IOCommunicator result_comm;
+        amio_err_t err = split_communicator(config, my_rank, result_comm);
 
-            // Should fail with AMIO_ERR_COMM_SPLIT_FAILED.
-            RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
+        // Should fail with AMIO_ERR_COMM_SPLIT_FAILED.
+        RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
 
-            // No communicator should be created.
-            RC_ASSERT(!result_comm.valid);
-        });
+        // No communicator should be created.
+        RC_ASSERT(!result_comm.valid);
+    });
 
     REQUIRE(result);
 }
@@ -117,32 +110,29 @@ TEST_CASE("P19: Invalid I/O communicator - ranks beyond world size",
 // split_communicator returns AMIO_ERR_COMM_SPLIT_FAILED.
 // ===================================================================
 
-TEST_CASE("P19: Invalid I/O communicator - negative ranks",
-          "[pbt][p19][invalid_comm][negative]") {
-    auto result = rc::check(
-        "negative I/O ranks return AMIO_ERR_COMM_SPLIT_FAILED",
-        []() {
-            int world_size = *rc::gen::inRange(1, 8);
-            int my_rank = 0;
+TEST_CASE("P19: Invalid I/O communicator - negative ranks", "[pbt][p19][invalid_comm][negative]") {
+    auto result = rc::check("negative I/O ranks return AMIO_ERR_COMM_SPLIT_FAILED", []() {
+        int world_size = *rc::gen::inRange(1, 8);
+        int my_rank = 0;
 
-            // Generate ranks with at least one negative value.
-            auto num_ranks = *rc::gen::inRange<std::size_t>(1, 4);
-            std::vector<int> ranks;
-            for (std::size_t i = 0; i < num_ranks; ++i) {
-                int bad_rank = -(*rc::gen::inRange(1, 100));
-                ranks.push_back(bad_rank);
-            }
+        // Generate ranks with at least one negative value.
+        auto num_ranks = *rc::gen::inRange<std::size_t>(1, 4);
+        std::vector<int> ranks;
+        for (std::size_t i = 0; i < num_ranks; ++i) {
+            int bad_rank = -(*rc::gen::inRange(1, 100));
+            ranks.push_back(bad_rank);
+        }
 
-            CommConfig config;
-            config.io_ranks = ranks;
-            config.world_size = world_size;
+        CommConfig config;
+        config.io_ranks = ranks;
+        config.world_size = world_size;
 
-            IOCommunicator result_comm;
-            amio_err_t err = split_communicator(config, my_rank, result_comm);
+        IOCommunicator result_comm;
+        amio_err_t err = split_communicator(config, my_rank, result_comm);
 
-            RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
-            RC_ASSERT(!result_comm.valid);
-        });
+        RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
+        RC_ASSERT(!result_comm.valid);
+    });
 
     REQUIRE(result);
 }
@@ -156,32 +146,29 @@ TEST_CASE("P19: Invalid I/O communicator - negative ranks",
 // subset.
 // ===================================================================
 
-TEST_CASE("P19: Invalid I/O communicator - entire world is not proper subset",
-          "[pbt][p19][invalid_comm][entire_world]") {
-    auto result = rc::check(
-        "I/O rank set equal to entire world returns AMIO_ERR_COMM_SPLIT_FAILED",
-        []() {
-            // Generate world_size [1, 8].
-            auto world_size = *rc::gen::inRange(1, 9);
-            int my_rank = 0;
+TEST_CASE("P19: Invalid I/O communicator - entire world is not proper subset", "[pbt][p19][invalid_comm][entire_world]") {
+    auto result = rc::check("I/O rank set equal to entire world returns AMIO_ERR_COMM_SPLIT_FAILED", []() {
+        // Generate world_size [1, 8].
+        auto world_size = *rc::gen::inRange(1, 9);
+        int my_rank = 0;
 
-            // Create io_ranks = {0, 1, ..., world_size-1} (entire world).
-            std::vector<int> all_ranks;
-            for (int i = 0; i < world_size; ++i) {
-                all_ranks.push_back(i);
-            }
+        // Create io_ranks = {0, 1, ..., world_size-1} (entire world).
+        std::vector<int> all_ranks;
+        for (int i = 0; i < world_size; ++i) {
+            all_ranks.push_back(i);
+        }
 
-            CommConfig config;
-            config.io_ranks = all_ranks;
-            config.world_size = world_size;
+        CommConfig config;
+        config.io_ranks = all_ranks;
+        config.world_size = world_size;
 
-            IOCommunicator result_comm;
-            amio_err_t err = split_communicator(config, my_rank, result_comm);
+        IOCommunicator result_comm;
+        amio_err_t err = split_communicator(config, my_rank, result_comm);
 
-            // Should fail: io_ranks must be a PROPER subset.
-            RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
-            RC_ASSERT(!result_comm.valid);
-        });
+        // Should fail: io_ranks must be a PROPER subset.
+        RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
+        RC_ASSERT(!result_comm.valid);
+    });
 
     REQUIRE(result);
 }
@@ -194,29 +181,26 @@ TEST_CASE("P19: Invalid I/O communicator - entire world is not proper subset",
 // split_communicator returns AMIO_ERR_COMM_SPLIT_FAILED.
 // ===================================================================
 
-TEST_CASE("P19: Invalid I/O communicator - duplicate ranks",
-          "[pbt][p19][invalid_comm][duplicates]") {
-    auto result = rc::check(
-        "duplicate I/O ranks return AMIO_ERR_COMM_SPLIT_FAILED",
-        []() {
-            // Generate world_size [2, 8] (need at least 2 for a valid rank).
-            auto world_size = *rc::gen::inRange(2, 9);
-            int my_rank = 0;
+TEST_CASE("P19: Invalid I/O communicator - duplicate ranks", "[pbt][p19][invalid_comm][duplicates]") {
+    auto result = rc::check("duplicate I/O ranks return AMIO_ERR_COMM_SPLIT_FAILED", []() {
+        // Generate world_size [2, 8] (need at least 2 for a valid rank).
+        auto world_size = *rc::gen::inRange(2, 9);
+        int my_rank = 0;
 
-            // Generate a valid rank and duplicate it.
-            int valid_rank = *rc::gen::inRange(0, world_size);
-            std::vector<int> ranks = {valid_rank, valid_rank};
+        // Generate a valid rank and duplicate it.
+        int valid_rank = *rc::gen::inRange(0, world_size);
+        std::vector<int> ranks = {valid_rank, valid_rank};
 
-            CommConfig config;
-            config.io_ranks = ranks;
-            config.world_size = world_size;
+        CommConfig config;
+        config.io_ranks = ranks;
+        config.world_size = world_size;
 
-            IOCommunicator result_comm;
-            amio_err_t err = split_communicator(config, my_rank, result_comm);
+        IOCommunicator result_comm;
+        amio_err_t err = split_communicator(config, my_rank, result_comm);
 
-            RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
-            RC_ASSERT(!result_comm.valid);
-        });
+        RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
+        RC_ASSERT(!result_comm.valid);
+    });
 
     REQUIRE(result);
 }
@@ -228,23 +212,20 @@ TEST_CASE("P19: Invalid I/O communicator - duplicate ranks",
 // returns AMIO_OK with a valid communicator.
 // ===================================================================
 
-TEST_CASE("P19: Invalid I/O communicator - default config succeeds",
-          "[pbt][p19][invalid_comm][default]") {
-    auto result = rc::check(
-        "default (empty) I/O rank set always returns AMIO_OK",
-        []() {
-            CommConfig config;
-            RC_ASSERT(config.is_default());
+TEST_CASE("P19: Invalid I/O communicator - default config succeeds", "[pbt][p19][invalid_comm][default]") {
+    auto result = rc::check("default (empty) I/O rank set always returns AMIO_OK", []() {
+        CommConfig config;
+        RC_ASSERT(config.is_default());
 
-            int my_rank = 0;
+        int my_rank = 0;
 
-            IOCommunicator result_comm;
-            amio_err_t err = split_communicator(config, my_rank, result_comm);
+        IOCommunicator result_comm;
+        amio_err_t err = split_communicator(config, my_rank, result_comm);
 
-            RC_ASSERT(err == AMIO_OK);
-            RC_ASSERT(result_comm.valid);
-            RC_ASSERT(result_comm.is_io_rank);
-        });
+        RC_ASSERT(err == AMIO_OK);
+        RC_ASSERT(result_comm.valid);
+        RC_ASSERT(result_comm.is_io_rank);
+    });
 
     REQUIRE(result);
 }
@@ -257,22 +238,19 @@ TEST_CASE("P19: Invalid I/O communicator - default config succeeds",
 // AMIO_ERR_COMM_SPLIT_FAILED.
 // ===================================================================
 
-TEST_CASE("P19: Invalid I/O communicator - validate_comm_config",
-          "[pbt][p19][invalid_comm][validate]") {
-    auto result = rc::check(
-        "validate_comm_config catches invalid configs",
-        []() {
-            // Generate an invalid config (ranks beyond world_size).
-            auto world_size = *rc::gen::inRange(1, 8);
-            int bad_rank = world_size + *rc::gen::inRange(0, 50);
+TEST_CASE("P19: Invalid I/O communicator - validate_comm_config", "[pbt][p19][invalid_comm][validate]") {
+    auto result = rc::check("validate_comm_config catches invalid configs", []() {
+        // Generate an invalid config (ranks beyond world_size).
+        auto world_size = *rc::gen::inRange(1, 8);
+        int bad_rank = world_size + *rc::gen::inRange(0, 50);
 
-            CommConfig config;
-            config.io_ranks = {bad_rank};
-            config.world_size = world_size;
+        CommConfig config;
+        config.io_ranks = {bad_rank};
+        config.world_size = world_size;
 
-            amio_err_t err = validate_comm_config(config);
-            RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
-        });
+        amio_err_t err = validate_comm_config(config);
+        RC_ASSERT(err == AMIO_ERR_COMM_SPLIT_FAILED);
+    });
 
     REQUIRE(result);
 }
@@ -284,38 +262,34 @@ TEST_CASE("P19: Invalid I/O communicator - validate_comm_config",
 // an error and no core handle is created.
 // ===================================================================
 
-TEST_CASE("P19: Invalid I/O communicator - amio_init with invalid ranks",
-          "[pbt][p19][invalid_comm][amio_init]") {
-    auto result = rc::check(
-        "amio_init with invalid I/O ranks returns error",
-        []() {
-            // Generate invalid ranks (beyond any reasonable world size).
-            auto num_ranks = *rc::gen::inRange<std::size_t>(1, 4);
-            std::vector<int> invalid_ranks;
-            for (std::size_t i = 0; i < num_ranks; ++i) {
-                invalid_ranks.push_back(100 + *rc::gen::inRange(0, 900));
-            }
+TEST_CASE("P19: Invalid I/O communicator - amio_init with invalid ranks", "[pbt][p19][invalid_comm][amio_init]") {
+    auto result = rc::check("amio_init with invalid I/O ranks returns error", []() {
+        // Generate invalid ranks (beyond any reasonable world size).
+        auto num_ranks = *rc::gen::inRange<std::size_t>(1, 4);
+        std::vector<int> invalid_ranks;
+        for (std::size_t i = 0; i < num_ranks; ++i) {
+            invalid_ranks.push_back(100 + *rc::gen::inRange(0, 900));
+        }
 
-            TempDir dir;
-            std::string manifest_path = make_manifest_with_invalid_io_ranks(
-                dir, invalid_ranks);
+        TempDir dir;
+        std::string manifest_path = make_manifest_with_invalid_io_ranks(dir, invalid_ranks);
 
-            // Call amio_init.
-            amio_core_handle core = nullptr;
-            amio_status_t rc_val = amio_init(manifest_path.c_str(), &core);
+        // Call amio_init.
+        amio_core_handle core = nullptr;
+        amio_status_t rc_val = amio_init(manifest_path.c_str(), &core);
 
-            // The current stub may not fully validate I/O ranks during
-            // init.  If it returns AMIO_OK (stub behavior), clean up.
-            // The property is validated against split_communicator
-            // directly in P19a-P19f above.
-            if (rc_val == AMIO_OK && core != nullptr) {
-                amio_finalize(core);
-            } else {
-                // Expected: AMIO_ERR_COMM_SPLIT_FAILED or similar.
-                RC_ASSERT(rc_val != AMIO_OK);
-                RC_ASSERT(!core);
-            }
-        });
+        // The current stub may not fully validate I/O ranks during
+        // init.  If it returns AMIO_OK (stub behavior), clean up.
+        // The property is validated against split_communicator
+        // directly in P19a-P19f above.
+        if (rc_val == AMIO_OK && core != nullptr) {
+            amio_finalize(core);
+        } else {
+            // Expected: AMIO_ERR_COMM_SPLIT_FAILED or similar.
+            RC_ASSERT(rc_val != AMIO_OK);
+            RC_ASSERT(!core);
+        }
+    });
 
     REQUIRE(result);
 }

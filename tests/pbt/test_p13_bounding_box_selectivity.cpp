@@ -10,14 +10,6 @@
 //
 // **Validates: Requirements R5.7**
 
-#include "pbt_common.hpp"
-#include "generators.hpp"
-
-#include "prefetch/prefetch_queue.hpp"
-#include "staging/staging_pool.hpp"
-#include "workers/worker_pool.hpp"
-#include "factory/backend_driver.hpp"
-
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -25,6 +17,13 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+
+#include "factory/backend_driver.hpp"
+#include "generators.hpp"
+#include "pbt_common.hpp"
+#include "prefetch/prefetch_queue.hpp"
+#include "staging/staging_pool.hpp"
+#include "workers/worker_pool.hpp"
 
 using namespace amio::detail;
 using namespace amio::pbt;
@@ -50,7 +49,7 @@ struct BBoxReadRecord {
 };
 
 class InstrumentedBBoxDriver : public Backend_Driver {
-public:
+   public:
     InstrumentedBBoxDriver() = default;
     ~InstrumentedBBoxDriver() override = default;
 
@@ -70,10 +69,7 @@ public:
         var_dtype_ = dtype;
     }
 
-    void read(StagingBuffer& dst,
-              const VarMeta& /*meta*/,
-              std::int64_t timestep,
-              const std::optional<BoundingBox>& bbox) override {
+    void read(StagingBuffer& dst, const VarMeta& /*meta*/, std::int64_t timestep, const std::optional<BoundingBox>& bbox) override {
         std::lock_guard<std::mutex> lock(mu_);
 
         BBoxReadRecord rec;
@@ -124,7 +120,7 @@ public:
         records_.clear();
     }
 
-private:
+   private:
     mutable std::mutex mu_;
     std::vector<BBoxReadRecord> records_;
     amio_shape_t var_shape_ = {};
@@ -147,124 +143,115 @@ private:
 // than the full variable size (when bbox is a proper subset).
 // ===================================================================
 
-TEST_CASE("P13: Bounding-box read selectivity - only intersecting bytes transferred",
-          "[pbt][p13][prefetch][bounding_box]") {
-    auto result = rc::check(
-        "read with bounding box transfers only intersecting byte ranges",
-        []() {
-            // Generate a variable shape with rank [1, 4] and moderate extents.
-            auto rank = *rc::gen::inRange(1, 5);
-            amio_shape_t shape = {};
-            shape.rank = rank;
-            for (int d = 0; d < rank; ++d) {
-                shape.extents[d] = *rc::gen::inRange<std::int64_t>(4, 65);
+TEST_CASE("P13: Bounding-box read selectivity - only intersecting bytes transferred", "[pbt][p13][prefetch][bounding_box]") {
+    auto result = rc::check("read with bounding box transfers only intersecting byte ranges", []() {
+        // Generate a variable shape with rank [1, 4] and moderate extents.
+        auto rank = *rc::gen::inRange(1, 5);
+        amio_shape_t shape = {};
+        shape.rank = rank;
+        for (int d = 0; d < rank; ++d) {
+            shape.extents[d] = *rc::gen::inRange<std::int64_t>(4, 65);
+        }
+
+        // Generate a dtype.
+        auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
+
+        // Generate a bounding box that is a proper subset of the shape.
+        amio_bbox_t bbox = {};
+        bbox.rank = rank;
+        bool is_proper_subset = false;
+
+        for (int d = 0; d < rank; ++d) {
+            // Offset in [0, extent-1]
+            std::int64_t max_offset = shape.extents[d] - 1;
+            bbox.offsets[d] = *rc::gen::inRange<std::int64_t>(0, max_offset + 1);
+
+            // Extent in [1, remaining]
+            std::int64_t remaining = shape.extents[d] - bbox.offsets[d];
+            bbox.extents[d] = *rc::gen::inRange<std::int64_t>(1, remaining + 1);
+
+            // Stride = 1 (contiguous selection)
+            bbox.strides[d] = 1;
+
+            if (bbox.extents[d] < shape.extents[d]) {
+                is_proper_subset = true;
             }
+        }
 
-            // Generate a dtype.
-            auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
+        // Ensure the bbox is a proper subset (not the full variable).
+        RC_PRE(is_proper_subset);
 
-            // Generate a bounding box that is a proper subset of the shape.
-            amio_bbox_t bbox = {};
-            bbox.rank = rank;
-            bool is_proper_subset = false;
+        // Calculate full variable size and bbox size.
+        std::size_t elem_size = dtype_size(dtype);
+        std::size_t full_elements = shape_element_count(shape);
+        std::size_t full_bytes = full_elements * elem_size;
 
-            for (int d = 0; d < rank; ++d) {
-                // Offset in [0, extent-1]
-                std::int64_t max_offset = shape.extents[d] - 1;
-                bbox.offsets[d] = *rc::gen::inRange<std::int64_t>(0, max_offset + 1);
+        std::size_t bbox_elements = 1;
+        for (int d = 0; d < rank; ++d) {
+            bbox_elements *= static_cast<std::size_t>(bbox.extents[d]);
+        }
+        std::size_t bbox_bytes = bbox_elements * elem_size;
 
-                // Extent in [1, remaining]
-                std::int64_t remaining = shape.extents[d] - bbox.offsets[d];
-                bbox.extents[d] = *rc::gen::inRange<std::int64_t>(1, remaining + 1);
+        // The bbox must be strictly smaller than the full variable.
+        RC_PRE(bbox_bytes < full_bytes);
 
-                // Stride = 1 (contiguous selection)
-                bbox.strides[d] = 1;
+        // Create staging pool with buffer large enough for full variable.
+        std::size_t buffer_capacity = std::max(full_bytes, std::size_t{4096});
+        StagingPool pool(8, buffer_capacity, 5000);
 
-                if (bbox.extents[d] < shape.extents[d]) {
-                    is_proper_subset = true;
+        // Create instrumented driver.
+        auto driver = std::make_shared<InstrumentedBBoxDriver>();
+        driver->set_var_info(shape, dtype);
+
+        // Create PrefetchQueue in synchronous mode.
+        PrefetchQueue pq(1,  // depth = 1 (we only need one fetch)
+                         60, &pool, nullptr, driver.get(), 1, "test_var",
+                         1  // total_timesteps = 1
+        );
+
+        // Perform a read with the bounding box by directly calling
+        // get_buffer with the bbox parameter.
+        // First, we need to schedule a fetch with the bbox.
+        // Since PrefetchQueue::schedule_initial doesn't pass bbox,
+        // we call get_buffer directly which will trigger a fetch
+        // for the requested timestep with the bbox.
+        StagingBuffer* buf = nullptr;
+        amio_status_t status = pq.get_buffer(0, &bbox, &buf);
+        RC_ASSERT(status == AMIO_OK);
+        RC_ASSERT(buf != nullptr);
+
+        // Verify the driver received the bounding box.
+        auto records = driver->get_records();
+        RC_ASSERT(!records.empty());
+
+        // Find the record for our read (with bbox).
+        bool found_bbox_read = false;
+        for (const auto& rec : records) {
+            if (rec.has_bbox && rec.timestep == 0) {
+                found_bbox_read = true;
+
+                // Verify: bytes written <= bbox_bytes.
+                RC_ASSERT(rec.bytes_written <= bbox_bytes);
+
+                // Verify: bytes written < full_bytes (selectivity).
+                RC_ASSERT(rec.bytes_written < full_bytes);
+
+                // Verify: the bbox dimensions match what we passed.
+                RC_ASSERT(rec.bbox.rank == rank);
+                for (int d = 0; d < rank; ++d) {
+                    RC_ASSERT(rec.bbox.offsets[d] == bbox.offsets[d]);
+                    RC_ASSERT(rec.bbox.extents[d] == bbox.extents[d]);
                 }
             }
+        }
+        RC_ASSERT(found_bbox_read);
 
-            // Ensure the bbox is a proper subset (not the full variable).
-            RC_PRE(is_proper_subset);
+        // Verify: the buffer's used_bytes reflects only the bbox data.
+        RC_ASSERT(buf->used_bytes <= bbox_bytes);
+        RC_ASSERT(buf->used_bytes < full_bytes);
 
-            // Calculate full variable size and bbox size.
-            std::size_t elem_size = dtype_size(dtype);
-            std::size_t full_elements = shape_element_count(shape);
-            std::size_t full_bytes = full_elements * elem_size;
-
-            std::size_t bbox_elements = 1;
-            for (int d = 0; d < rank; ++d) {
-                bbox_elements *= static_cast<std::size_t>(bbox.extents[d]);
-            }
-            std::size_t bbox_bytes = bbox_elements * elem_size;
-
-            // The bbox must be strictly smaller than the full variable.
-            RC_PRE(bbox_bytes < full_bytes);
-
-            // Create staging pool with buffer large enough for full variable.
-            std::size_t buffer_capacity = std::max(full_bytes, std::size_t{4096});
-            StagingPool pool(8, buffer_capacity, 5000);
-
-            // Create instrumented driver.
-            auto driver = std::make_shared<InstrumentedBBoxDriver>();
-            driver->set_var_info(shape, dtype);
-
-            // Create PrefetchQueue in synchronous mode.
-            PrefetchQueue pq(
-                1,  // depth = 1 (we only need one fetch)
-                60,
-                &pool,
-                nullptr,
-                driver.get(),
-                1,
-                "test_var",
-                1  // total_timesteps = 1
-            );
-
-            // Perform a read with the bounding box by directly calling
-            // get_buffer with the bbox parameter.
-            // First, we need to schedule a fetch with the bbox.
-            // Since PrefetchQueue::schedule_initial doesn't pass bbox,
-            // we call get_buffer directly which will trigger a fetch
-            // for the requested timestep with the bbox.
-            StagingBuffer* buf = nullptr;
-            amio_status_t status = pq.get_buffer(0, &bbox, &buf);
-            RC_ASSERT(status == AMIO_OK);
-            RC_ASSERT(buf != nullptr);
-
-            // Verify the driver received the bounding box.
-            auto records = driver->get_records();
-            RC_ASSERT(!records.empty());
-
-            // Find the record for our read (with bbox).
-            bool found_bbox_read = false;
-            for (const auto& rec : records) {
-                if (rec.has_bbox && rec.timestep == 0) {
-                    found_bbox_read = true;
-
-                    // Verify: bytes written <= bbox_bytes.
-                    RC_ASSERT(rec.bytes_written <= bbox_bytes);
-
-                    // Verify: bytes written < full_bytes (selectivity).
-                    RC_ASSERT(rec.bytes_written < full_bytes);
-
-                    // Verify: the bbox dimensions match what we passed.
-                    RC_ASSERT(rec.bbox.rank == rank);
-                    for (int d = 0; d < rank; ++d) {
-                        RC_ASSERT(rec.bbox.offsets[d] == bbox.offsets[d]);
-                        RC_ASSERT(rec.bbox.extents[d] == bbox.extents[d]);
-                    }
-                }
-            }
-            RC_ASSERT(found_bbox_read);
-
-            // Verify: the buffer's used_bytes reflects only the bbox data.
-            RC_ASSERT(buf->used_bytes <= bbox_bytes);
-            RC_ASSERT(buf->used_bytes < full_bytes);
-
-            pool.release(buf);
-        });
+        pool.release(buf);
+    });
 
     REQUIRE(result);
 }
@@ -276,69 +263,57 @@ TEST_CASE("P13: Bounding-box read selectivity - only intersecting bytes transfer
 // variable data is transferred.
 // ===================================================================
 
-TEST_CASE("P13: Bounding-box read selectivity - full read without bbox",
-          "[pbt][p13][prefetch][bounding_box][full_read]") {
-    auto result = rc::check(
-        "read without bounding box transfers full variable data",
-        []() {
-            // Generate a variable shape.
-            auto rank = *rc::gen::inRange(1, 4);
-            amio_shape_t shape = {};
-            shape.rank = rank;
-            for (int d = 0; d < rank; ++d) {
-                shape.extents[d] = *rc::gen::inRange<std::int64_t>(4, 33);
+TEST_CASE("P13: Bounding-box read selectivity - full read without bbox", "[pbt][p13][prefetch][bounding_box][full_read]") {
+    auto result = rc::check("read without bounding box transfers full variable data", []() {
+        // Generate a variable shape.
+        auto rank = *rc::gen::inRange(1, 4);
+        amio_shape_t shape = {};
+        shape.rank = rank;
+        for (int d = 0; d < rank; ++d) {
+            shape.extents[d] = *rc::gen::inRange<std::int64_t>(4, 33);
+        }
+
+        auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
+
+        std::size_t elem_size = dtype_size(dtype);
+        std::size_t full_elements = shape_element_count(shape);
+        std::size_t full_bytes = full_elements * elem_size;
+        RC_PRE(full_bytes > 0 && full_bytes <= 1048576);  // cap at 1 MiB
+
+        // Create staging pool.
+        std::size_t buffer_capacity = std::max(full_bytes, std::size_t{4096});
+        StagingPool pool(8, buffer_capacity, 5000);
+
+        // Create instrumented driver.
+        auto driver = std::make_shared<InstrumentedBBoxDriver>();
+        driver->set_var_info(shape, dtype);
+
+        // Create PrefetchQueue.
+        PrefetchQueue pq(1, 60, &pool, nullptr, driver.get(), 1, "test_var", 1);
+
+        // Read without bbox.
+        StagingBuffer* buf = nullptr;
+        amio_status_t status = pq.get_buffer(0, nullptr, &buf);
+        RC_ASSERT(status == AMIO_OK);
+        RC_ASSERT(buf != nullptr);
+
+        // Verify the driver did NOT receive a bounding box.
+        auto records = driver->get_records();
+        RC_ASSERT(!records.empty());
+
+        bool found_full_read = false;
+        for (const auto& rec : records) {
+            if (!rec.has_bbox && rec.timestep == 0) {
+                found_full_read = true;
+                // Full read: bytes written should equal full variable size
+                // (capped by buffer capacity).
+                RC_ASSERT(rec.bytes_written == std::min(full_bytes, buffer_capacity));
             }
+        }
+        RC_ASSERT(found_full_read);
 
-            auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
-
-            std::size_t elem_size = dtype_size(dtype);
-            std::size_t full_elements = shape_element_count(shape);
-            std::size_t full_bytes = full_elements * elem_size;
-            RC_PRE(full_bytes > 0 && full_bytes <= 1048576);  // cap at 1 MiB
-
-            // Create staging pool.
-            std::size_t buffer_capacity = std::max(full_bytes, std::size_t{4096});
-            StagingPool pool(8, buffer_capacity, 5000);
-
-            // Create instrumented driver.
-            auto driver = std::make_shared<InstrumentedBBoxDriver>();
-            driver->set_var_info(shape, dtype);
-
-            // Create PrefetchQueue.
-            PrefetchQueue pq(
-                1,
-                60,
-                &pool,
-                nullptr,
-                driver.get(),
-                1,
-                "test_var",
-                1
-            );
-
-            // Read without bbox.
-            StagingBuffer* buf = nullptr;
-            amio_status_t status = pq.get_buffer(0, nullptr, &buf);
-            RC_ASSERT(status == AMIO_OK);
-            RC_ASSERT(buf != nullptr);
-
-            // Verify the driver did NOT receive a bounding box.
-            auto records = driver->get_records();
-            RC_ASSERT(!records.empty());
-
-            bool found_full_read = false;
-            for (const auto& rec : records) {
-                if (!rec.has_bbox && rec.timestep == 0) {
-                    found_full_read = true;
-                    // Full read: bytes written should equal full variable size
-                    // (capped by buffer capacity).
-                    RC_ASSERT(rec.bytes_written == std::min(full_bytes, buffer_capacity));
-                }
-            }
-            RC_ASSERT(found_full_read);
-
-            pool.release(buf);
-        });
+        pool.release(buf);
+    });
 
     REQUIRE(result);
 }

@@ -21,25 +21,22 @@
  *   ./example_zarr_write
  */
 
+#include <amio/amio.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-
-#include <amio/amio.h>
 
 /* Grid dimensions: 1-degree global ocean grid */
-#define NLON 360   /* longitude points (0 to 359) */
-#define NLAT 180   /* latitude points (-90 to +89) */
+#define NLON 360 /* longitude points (0 to 359) */
+#define NLAT 180 /* latitude points (-90 to +89) */
 
 /**
  * @brief Check an AMIO return code and exit on failure.
  */
-static void check_amio(amio_status_t rc, const char *context)
-{
+static void check_amio(amio_status_t rc, const char *context) {
     if (rc != AMIO_OK) {
-        fprintf(stderr, "AMIO error in %s: %s (code %d)\n",
-                context, amio_strerror(rc), (int)rc);
+        fprintf(stderr, "AMIO error in %s: %s (code %d)\n", context, amio_strerror(rc), (int)rc);
         exit(EXIT_FAILURE);
     }
 }
@@ -53,14 +50,13 @@ static void check_amio(amio_status_t rc, const char *context)
  *   - Western boundary current warm anomalies
  *   - Land mask represented as NaN (not-a-number)
  */
-static void fill_sst(double *data, int nlon, int nlat)
-{
+static void fill_sst(double *data, int nlon, int nlat) {
     for (int j = 0; j < nlat; j++) {
-        double lat = -90.0 + (double)j + 0.5;  /* cell center */
+        double lat = -90.0 + (double)j + 0.5; /* cell center */
         /* Base SST: warm at equator, cold at poles */
         double base_sst = 300.0 - 29.0 * (lat * lat) / (90.0 * 90.0);
         for (int i = 0; i < nlon; i++) {
-            double lon = (double)i + 0.5;  /* cell center */
+            double lon = (double)i + 0.5; /* cell center */
             double sst = base_sst;
             /* Add western boundary current warm anomaly (Gulf Stream-like) */
             if (lon > 280.0 && lon < 320.0 && lat > 25.0 && lat < 45.0) {
@@ -76,8 +72,7 @@ static void fill_sst(double *data, int nlon, int nlat)
     }
 }
 
-int main(void)
-{
+int main(void) {
     amio_status_t rc;
     amio_core_handle core = NULL;
     amio_dataset_handle dataset = NULL;
@@ -85,8 +80,7 @@ int main(void)
 
     printf("AMIO Zarr v3 (NCZarr) Write Example\n");
     printf("====================================\n");
-    printf("Writing 2D SST field (%d x %d) to Zarr v3 store\n\n",
-           NLON, NLAT);
+    printf("Writing 2D SST field (%d x %d) to Zarr v3 store\n\n", NLON, NLAT);
 
     /* ---------------------------------------------------------------
      * Step 1: Initialize AMIO with the zarr3 manifest.
@@ -104,10 +98,7 @@ int main(void)
      * Step 2: Open a dataset for writing.
      * --------------------------------------------------------------- */
     printf("Step 2: Opening Zarr dataset for writing...\n");
-    rc = amio_open_dataset(core,
-                           "examples/manifests/zarr3_manifest.yaml",
-                           AMIO_MODE_WRITE,
-                           &dataset);
+    rc = amio_open_dataset(core, "examples/manifests/zarr3_manifest.yaml", AMIO_MODE_WRITE, &dataset);
     check_amio(rc, "amio_open_dataset");
     printf("  Dataset opened.\n");
 
@@ -139,8 +130,7 @@ int main(void)
     shape.extents[0] = NLON;
     shape.extents[1] = NLAT;
 
-    rc = amio_write(dataset, "sea_surface_temperature", sst,
-                    AMIO_DTYPE_F64, &shape, &io);
+    rc = amio_write(dataset, "sea_surface_temperature", sst, AMIO_DTYPE_F64, &shape, &io);
     check_amio(rc, "amio_write(sea_surface_temperature)");
     printf("  Write enqueued.\n");
 

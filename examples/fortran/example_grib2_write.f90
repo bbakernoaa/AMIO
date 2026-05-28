@@ -28,36 +28,36 @@ program example_grib2_write
     integer(c_int32_t) :: rc
 
     ! Data array
-    real(c_float), allocatable, target :: hgt(:,:)
+    real(c_float), allocatable, target :: hgt(:, :)
 
     ! Local variables
     integer :: i, j
     real(c_float) :: lat, lon, base_height, wave_amp
     real(c_float), parameter :: PI = 3.14159265_c_float
 
-    write(*,'(A)') 'AMIO GRIB2 Write Example (Fortran)'
-    write(*,'(A)') '==================================='
-    write(*,'(A,I0,A,I0,A)') &
+    write (*, '(A)') 'AMIO GRIB2 Write Example (Fortran)'
+    write (*, '(A)') '==================================='
+    write (*, '(A,I0,A,I0,A)') &
         'Writing 2D 500hPa geopotential height (', NLON, ' x ', NLAT, ') to GRIB2'
-    write(*,*)
+    write (*, *)
 
     ! -------------------------------------------------------------------
     ! Step 1: Initialize AMIO with the grib2 manifest.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 1: Initializing AMIO (GRIB2 backend)...'
-    rc = amio_init('examples/manifests/grib2_manifest.yaml' // c_null_char, core)
+    write (*, '(A)') 'Step 1: Initializing AMIO (GRIB2 backend)...'
+    rc = amio_init('examples/manifests/grib2_manifest.yaml'//c_null_char, core)
     call check_amio(rc, 'amio_init')
-    write(*,'(A)') '  AMIO initialized.'
+    write (*, '(A)') '  AMIO initialized.'
 
     ! -------------------------------------------------------------------
     ! Step 2: Open a dataset for writing.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 2: Opening GRIB2 dataset for writing...'
+    write (*, '(A)') 'Step 2: Opening GRIB2 dataset for writing...'
     rc = amio_open_dataset(core, &
-        'examples/manifests/grib2_manifest.yaml' // c_null_char, &
-        AMIO_MODE_WRITE, dataset)
+                           'examples/manifests/grib2_manifest.yaml'//c_null_char, &
+                           AMIO_MODE_WRITE, dataset)
     call check_amio(rc, 'amio_open_dataset')
-    write(*,'(A)') '  Dataset opened.'
+    write (*, '(A)') '  Dataset opened.'
 
     ! -------------------------------------------------------------------
     ! Step 3: Allocate and fill the geopotential height array.
@@ -67,8 +67,8 @@ program example_grib2_write
     !   - Lower values at the poles (~5100 gpm)
     !   - Rossby wave pattern in midlatitudes
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 3: Generating synthetic 500hPa height data...'
-    allocate(hgt(NLON, NLAT))
+    write (*, '(A)') 'Step 3: Generating synthetic 500hPa height data...'
+    allocate (hgt(NLON, NLAT))
 
     do j = 1, NLAT
         ! Latitude from 90N to 90S
@@ -85,7 +85,7 @@ program example_grib2_write
                 hgt(i, j) = hgt(i, j) + wave_amp * sin(5.0_c_float * lon * PI / 180.0_c_float)
                 ! Wavenumber 3 pattern (weaker)
                 hgt(i, j) = hgt(i, j) + 0.4_c_float * wave_amp * &
-                    cos(3.0_c_float * lon * PI / 180.0_c_float + 1.2_c_float)
+                            cos(3.0_c_float * lon * PI / 180.0_c_float + 1.2_c_float)
             end if
             ! Slight hemispheric asymmetry
             if (lat < 0.0_c_float) then
@@ -94,7 +94,7 @@ program example_grib2_write
         end do
     end do
 
-    write(*,'(A,F7.1,A,F7.1,A)') '  Height data generated: range ~ [', &
+    write (*, '(A,F7.1,A,F7.1,A)') '  Height data generated: range ~ [', &
         minval(hgt), ', ', maxval(hgt), '] gpm'
 
     ! -------------------------------------------------------------------
@@ -102,35 +102,35 @@ program example_grib2_write
     !
     ! amio_write_array detects real(c_float) rank-2 and uses AMIO_DTYPE_F32.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 4: Writing geopotential height field...'
-    call amio_write_array(dataset, 'geopotential_height' // c_null_char, &
+    write (*, '(A)') 'Step 4: Writing geopotential height field...'
+    call amio_write_array(dataset, 'geopotential_height'//c_null_char, &
                           hgt, io_handle, rc)
     call check_amio(rc, 'amio_write_array(geopotential_height)')
-    write(*,'(A)') '  Write enqueued.'
+    write (*, '(A)') '  Write enqueued.'
 
     ! -------------------------------------------------------------------
     ! Step 5: Flush to ensure the write completes.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 5: Flushing...'
+    write (*, '(A)') 'Step 5: Flushing...'
     rc = amio_flush(dataset, 0_c_int64_t)
     call check_amio(rc, 'amio_flush')
-    write(*,'(A)') '  Flush complete.'
+    write (*, '(A)') '  Flush complete.'
 
     ! -------------------------------------------------------------------
     ! Step 6: Close and finalize.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 6: Closing dataset and finalizing...'
+    write (*, '(A)') 'Step 6: Closing dataset and finalizing...'
     rc = amio_close_dataset(dataset)
     call check_amio(rc, 'amio_close_dataset')
 
     rc = amio_finalize(core)
     call check_amio(rc, 'amio_finalize')
-    write(*,'(A)') '  Done.'
+    write (*, '(A)') '  Done.'
 
-    deallocate(hgt)
+    deallocate (hgt)
 
-    write(*,*)
-    write(*,'(A)') '500hPa geopotential height written to GRIB2.'
+    write (*, *)
+    write (*, '(A)') '500hPa geopotential height written to GRIB2.'
 
 contains
 
@@ -140,7 +140,7 @@ contains
         character(len=*), intent(in) :: context
 
         if (status /= AMIO_OK) then
-            write(*,'(A,A,A,I0,A)') 'AMIO error in ', context, &
+            write (*, '(A,A,A,I0,A)') 'AMIO error in ', context, &
                 ' (code ', status, ')'
             error stop 'AMIO operation failed'
         end if

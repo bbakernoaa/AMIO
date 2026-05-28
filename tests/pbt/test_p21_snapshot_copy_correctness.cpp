@@ -9,16 +9,15 @@
 //
 // **Validates: Requirements R2.2**
 
-#include "pbt_common.hpp"
-#include "generators.hpp"
-
-#include "staging/staging_pool.hpp"
-
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
+
+#include "generators.hpp"
+#include "pbt_common.hpp"
+#include "staging/staging_pool.hpp"
 
 using namespace amio::detail;
 using namespace amio::pbt;
@@ -63,8 +62,7 @@ struct SnapshotTestContext {
             return;
         }
 
-        std::string ds_yaml = make_dataset_config_yaml(
-            "netcdf4", dir.file("output.nc"));
+        std::string ds_yaml = make_dataset_config_yaml("netcdf4", dir.file("output.nc"));
         std::string ds_path = dir.file("dataset.yaml");
         std::ofstream ofs(ds_path);
         ofs << ds_yaml;
@@ -105,49 +103,44 @@ struct SnapshotTestContext {
 // This tests the staging pool copy mechanism directly.
 // ===================================================================
 
-TEST_CASE("P21: Snapshot copy correctness - staging pool memcpy",
-          "[pbt][p21][snapshot_copy][staging_pool]") {
-    auto result = rc::check(
-        "staging pool buffer matches host data after memcpy",
-        []() {
-            auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
-            auto shape = *rc::gen::arbitrary<amio_shape_t>();
+TEST_CASE("P21: Snapshot copy correctness - staging pool memcpy", "[pbt][p21][snapshot_copy][staging_pool]") {
+    auto result = rc::check("staging pool buffer matches host data after memcpy", []() {
+        auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
+        auto shape = *rc::gen::arbitrary<amio_shape_t>();
 
-            std::size_t byte_count = payload_byte_count(shape, dtype);
-            RC_PRE(byte_count > 0 && byte_count <= 65536);
+        std::size_t byte_count = payload_byte_count(shape, dtype);
+        RC_PRE(byte_count > 0 && byte_count <= 65536);
 
-            // Generate random payload bytes.
-            std::vector<uint8_t> host_data(byte_count);
-            for (std::size_t i = 0; i < byte_count; ++i) {
-                host_data[i] = static_cast<uint8_t>(
-                    *rc::gen::inRange(0, 256));
-            }
+        // Generate random payload bytes.
+        std::vector<uint8_t> host_data(byte_count);
+        for (std::size_t i = 0; i < byte_count; ++i) {
+            host_data[i] = static_cast<uint8_t>(*rc::gen::inRange(0, 256));
+        }
 
-            // Create a staging pool and acquire a buffer.
-            StagingPool pool(4, 65536, 5000);
-            StagingBuffer* buf = pool.acquire(byte_count);
-            RC_ASSERT(buf != nullptr);
+        // Create a staging pool and acquire a buffer.
+        StagingPool pool(4, 65536, 5000);
+        StagingBuffer* buf = pool.acquire(byte_count);
+        RC_ASSERT(buf != nullptr);
 
-            // Perform the deep copy (same as amio_write does).
-            buf->used_bytes = byte_count;
-            std::memcpy(buf->data, host_data.data(), byte_count);
+        // Perform the deep copy (same as amio_write does).
+        buf->used_bytes = byte_count;
+        std::memcpy(buf->data, host_data.data(), byte_count);
 
-            // Verify: buffer content matches host data exactly.
-            RC_ASSERT(buf->used_bytes == byte_count);
-            RC_ASSERT(std::memcmp(buf->data, host_data.data(), byte_count) == 0);
+        // Verify: buffer content matches host data exactly.
+        RC_ASSERT(buf->used_bytes == byte_count);
+        RC_ASSERT(std::memcmp(buf->data, host_data.data(), byte_count) == 0);
 
-            // Mutate host data to prove independence.
-            std::fill(host_data.begin(), host_data.end(), 0xFF);
+        // Mutate host data to prove independence.
+        std::fill(host_data.begin(), host_data.end(), 0xFF);
 
-            // Buffer should still contain the original data.
-            // (We can't compare to host_data anymore since we mutated it,
-            // but we can verify the buffer wasn't affected by the mutation.)
-            RC_ASSERT(buf->data[0] != static_cast<std::byte>(0xFF) ||
-                      byte_count == 1);  // edge case: if original was 0xFF
+        // Buffer should still contain the original data.
+        // (We can't compare to host_data anymore since we mutated it,
+        // but we can verify the buffer wasn't affected by the mutation.)
+        RC_ASSERT(buf->data[0] != static_cast<std::byte>(0xFF) || byte_count == 1);  // edge case: if original was 0xFF
 
-            // Release buffer back to pool.
-            pool.release(buf);
-        });
+        // Release buffer back to pool.
+        pool.release(buf);
+    });
 
     REQUIRE(result);
 }
@@ -161,51 +154,45 @@ TEST_CASE("P21: Snapshot copy correctness - staging pool memcpy",
 // pointer can be safely mutated without affecting the write.
 // ===================================================================
 
-TEST_CASE("P21: Snapshot copy correctness - amio_write end-to-end",
-          "[pbt][p21][snapshot_copy][amio_write]") {
-    auto result = rc::check(
-        "amio_write captures snapshot; host mutation after return is safe",
-        []() {
-            SnapshotTestContext ctx;
-            RC_PRE(ctx.valid);
+TEST_CASE("P21: Snapshot copy correctness - amio_write end-to-end", "[pbt][p21][snapshot_copy][amio_write]") {
+    auto result = rc::check("amio_write captures snapshot; host mutation after return is safe", []() {
+        SnapshotTestContext ctx;
+        RC_PRE(ctx.valid);
 
-            auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
-            auto shape = *rc::gen::arbitrary<amio_shape_t>();
+        auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
+        auto shape = *rc::gen::arbitrary<amio_shape_t>();
 
-            std::size_t byte_count = payload_byte_count(shape, dtype);
-            // Cap payload to fit in staging buffer.
-            RC_PRE(byte_count > 0 && byte_count <= 65536);
+        std::size_t byte_count = payload_byte_count(shape, dtype);
+        // Cap payload to fit in staging buffer.
+        RC_PRE(byte_count > 0 && byte_count <= 65536);
 
-            // Generate random payload.
-            std::vector<uint8_t> host_data(byte_count);
-            for (std::size_t i = 0; i < byte_count; ++i) {
-                host_data[i] = static_cast<uint8_t>(
-                    *rc::gen::inRange(0, 256));
-            }
+        // Generate random payload.
+        std::vector<uint8_t> host_data(byte_count);
+        for (std::size_t i = 0; i < byte_count; ++i) {
+            host_data[i] = static_cast<uint8_t>(*rc::gen::inRange(0, 256));
+        }
 
-            // Keep a copy of the original data for verification.
-            std::vector<uint8_t> original_data = host_data;
+        // Keep a copy of the original data for verification.
+        std::vector<uint8_t> original_data = host_data;
 
-            // Call amio_write -- this performs the synchronous snapshot.
-            amio_io_handle io = nullptr;
-            amio_status_t rc_val = amio_write(
-                ctx.dataset, "snapshot_var", host_data.data(),
-                dtype, &shape, &io);
+        // Call amio_write -- this performs the synchronous snapshot.
+        amio_io_handle io = nullptr;
+        amio_status_t rc_val = amio_write(ctx.dataset, "snapshot_var", host_data.data(), dtype, &shape, &io);
 
-            RC_ASSERT(rc_val == AMIO_OK);
-            RC_ASSERT(io != nullptr);
+        RC_ASSERT(rc_val == AMIO_OK);
+        RC_ASSERT(io != nullptr);
 
-            // After amio_write returns, the host pointer is no longer
-            // referenced by AMIO (R2.3).  Mutate the host buffer to
-            // prove the snapshot is independent.
-            std::fill(host_data.begin(), host_data.end(), 0x00);
+        // After amio_write returns, the host pointer is no longer
+        // referenced by AMIO (R2.3).  Mutate the host buffer to
+        // prove the snapshot is independent.
+        std::fill(host_data.begin(), host_data.end(), 0x00);
 
-            // The write should still succeed (the staging buffer has
-            // the original data, not the mutated data).
-            // We can't directly inspect the staging buffer from here,
-            // but the fact that amio_write returned AMIO_OK confirms
-            // the deep copy was performed successfully.
-        });
+        // The write should still succeed (the staging buffer has
+        // the original data, not the mutated data).
+        // We can't directly inspect the staging buffer from here,
+        // but the fact that amio_write returned AMIO_OK confirms
+        // the deep copy was performed successfully.
+    });
 
     REQUIRE(result);
 }
@@ -218,37 +205,33 @@ TEST_CASE("P21: Snapshot copy correctness - amio_write end-to-end",
 // source, verified across the full [0, payload_bytes) range.
 // ===================================================================
 
-TEST_CASE("P21: Snapshot copy correctness - byte-exact verification",
-          "[pbt][p21][snapshot_copy][byte_exact]") {
-    auto result = rc::check(
-        "staging buffer [0, payload_bytes) equals host bytes exactly",
-        []() {
-            // Generate a random payload size [1, 32768].
-            auto byte_count = *rc::gen::inRange<std::size_t>(1, 32769);
+TEST_CASE("P21: Snapshot copy correctness - byte-exact verification", "[pbt][p21][snapshot_copy][byte_exact]") {
+    auto result = rc::check("staging buffer [0, payload_bytes) equals host bytes exactly", []() {
+        // Generate a random payload size [1, 32768].
+        auto byte_count = *rc::gen::inRange<std::size_t>(1, 32769);
 
-            // Generate random bytes.
-            std::vector<uint8_t> host_data(byte_count);
-            for (std::size_t i = 0; i < byte_count; ++i) {
-                host_data[i] = static_cast<uint8_t>(
-                    *rc::gen::inRange(0, 256));
-            }
+        // Generate random bytes.
+        std::vector<uint8_t> host_data(byte_count);
+        for (std::size_t i = 0; i < byte_count; ++i) {
+            host_data[i] = static_cast<uint8_t>(*rc::gen::inRange(0, 256));
+        }
 
-            // Create staging pool and acquire buffer.
-            StagingPool pool(2, 65536, 5000);
-            StagingBuffer* buf = pool.acquire(byte_count);
-            RC_ASSERT(buf != nullptr);
+        // Create staging pool and acquire buffer.
+        StagingPool pool(2, 65536, 5000);
+        StagingBuffer* buf = pool.acquire(byte_count);
+        RC_ASSERT(buf != nullptr);
 
-            // Perform deep copy.
-            buf->used_bytes = byte_count;
-            std::memcpy(buf->data, host_data.data(), byte_count);
+        // Perform deep copy.
+        buf->used_bytes = byte_count;
+        std::memcpy(buf->data, host_data.data(), byte_count);
 
-            // Verify every byte matches.
-            for (std::size_t i = 0; i < byte_count; ++i) {
-                RC_ASSERT(static_cast<uint8_t>(buf->data[i]) == host_data[i]);
-            }
+        // Verify every byte matches.
+        for (std::size_t i = 0; i < byte_count; ++i) {
+            RC_ASSERT(static_cast<uint8_t>(buf->data[i]) == host_data[i]);
+        }
 
-            pool.release(buf);
-        });
+        pool.release(buf);
+    });
 
     REQUIRE(result);
 }

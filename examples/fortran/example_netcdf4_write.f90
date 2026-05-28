@@ -37,18 +37,18 @@ program example_netcdf4_write
     integer(c_int32_t) :: rc
 
     ! Data array
-    real(c_float), allocatable, target :: temperature(:,:,:)
+    real(c_float), allocatable, target :: temperature(:, :, :)
 
     ! Local variables
     integer :: i, j, k
     real(c_float) :: lat, lon, altitude_km, base_temp, temp
     real(c_float), parameter :: PI = 3.14159265_c_float
 
-    write(*,'(A)') 'AMIO NetCDF-4 Write Example (Fortran)'
-    write(*,'(A)') '======================================'
-    write(*,'(A,I0,A,I0,A,I0,A)') &
+    write (*, '(A)') 'AMIO NetCDF-4 Write Example (Fortran)'
+    write (*, '(A)') '======================================'
+    write (*, '(A,I0,A,I0,A,I0,A)') &
         'Writing 3D temperature field (', NX, ' x ', NY, ' x ', NZ, ') to NetCDF-4'
-    write(*,*)
+    write (*, *)
 
     ! -------------------------------------------------------------------
     ! Step 1: Initialize AMIO with the netcdf4 manifest.
@@ -56,22 +56,22 @@ program example_netcdf4_write
     ! Note: Fortran strings passed to C must be null-terminated using
     ! c_null_char. The amio_init function expects a C string.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 1: Initializing AMIO...'
-    rc = amio_init('examples/manifests/netcdf4_manifest.yaml' // c_null_char, core)
+    write (*, '(A)') 'Step 1: Initializing AMIO...'
+    rc = amio_init('examples/manifests/netcdf4_manifest.yaml'//c_null_char, core)
     call check_amio(rc, 'amio_init')
-    write(*,'(A)') '  AMIO initialized successfully.'
+    write (*, '(A)') '  AMIO initialized successfully.'
 
     ! -------------------------------------------------------------------
     ! Step 2: Open a dataset for writing.
     !
     ! AMIO_MODE_WRITE creates a new file (or overwrites if configured).
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 2: Opening dataset for writing...'
+    write (*, '(A)') 'Step 2: Opening dataset for writing...'
     rc = amio_open_dataset(core, &
-        'examples/manifests/netcdf4_manifest.yaml' // c_null_char, &
-        AMIO_MODE_WRITE, dataset)
+                           'examples/manifests/netcdf4_manifest.yaml'//c_null_char, &
+                           AMIO_MODE_WRITE, dataset)
     call check_amio(rc, 'amio_open_dataset')
-    write(*,'(A)') '  Dataset opened.'
+    write (*, '(A)') '  Dataset opened.'
 
     ! -------------------------------------------------------------------
     ! Step 3: Allocate and fill the temperature array.
@@ -79,8 +79,8 @@ program example_netcdf4_write
     ! Generate a realistic temperature field that decreases with altitude
     ! (standard atmosphere lapse rate) and varies with latitude.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 3: Generating synthetic temperature data...'
-    allocate(temperature(NX, NY, NZ))
+    write (*, '(A)') 'Step 3: Generating synthetic temperature data...'
+    allocate (temperature(NX, NY, NZ))
 
     do k = 1, NZ
         altitude_km = real(k - 1, c_float) * 0.5_c_float
@@ -96,7 +96,7 @@ program example_netcdf4_write
         end do
     end do
 
-    write(*,'(A,F6.1,A,F6.1,A)') '  Data generated: T range ~ [', &
+    write (*, '(A,F6.1,A,F6.1,A)') '  Data generated: T range ~ [', &
         minval(temperature), ', ', maxval(temperature), '] K'
 
     ! -------------------------------------------------------------------
@@ -111,38 +111,38 @@ program example_netcdf4_write
     !
     ! This is much simpler than manually constructing amio_shape_t.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 4: Writing temperature field...'
-    call amio_write_array(dataset, 'temperature' // c_null_char, &
+    write (*, '(A)') 'Step 4: Writing temperature field...'
+    call amio_write_array(dataset, 'temperature'//c_null_char, &
                           temperature, io_handle, rc)
     call check_amio(rc, 'amio_write_array(temperature)')
-    write(*,'(A)') '  Write enqueued (async I/O handle obtained).'
+    write (*, '(A)') '  Write enqueued (async I/O handle obtained).'
 
     ! -------------------------------------------------------------------
     ! Step 5: Flush to ensure all pending writes complete.
     !
     ! timeout_ms = 0 means wait indefinitely.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 5: Flushing pending writes...'
+    write (*, '(A)') 'Step 5: Flushing pending writes...'
     rc = amio_flush(dataset, 0_c_int64_t)
     call check_amio(rc, 'amio_flush')
-    write(*,'(A)') '  All writes completed successfully.'
+    write (*, '(A)') '  All writes completed successfully.'
 
     ! -------------------------------------------------------------------
     ! Step 6: Close the dataset and finalize AMIO.
     ! -------------------------------------------------------------------
-    write(*,'(A)') 'Step 6: Closing dataset and finalizing...'
+    write (*, '(A)') 'Step 6: Closing dataset and finalizing...'
     rc = amio_close_dataset(dataset)
     call check_amio(rc, 'amio_close_dataset')
 
     rc = amio_finalize(core)
     call check_amio(rc, 'amio_finalize')
-    write(*,'(A)') '  AMIO finalized.'
+    write (*, '(A)') '  AMIO finalized.'
 
     ! Clean up
-    deallocate(temperature)
+    deallocate (temperature)
 
-    write(*,*)
-    write(*,'(A)') 'Done! Temperature field written to NetCDF-4.'
+    write (*, *)
+    write (*, '(A)') 'Done! Temperature field written to NetCDF-4.'
 
 contains
 
@@ -152,7 +152,7 @@ contains
         character(len=*), intent(in) :: context
 
         if (status /= AMIO_OK) then
-            write(*,'(A,A,A,I0,A)') 'AMIO error in ', context, &
+            write (*, '(A,A,A,I0,A)') 'AMIO error in ', context, &
                 ' (code ', status, ')'
             error stop 'AMIO operation failed'
         end if

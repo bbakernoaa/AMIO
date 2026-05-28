@@ -9,13 +9,6 @@
 //
 // **Validates: Requirements R6.6**
 
-#include "pbt_common.hpp"
-#include "generators.hpp"
-
-#include "staging/staging_pool.hpp"
-#include "workers/worker_pool.hpp"
-#include "c_boundary/amio_core.hpp"
-
 #include <atomic>
 #include <cstdint>
 #include <cstring>
@@ -24,6 +17,12 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "c_boundary/amio_core.hpp"
+#include "generators.hpp"
+#include "pbt_common.hpp"
+#include "staging/staging_pool.hpp"
+#include "workers/worker_pool.hpp"
 
 using namespace amio::detail;
 using namespace amio::pbt;
@@ -41,9 +40,8 @@ namespace {
 std::atomic<int> g_write_call_count{0};
 
 class FailingDriver : public Backend_Driver {
-public:
-    explicit FailingDriver(const std::string& failure_msg = "injected serialization failure")
-        : failure_msg_(failure_msg) {}
+   public:
+    explicit FailingDriver(const std::string& failure_msg = "injected serialization failure") : failure_msg_(failure_msg) {}
 
     void open_write(const eckit::Configuration& /*config*/) override {
         // No-op: driver is "open" immediately.
@@ -57,10 +55,7 @@ public:
         throw std::runtime_error(failure_msg_);
     }
 
-    void read(StagingBuffer& /*dst*/,
-              const VarMeta& /*meta*/,
-              std::int64_t /*timestep*/,
-              const std::optional<BoundingBox>& /*bbox*/) override {
+    void read(StagingBuffer& /*dst*/, const VarMeta& /*meta*/, std::int64_t /*timestep*/, const std::optional<BoundingBox>& /*bbox*/) override {
         throw std::runtime_error("FailingDriver: read not supported");
     }
 
@@ -72,7 +67,7 @@ public:
         // No-op.
     }
 
-private:
+   private:
     std::string failure_msg_;
 };
 
@@ -100,8 +95,7 @@ struct FailureTestContext {
 
         // Open a dataset (uses the real factory, but we'll test
         // failure recording through the flush/close path).
-        std::string ds_yaml = make_dataset_config_yaml(
-            "netcdf4", dir.file("output.nc"));
+        std::string ds_yaml = make_dataset_config_yaml("netcdf4", dir.file("output.nc"));
         std::string ds_path = dir.file("dataset.yaml");
         std::ofstream ofs(ds_path);
         ofs << ds_yaml;
@@ -144,35 +138,31 @@ struct FailureTestContext {
 // failure state, which is the same mechanism the worker pool uses.
 // ===================================================================
 
-TEST_CASE("P23: Driver failure recorded - failure surfaces on flush",
-          "[pbt][p23][driver_failure][flush]") {
-    auto result = rc::check(
-        "recorded driver failure surfaces on next flush",
-        []() {
-            FailureTestContext ctx;
-            RC_PRE(ctx.valid);
+TEST_CASE("P23: Driver failure recorded - failure surfaces on flush", "[pbt][p23][driver_failure][flush]") {
+    auto result = rc::check("recorded driver failure surfaces on next flush", []() {
+        FailureTestContext ctx;
+        RC_PRE(ctx.valid);
 
-            // Look up the DatasetRecord to inject a failure.
-            // This simulates what the worker pool does when a driver
-            // throws during serialization.
-            auto& table = process_handle_table();
-            HandleKind kind;
-            void* payload = table.lookup(
-                HandleTable::from_ptr(ctx.dataset), kind);
-            RC_PRE(payload != nullptr && kind == HandleKind::Dataset);
+        // Look up the DatasetRecord to inject a failure.
+        // This simulates what the worker pool does when a driver
+        // throws during serialization.
+        auto& table = process_handle_table();
+        HandleKind kind;
+        void* payload = table.lookup(HandleTable::from_ptr(ctx.dataset), kind);
+        RC_PRE(payload != nullptr && kind == HandleKind::Dataset);
 
-            auto* record = static_cast<DatasetRecord*>(payload);
+        auto* record = static_cast<DatasetRecord*>(payload);
 
-            // Simulate a driver failure being recorded by the worker.
-            // In the real implementation, the worker catches the
-            // exception and records it against the dataset record.
-            record->has_failure.store(true);
-            record->first_failure_code = AMIO_ERR_BACKEND_FAILURE;
+        // Simulate a driver failure being recorded by the worker.
+        // In the real implementation, the worker catches the
+        // exception and records it against the dataset record.
+        record->has_failure.store(true);
+        record->first_failure_code = AMIO_ERR_BACKEND_FAILURE;
 
-            // Now flush should surface the failure.
-            amio_status_t flush_rc = amio_flush(ctx.dataset, 1000);
-            RC_ASSERT(flush_rc == AMIO_ERR_BACKEND_FAILURE);
-        });
+        // Now flush should surface the failure.
+        amio_status_t flush_rc = amio_flush(ctx.dataset, 1000);
+        RC_ASSERT(flush_rc == AMIO_ERR_BACKEND_FAILURE);
+    });
 
     REQUIRE(result);
 }
@@ -184,36 +174,32 @@ TEST_CASE("P23: Driver failure recorded - failure surfaces on flush",
 // queries until explicitly cleared by flush/close.
 // ===================================================================
 
-TEST_CASE("P23: Driver failure recorded - failure retained until flush",
-          "[pbt][p23][driver_failure][retained]") {
-    auto result = rc::check(
-        "failure is retained and surfaces consistently",
-        []() {
-            FailureTestContext ctx;
-            RC_PRE(ctx.valid);
+TEST_CASE("P23: Driver failure recorded - failure retained until flush", "[pbt][p23][driver_failure][retained]") {
+    auto result = rc::check("failure is retained and surfaces consistently", []() {
+        FailureTestContext ctx;
+        RC_PRE(ctx.valid);
 
-            auto& table = process_handle_table();
-            HandleKind kind;
-            void* payload = table.lookup(
-                HandleTable::from_ptr(ctx.dataset), kind);
-            RC_PRE(payload != nullptr && kind == HandleKind::Dataset);
+        auto& table = process_handle_table();
+        HandleKind kind;
+        void* payload = table.lookup(HandleTable::from_ptr(ctx.dataset), kind);
+        RC_PRE(payload != nullptr && kind == HandleKind::Dataset);
 
-            auto* record = static_cast<DatasetRecord*>(payload);
+        auto* record = static_cast<DatasetRecord*>(payload);
 
-            // Generate a random error code from the valid set.
-            auto err_code = AMIO_ERR_BACKEND_FAILURE;
+        // Generate a random error code from the valid set.
+        auto err_code = AMIO_ERR_BACKEND_FAILURE;
 
-            // Record the failure.
-            record->has_failure.store(true);
-            record->first_failure_code = err_code;
+        // Record the failure.
+        record->has_failure.store(true);
+        record->first_failure_code = err_code;
 
-            // Multiple flush calls should all surface the same error.
-            auto num_flushes = *rc::gen::inRange(1, 5);
-            for (int i = 0; i < num_flushes; ++i) {
-                amio_status_t flush_rc = amio_flush(ctx.dataset, 100);
-                RC_ASSERT(flush_rc == static_cast<amio_status_t>(err_code));
-            }
-        });
+        // Multiple flush calls should all surface the same error.
+        auto num_flushes = *rc::gen::inRange(1, 5);
+        for (int i = 0; i < num_flushes; ++i) {
+            amio_status_t flush_rc = amio_flush(ctx.dataset, 100);
+            RC_ASSERT(flush_rc == static_cast<amio_status_t>(err_code));
+        }
+    });
 
     REQUIRE(result);
 }
@@ -225,35 +211,30 @@ TEST_CASE("P23: Driver failure recorded - failure retained until flush",
 // AMIO_OK, confirming no spurious failure was recorded.
 // ===================================================================
 
-TEST_CASE("P23: Driver failure recorded - no failure on success",
-          "[pbt][p23][driver_failure][no_failure]") {
-    auto result = rc::check(
-        "successful writes do not record failures",
-        []() {
-            FailureTestContext ctx;
-            RC_PRE(ctx.valid);
+TEST_CASE("P23: Driver failure recorded - no failure on success", "[pbt][p23][driver_failure][no_failure]") {
+    auto result = rc::check("successful writes do not record failures", []() {
+        FailureTestContext ctx;
+        RC_PRE(ctx.valid);
 
-            // Submit a valid write (which completes immediately in
-            // stub mode without driver failure).
-            amio_shape_t shape = {};
-            shape.rank = 1;
-            shape.extents[0] = *rc::gen::inRange<int64_t>(1, 100);
+        // Submit a valid write (which completes immediately in
+        // stub mode without driver failure).
+        amio_shape_t shape = {};
+        shape.rank = 1;
+        shape.extents[0] = *rc::gen::inRange<int64_t>(1, 100);
 
-            auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
-            std::size_t byte_count = payload_byte_count(shape, dtype);
-            RC_PRE(byte_count > 0 && byte_count <= 65536);
+        auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
+        std::size_t byte_count = payload_byte_count(shape, dtype);
+        RC_PRE(byte_count > 0 && byte_count <= 65536);
 
-            std::vector<uint8_t> data(byte_count, 0x77);
-            amio_io_handle io = nullptr;
-            amio_status_t write_rc = amio_write(
-                ctx.dataset, "success_var", data.data(),
-                dtype, &shape, &io);
-            RC_PRE(write_rc == AMIO_OK);
+        std::vector<uint8_t> data(byte_count, 0x77);
+        amio_io_handle io = nullptr;
+        amio_status_t write_rc = amio_write(ctx.dataset, "success_var", data.data(), dtype, &shape, &io);
+        RC_PRE(write_rc == AMIO_OK);
 
-            // Flush should return AMIO_OK (no failure recorded).
-            amio_status_t flush_rc = amio_flush(ctx.dataset, 1000);
-            RC_ASSERT(flush_rc == AMIO_OK);
-        });
+        // Flush should return AMIO_OK (no failure recorded).
+        amio_status_t flush_rc = amio_flush(ctx.dataset, 1000);
+        RC_ASSERT(flush_rc == AMIO_OK);
+    });
 
     REQUIRE(result);
 }
@@ -265,33 +246,29 @@ TEST_CASE("P23: Driver failure recorded - no failure on success",
 // surfaced on flush without remapping.
 // ===================================================================
 
-TEST_CASE("P23: Driver failure recorded - error code preserved",
-          "[pbt][p23][driver_failure][code_preserved]") {
-    auto result = rc::check(
-        "failure code is preserved exactly on flush",
-        []() {
-            FailureTestContext ctx;
-            RC_PRE(ctx.valid);
+TEST_CASE("P23: Driver failure recorded - error code preserved", "[pbt][p23][driver_failure][code_preserved]") {
+    auto result = rc::check("failure code is preserved exactly on flush", []() {
+        FailureTestContext ctx;
+        RC_PRE(ctx.valid);
 
-            auto& table = process_handle_table();
-            HandleKind kind;
-            void* payload = table.lookup(
-                HandleTable::from_ptr(ctx.dataset), kind);
-            RC_PRE(payload != nullptr && kind == HandleKind::Dataset);
+        auto& table = process_handle_table();
+        HandleKind kind;
+        void* payload = table.lookup(HandleTable::from_ptr(ctx.dataset), kind);
+        RC_PRE(payload != nullptr && kind == HandleKind::Dataset);
 
-            auto* record = static_cast<DatasetRecord*>(payload);
+        auto* record = static_cast<DatasetRecord*>(payload);
 
-            // The worker pool records AMIO_ERR_BACKEND_FAILURE when
-            // a driver throws.  Verify this specific code surfaces.
-            record->has_failure.store(true);
-            record->first_failure_code = AMIO_ERR_BACKEND_FAILURE;
-            record->pending_writes.store(0);
+        // The worker pool records AMIO_ERR_BACKEND_FAILURE when
+        // a driver throws.  Verify this specific code surfaces.
+        record->has_failure.store(true);
+        record->first_failure_code = AMIO_ERR_BACKEND_FAILURE;
+        record->pending_writes.store(0);
 
-            amio_status_t flush_rc = amio_flush(ctx.dataset, 1000);
+        amio_status_t flush_rc = amio_flush(ctx.dataset, 1000);
 
-            // The exact error code should be surfaced.
-            RC_ASSERT(flush_rc == AMIO_ERR_BACKEND_FAILURE);
-        });
+        // The exact error code should be surfaced.
+        RC_ASSERT(flush_rc == AMIO_ERR_BACKEND_FAILURE);
+    });
 
     REQUIRE(result);
 }

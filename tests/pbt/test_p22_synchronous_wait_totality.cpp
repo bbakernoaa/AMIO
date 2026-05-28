@@ -10,13 +10,13 @@
 //
 // **Validates: Requirements R3.9, R6.4**
 
-#include "pbt_common.hpp"
-#include "generators.hpp"
-
 #include <cstdint>
 #include <set>
 #include <string>
 #include <vector>
+
+#include "generators.hpp"
+#include "pbt_common.hpp"
 
 using namespace amio::pbt;
 
@@ -27,20 +27,12 @@ using namespace amio::pbt;
 
 namespace {
 
-const std::set<amio_status_t> kWaitTrichotomy = {
-    AMIO_OK,
-    AMIO_ERR_BACKEND_FAILURE,
-    AMIO_ERR_TIMEOUT
-};
+const std::set<amio_status_t> kWaitTrichotomy = {AMIO_OK, AMIO_ERR_BACKEND_FAILURE, AMIO_ERR_TIMEOUT};
 
 // Extended set for amio_flush which may also return handle errors
 // if the dataset handle is invalid.  But for valid handles, the
 // trichotomy applies.
-const std::set<amio_status_t> kFlushTrichotomy = {
-    AMIO_OK,
-    AMIO_ERR_BACKEND_FAILURE,
-    AMIO_ERR_TIMEOUT
-};
+const std::set<amio_status_t> kFlushTrichotomy = {AMIO_OK, AMIO_ERR_BACKEND_FAILURE, AMIO_ERR_TIMEOUT};
 
 struct WaitTestContext {
     TempDir dir;
@@ -58,8 +50,7 @@ struct WaitTestContext {
             return;
         }
 
-        std::string ds_yaml = make_dataset_config_yaml(
-            "netcdf4", dir.file("output.nc"));
+        std::string ds_yaml = make_dataset_config_yaml("netcdf4", dir.file("output.nc"));
         std::string ds_path = dir.file("dataset.yaml");
         std::ofstream ofs(ds_path);
         ofs << ds_yaml;
@@ -98,43 +89,36 @@ struct WaitTestContext {
 // {AMIO_OK, AMIO_ERR_BACKEND_FAILURE, AMIO_ERR_TIMEOUT}.
 // ===================================================================
 
-TEST_CASE("P22: Synchronous wait totality - amio_wait trichotomy",
-          "[pbt][p22][wait_totality][amio_wait]") {
-    auto result = rc::check(
-        "amio_wait returns exactly one of {OK, BACKEND_FAILURE, TIMEOUT}",
-        []() {
-            WaitTestContext ctx;
-            RC_PRE(ctx.valid);
+TEST_CASE("P22: Synchronous wait totality - amio_wait trichotomy", "[pbt][p22][wait_totality][amio_wait]") {
+    auto result = rc::check("amio_wait returns exactly one of {OK, BACKEND_FAILURE, TIMEOUT}", []() {
+        WaitTestContext ctx;
+        RC_PRE(ctx.valid);
 
-            // Generate a valid write to get an io_handle.
-            amio_shape_t shape = {};
-            shape.rank = 1;
-            shape.extents[0] = *rc::gen::inRange<int64_t>(1, 100);
+        // Generate a valid write to get an io_handle.
+        amio_shape_t shape = {};
+        shape.rank = 1;
+        shape.extents[0] = *rc::gen::inRange<int64_t>(1, 100);
 
-            auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
-            std::size_t byte_count = payload_byte_count(shape, dtype);
-            RC_PRE(byte_count > 0 && byte_count <= 65536);
+        auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
+        std::size_t byte_count = payload_byte_count(shape, dtype);
+        RC_PRE(byte_count > 0 && byte_count <= 65536);
 
-            std::vector<uint8_t> data(byte_count, 0x42);
+        std::vector<uint8_t> data(byte_count, 0x42);
 
-            amio_io_handle io = nullptr;
-            amio_status_t write_rc = amio_write(
-                ctx.dataset, "wait_var", data.data(),
-                dtype, &shape, &io);
-            RC_PRE(write_rc == AMIO_OK && io != nullptr);
+        amio_io_handle io = nullptr;
+        amio_status_t write_rc = amio_write(ctx.dataset, "wait_var", data.data(), dtype, &shape, &io);
+        RC_PRE(write_rc == AMIO_OK && io != nullptr);
 
-            // Generate a timeout in [0, 86_400_000] ms.
-            // Use small timeouts for test speed.
-            auto timeout_ms = *rc::gen::elementOf(std::vector<int64_t>{
-                0, 1, 10, 50, 100, 500, 1000, 5000
-            });
+        // Generate a timeout in [0, 86_400_000] ms.
+        // Use small timeouts for test speed.
+        auto timeout_ms = *rc::gen::elementOf(std::vector<int64_t>{0, 1, 10, 50, 100, 500, 1000, 5000});
 
-            // Call amio_wait.
-            amio_status_t wait_rc = amio_wait(io, timeout_ms);
+        // Call amio_wait.
+        amio_status_t wait_rc = amio_wait(io, timeout_ms);
 
-            // Verify the return is exactly one of the trichotomy.
-            RC_ASSERT(kWaitTrichotomy.count(wait_rc) == 1);
-        });
+        // Verify the return is exactly one of the trichotomy.
+        RC_ASSERT(kWaitTrichotomy.count(wait_rc) == 1);
+    });
 
     REQUIRE(result);
 }
@@ -147,42 +131,36 @@ TEST_CASE("P22: Synchronous wait totality - amio_wait trichotomy",
 // {AMIO_OK, AMIO_ERR_BACKEND_FAILURE, AMIO_ERR_TIMEOUT}.
 // ===================================================================
 
-TEST_CASE("P22: Synchronous wait totality - amio_flush trichotomy",
-          "[pbt][p22][wait_totality][amio_flush]") {
-    auto result = rc::check(
-        "amio_flush returns exactly one of {OK, BACKEND_FAILURE, TIMEOUT}",
-        []() {
-            WaitTestContext ctx;
-            RC_PRE(ctx.valid);
+TEST_CASE("P22: Synchronous wait totality - amio_flush trichotomy", "[pbt][p22][wait_totality][amio_flush]") {
+    auto result = rc::check("amio_flush returns exactly one of {OK, BACKEND_FAILURE, TIMEOUT}", []() {
+        WaitTestContext ctx;
+        RC_PRE(ctx.valid);
 
-            // Optionally submit some writes before flushing.
-            auto num_writes = *rc::gen::inRange<int>(0, 4);
-            for (int i = 0; i < num_writes; ++i) {
-                amio_shape_t shape = {};
-                shape.rank = 1;
-                shape.extents[0] = *rc::gen::inRange<int64_t>(1, 50);
+        // Optionally submit some writes before flushing.
+        auto num_writes = *rc::gen::inRange<int>(0, 4);
+        for (int i = 0; i < num_writes; ++i) {
+            amio_shape_t shape = {};
+            shape.rank = 1;
+            shape.extents[0] = *rc::gen::inRange<int64_t>(1, 50);
 
-                auto dtype = AMIO_DTYPE_F32;
-                std::size_t byte_count = payload_byte_count(shape, dtype);
-                if (byte_count == 0 || byte_count > 65536) continue;
+            auto dtype = AMIO_DTYPE_F32;
+            std::size_t byte_count = payload_byte_count(shape, dtype);
+            if (byte_count == 0 || byte_count > 65536) continue;
 
-                std::vector<uint8_t> data(byte_count, 0x33);
-                amio_io_handle io = nullptr;
-                amio_write(ctx.dataset, "flush_var", data.data(),
-                           dtype, &shape, &io);
-            }
+            std::vector<uint8_t> data(byte_count, 0x33);
+            amio_io_handle io = nullptr;
+            amio_write(ctx.dataset, "flush_var", data.data(), dtype, &shape, &io);
+        }
 
-            // Generate a timeout in [0, 86_400_000] ms.
-            auto timeout_ms = *rc::gen::elementOf(std::vector<int64_t>{
-                0, 1, 10, 100, 500, 1000, 5000
-            });
+        // Generate a timeout in [0, 86_400_000] ms.
+        auto timeout_ms = *rc::gen::elementOf(std::vector<int64_t>{0, 1, 10, 100, 500, 1000, 5000});
 
-            // Call amio_flush.
-            amio_status_t flush_rc = amio_flush(ctx.dataset, timeout_ms);
+        // Call amio_flush.
+        amio_status_t flush_rc = amio_flush(ctx.dataset, timeout_ms);
 
-            // Verify the return is exactly one of the trichotomy.
-            RC_ASSERT(kFlushTrichotomy.count(flush_rc) == 1);
-        });
+        // Verify the return is exactly one of the trichotomy.
+        RC_ASSERT(kFlushTrichotomy.count(flush_rc) == 1);
+    });
 
     REQUIRE(result);
 }
@@ -194,23 +172,20 @@ TEST_CASE("P22: Synchronous wait totality - amio_flush trichotomy",
 // AMIO_OK regardless of timeout value.
 // ===================================================================
 
-TEST_CASE("P22: Synchronous wait totality - flush with no pending writes",
-          "[pbt][p22][wait_totality][flush_empty]") {
-    auto result = rc::check(
-        "amio_flush with no pending writes returns AMIO_OK",
-        []() {
-            WaitTestContext ctx;
-            RC_PRE(ctx.valid);
+TEST_CASE("P22: Synchronous wait totality - flush with no pending writes", "[pbt][p22][wait_totality][flush_empty]") {
+    auto result = rc::check("amio_flush with no pending writes returns AMIO_OK", []() {
+        WaitTestContext ctx;
+        RC_PRE(ctx.valid);
 
-            // Generate any timeout value.
-            auto timeout_ms = *rc::gen::inRange<int64_t>(0, 86400001);
+        // Generate any timeout value.
+        auto timeout_ms = *rc::gen::inRange<int64_t>(0, 86400001);
 
-            // Flush with no pending writes.
-            amio_status_t flush_rc = amio_flush(ctx.dataset, timeout_ms);
+        // Flush with no pending writes.
+        amio_status_t flush_rc = amio_flush(ctx.dataset, timeout_ms);
 
-            // Should return AMIO_OK (no work to do, no failures).
-            RC_ASSERT(flush_rc == AMIO_OK);
-        });
+        // Should return AMIO_OK (no work to do, no failures).
+        RC_ASSERT(flush_rc == AMIO_OK);
+    });
 
     REQUIRE(result);
 }
@@ -223,33 +198,28 @@ TEST_CASE("P22: Synchronous wait totality - flush with no pending writes",
 // AMIO_ERR_* code (not an arbitrary integer).
 // ===================================================================
 
-TEST_CASE("P22: Synchronous wait totality - return is defined error code",
-          "[pbt][p22][wait_totality][defined_codes]") {
-    auto result = rc::check(
-        "amio_wait always returns a defined AMIO_ERR_* code",
-        []() {
-            WaitTestContext ctx;
-            RC_PRE(ctx.valid);
+TEST_CASE("P22: Synchronous wait totality - return is defined error code", "[pbt][p22][wait_totality][defined_codes]") {
+    auto result = rc::check("amio_wait always returns a defined AMIO_ERR_* code", []() {
+        WaitTestContext ctx;
+        RC_PRE(ctx.valid);
 
-            // Submit a write.
-            amio_shape_t shape = {};
-            shape.rank = 1;
-            shape.extents[0] = 10;
+        // Submit a write.
+        amio_shape_t shape = {};
+        shape.rank = 1;
+        shape.extents[0] = 10;
 
-            std::vector<uint8_t> data(40, 0x55);
-            amio_io_handle io = nullptr;
-            amio_status_t write_rc = amio_write(
-                ctx.dataset, "code_var", data.data(),
-                AMIO_DTYPE_F32, &shape, &io);
-            RC_PRE(write_rc == AMIO_OK && io != nullptr);
+        std::vector<uint8_t> data(40, 0x55);
+        amio_io_handle io = nullptr;
+        amio_status_t write_rc = amio_write(ctx.dataset, "code_var", data.data(), AMIO_DTYPE_F32, &shape, &io);
+        RC_PRE(write_rc == AMIO_OK && io != nullptr);
 
-            auto timeout_ms = *rc::gen::inRange<int64_t>(1, 1000);
-            amio_status_t wait_rc = amio_wait(io, timeout_ms);
+        auto timeout_ms = *rc::gen::inRange<int64_t>(1, 1000);
+        amio_status_t wait_rc = amio_wait(io, timeout_ms);
 
-            // The return must be a defined AMIO_ERR_* code (0..17).
-            RC_ASSERT(wait_rc >= 0);
-            RC_ASSERT(wait_rc <= 17);
-        });
+        // The return must be a defined AMIO_ERR_* code (0..17).
+        RC_ASSERT(wait_rc >= 0);
+        RC_ASSERT(wait_rc <= 17);
+    });
 
     REQUIRE(result);
 }

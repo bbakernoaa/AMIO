@@ -21,25 +21,22 @@
  *   ./example_grib2_write
  */
 
+#include <amio/amio.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-
-#include <amio/amio.h>
 
 /* Grid dimensions: 1-degree global grid */
-#define NLON 360   /* longitude points (0 to 359) */
-#define NLAT 181   /* latitude points (90N to 90S, inclusive) */
+#define NLON 360 /* longitude points (0 to 359) */
+#define NLAT 181 /* latitude points (90N to 90S, inclusive) */
 
 /**
  * @brief Check an AMIO return code and exit on failure.
  */
-static void check_amio(amio_status_t rc, const char *context)
-{
+static void check_amio(amio_status_t rc, const char *context) {
     if (rc != AMIO_OK) {
-        fprintf(stderr, "AMIO error in %s: %s (code %d)\n",
-                context, amio_strerror(rc), (int)rc);
+        fprintf(stderr, "AMIO error in %s: %s (code %d)\n", context, amio_strerror(rc), (int)rc);
         exit(EXIT_FAILURE);
     }
 }
@@ -53,8 +50,7 @@ static void check_amio(amio_status_t rc, const char *context)
  *   - Rossby wave pattern in midlatitudes
  *   - Units: geopotential meters (gpm)
  */
-static void fill_geopotential_height(float *data, int nlon, int nlat)
-{
+static void fill_geopotential_height(float *data, int nlon, int nlat) {
     for (int j = 0; j < nlat; j++) {
         /* Latitude from 90N to 90S */
         float lat = 90.0f - (float)j;
@@ -65,13 +61,11 @@ static void fill_geopotential_height(float *data, int nlon, int nlat)
             float height = base_height;
             /* Add Rossby wave pattern in midlatitudes (wavenumber 4-6) */
             if (fabsf(lat) > 20.0f && fabsf(lat) < 70.0f) {
-                float wave_amp = 120.0f * sinf((fabsf(lat) - 20.0f) *
-                                               3.14159f / 50.0f);
+                float wave_amp = 120.0f * sinf((fabsf(lat) - 20.0f) * 3.14159f / 50.0f);
                 /* Wavenumber 5 pattern */
                 height += wave_amp * sinf(5.0f * lon * 3.14159f / 180.0f);
                 /* Wavenumber 3 pattern (weaker) */
-                height += 0.4f * wave_amp *
-                          cosf(3.0f * lon * 3.14159f / 180.0f + 1.2f);
+                height += 0.4f * wave_amp * cosf(3.0f * lon * 3.14159f / 180.0f + 1.2f);
             }
             /* Slight asymmetry between hemispheres */
             if (lat < 0.0f) {
@@ -82,8 +76,7 @@ static void fill_geopotential_height(float *data, int nlon, int nlat)
     }
 }
 
-int main(void)
-{
+int main(void) {
     amio_status_t rc;
     amio_core_handle core = NULL;
     amio_dataset_handle dataset = NULL;
@@ -91,8 +84,7 @@ int main(void)
 
     printf("AMIO GRIB2 Write Example\n");
     printf("========================\n");
-    printf("Writing 2D 500hPa geopotential height (%d x %d) to GRIB2\n\n",
-           NLON, NLAT);
+    printf("Writing 2D 500hPa geopotential height (%d x %d) to GRIB2\n\n", NLON, NLAT);
 
     /* ---------------------------------------------------------------
      * Step 1: Initialize AMIO with the grib2 manifest.
@@ -109,10 +101,7 @@ int main(void)
      * Step 2: Open a dataset for writing.
      * --------------------------------------------------------------- */
     printf("Step 2: Opening GRIB2 dataset for writing...\n");
-    rc = amio_open_dataset(core,
-                           "examples/manifests/grib2_manifest.yaml",
-                           AMIO_MODE_WRITE,
-                           &dataset);
+    rc = amio_open_dataset(core, "examples/manifests/grib2_manifest.yaml", AMIO_MODE_WRITE, &dataset);
     check_amio(rc, "amio_open_dataset");
     printf("  Dataset opened.\n");
 
@@ -142,8 +131,7 @@ int main(void)
     shape.extents[0] = NLON;
     shape.extents[1] = NLAT;
 
-    rc = amio_write(dataset, "geopotential_height", hgt,
-                    AMIO_DTYPE_F32, &shape, &io);
+    rc = amio_write(dataset, "geopotential_height", hgt, AMIO_DTYPE_F32, &shape, &io);
     check_amio(rc, "amio_write(geopotential_height)");
     printf("  Write enqueued.\n");
 

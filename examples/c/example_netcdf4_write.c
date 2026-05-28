@@ -21,26 +21,23 @@
  *   ./example_netcdf4_write
  */
 
+#include <amio/amio.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-
-#include <amio/amio.h>
 
 /* Grid dimensions: longitude x latitude x vertical levels */
-#define NX 100   /* longitude points */
-#define NY  50   /* latitude points */
-#define NZ  25   /* vertical levels */
+#define NX 100 /* longitude points */
+#define NY 50  /* latitude points */
+#define NZ 25  /* vertical levels */
 
 /**
  * @brief Check an AMIO return code and exit on failure.
  */
-static void check_amio(amio_status_t rc, const char *context)
-{
+static void check_amio(amio_status_t rc, const char *context) {
     if (rc != AMIO_OK) {
-        fprintf(stderr, "AMIO error in %s: %s (code %d)\n",
-                context, amio_strerror(rc), (int)rc);
+        fprintf(stderr, "AMIO error in %s: %s (code %d)\n", context, amio_strerror(rc), (int)rc);
         exit(EXIT_FAILURE);
     }
 }
@@ -52,8 +49,7 @@ static void check_amio(amio_status_t rc, const char *context)
  * altitude (standard atmosphere lapse rate ~6.5 K/km) and varies
  * with latitude (warmer at equator, cooler at poles).
  */
-static void fill_temperature(float *data, int nx, int ny, int nz)
-{
+static void fill_temperature(float *data, int nx, int ny, int nz) {
     for (int k = 0; k < nz; k++) {
         /* Approximate pressure level altitude (km) */
         float altitude_km = (float)k * 0.5f;
@@ -74,8 +70,7 @@ static void fill_temperature(float *data, int nx, int ny, int nz)
     }
 }
 
-int main(void)
-{
+int main(void) {
     amio_status_t rc;
     amio_core_handle core = NULL;
     amio_dataset_handle dataset = NULL;
@@ -83,8 +78,7 @@ int main(void)
 
     printf("AMIO NetCDF-4 Write Example\n");
     printf("===========================\n");
-    printf("Writing 3D temperature field (%d x %d x %d) to NetCDF-4\n\n",
-           NX, NY, NZ);
+    printf("Writing 3D temperature field (%d x %d x %d) to NetCDF-4\n\n", NX, NY, NZ);
 
     /* ---------------------------------------------------------------
      * Step 1: Initialize AMIO with the netcdf4 manifest.
@@ -105,10 +99,7 @@ int main(void)
      * new file (or overwrites if configured).
      * --------------------------------------------------------------- */
     printf("Step 2: Opening dataset for writing...\n");
-    rc = amio_open_dataset(core,
-                           "examples/manifests/netcdf4_manifest.yaml",
-                           AMIO_MODE_WRITE,
-                           &dataset);
+    rc = amio_open_dataset(core, "examples/manifests/netcdf4_manifest.yaml", AMIO_MODE_WRITE, &dataset);
     check_amio(rc, "amio_open_dataset");
     printf("  Dataset opened.\n");
 
@@ -122,8 +113,7 @@ int main(void)
         return EXIT_FAILURE;
     }
     fill_temperature(temperature, NX, NY, NZ);
-    printf("  Data generated: T range ~ [%.1f, %.1f] K\n",
-           temperature[0], temperature[NX * NY * NZ - 1]);
+    printf("  Data generated: T range ~ [%.1f, %.1f] K\n", temperature[0], temperature[NX * NY * NZ - 1]);
 
     /* ---------------------------------------------------------------
      * Step 4: Write the 3D array through AMIO.
@@ -146,8 +136,7 @@ int main(void)
     shape.extents[2] = NZ;
     /* strides = 0 means contiguous (AMIO derives row-major strides) */
 
-    rc = amio_write(dataset, "temperature", temperature,
-                    AMIO_DTYPE_F32, &shape, &io);
+    rc = amio_write(dataset, "temperature", temperature, AMIO_DTYPE_F32, &shape, &io);
     check_amio(rc, "amio_write(temperature)");
     printf("  Write enqueued (async I/O handle obtained).\n");
 
