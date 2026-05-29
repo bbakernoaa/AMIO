@@ -128,8 +128,8 @@ std::uint64_t WorkerPool::submit_write(DatasetVariableKey dv_key, std::uint64_t 
     // Backpressure handling (same as primary overload).
     if (backpressure_.enabled) {
         if (write_queue_.size() >= backpressure_.high_watermark) {
-            backpressure_cv_.wait_for(lock, std::chrono::seconds(10), [this]() {
-                return write_queue_.size() < backpressure_.low_watermark || shutdown_.load(std::memory_order_acquire);
+            backpressure_cv_.wait(lock, [this]() {
+                return write_queue_.size() <= backpressure_.low_watermark || shutdown_.load(std::memory_order_acquire);
             });
         }
         if (shutdown_.load(std::memory_order_acquire)) {
@@ -166,10 +166,10 @@ amio_err_t WorkerPool::submit_write(DatasetVariableKey dv_key, std::function<voi
 
     // Backpressure handling (R6.8, R6.9).
     if (backpressure_.enabled) {
-        // If queue depth >= high_watermark, block until depth < low_watermark.
+        // If queue depth >= high_watermark, block until depth <= low_watermark.
         if (write_queue_.size() >= backpressure_.high_watermark) {
-            backpressure_cv_.wait_for(lock, std::chrono::seconds(10), [this]() {
-                return write_queue_.size() < backpressure_.low_watermark || shutdown_.load(std::memory_order_acquire);
+            backpressure_cv_.wait(lock, [this]() {
+                return write_queue_.size() <= backpressure_.low_watermark || shutdown_.load(std::memory_order_acquire);
             });
         }
 
@@ -355,110 +355,64 @@ bool WorkerPool::try_execute_one(std::unique_lock<std::mutex>& lock) {
 
     // --- Try write queue ---
     if (!write_queue_.empty()) {
-        WriteTask task = std::move(write_queue_.front());
-        write_queue_.pop();
+        std::size_t initial_size = write_queue_.size();
+        for (std::size_t tried = 0; tried < initial_size; ++tried) {
+            WriteTask task = std::move(write_queue_.front());
+            write_queue_.pop();
 
-        DvOrderState& state = get_dv_state(task.dv_key);
+            DvOrderState& state = get_dv_state(task.dv_key);
 
-        // Check if this task is the next one to execute for its
-        // (dataset, variable) pair.
-        if (task.dv_seq != state.exec_seq) {
-            // Not ready yet -- re-enqueue and try something else.
-            write_queue_.push(std::move(task));
-            // Try a prefetch task instead.
-            if (!prefetch_queue_.empty()) {
-                PrefetchTask ptask = std::move(const_cast<PrefetchTask&>(prefetch_queue_.top()));
-                prefetch_queue_.pop();
-
+            if (task.dv_seq == state.exec_seq) {
+                // Ready!
                 in_flight_.fetch_add(1, std::memory_order_acq_rel);
                 lock.unlock();
 
-                // Execute prefetch callback with exception cordon
-                // (R12.1, R12.2).
-                if (ptask.handle_id != 0) {
-                    execute_with_exception_cordon(ptask.callback, ptask.handle_id, io_comm_, outcome_registry_);
-                } else {
-                    try {
-                        if (ptask.callback) {
-                            ptask.callback();
+                // Execute the write callback with the per-(dataset, variable)
+                // ordering mutex held.  This ensures that writes to the same
+                // pair are serialized at the backend level.
+                {
+                    std::lock_guard<std::mutex> dv_lock(state.mu);
+                    if (task.handle_id != 0) {
+                        // Use the full exception cordon with outcome recording.
+                        execute_with_exception_cordon(task.callback, task.handle_id, io_comm_, outcome_registry_);
+                    } else {
+                        // Legacy path: no handle_id, use basic exception cordon.
+                        try {
+                            if (task.callback) {
+                                task.callback();
+                            }
+                        }
+#ifdef AMIO_HAS_ECKIT
+                        catch (const eckit::Exception& e) {
+                            emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
+                        }
+#endif
+                        catch (const std::exception& e) {
+                            emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
+                        } catch (...) {
+                            emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, "Unknown exception (non-std)");
                         }
                     }
-#ifdef AMIO_HAS_ECKIT
-                    catch (const eckit::Exception& e) {
-                        emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
-                    }
-#endif
-                    catch (const std::exception& e) {
-                        emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
-                    } catch (...) {
-                        emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, "Unknown exception (non-std)");
-                    }
+                    // Advance the execution sequence counter.
+                    state.exec_seq++;
                 }
 
-                prefetches_completed_.fetch_add(1, std::memory_order_release);
+                writes_completed_.fetch_add(1, std::memory_order_release);
                 in_flight_.fetch_sub(1, std::memory_order_acq_rel);
+
+                // Notify: drain waiters and other workers that may have
+                // re-enqueued tasks waiting on this sequence.
+                // Also notify backpressure waiters (R6.8): queue depth
+                // decreased, so blocked writers may proceed.
                 drain_cv_.notify_all();
+                cv_.notify_all();
+                backpressure_cv_.notify_all();
                 return true;
-            }
-            return false;
-        }
-
-        in_flight_.fetch_add(1, std::memory_order_acq_rel);
-        lock.unlock();
-
-        // Execute the write callback with the per-(dataset, variable)
-        // ordering mutex held.  This ensures that writes to the same
-        // pair are serialized at the backend level.
-        //
-        // IMPORTANT: The callback itself is responsible for dropping
-        // any AMIO-internal lock before issuing MPI-IO collectives
-        // (R3.7).  The dv_state.mu is held only across the backend
-        // serialize call.
-        //
-        // Exception cordon (R12.1, R12.2, R12.3, R12.4):
-        // The callback is wrapped in try/catch.  On exception:
-        //   1. emit_parallel_stacktrace (collective) BEFORE recording
-        //   2. Record outcome against originating handle
-        //   3. Buffer release happens after (caller's responsibility)
-        {
-            std::lock_guard<std::mutex> dv_lock(state.mu);
-            if (task.handle_id != 0) {
-                // Use the full exception cordon with outcome recording.
-                execute_with_exception_cordon(task.callback, task.handle_id, io_comm_, outcome_registry_);
             } else {
-                // Legacy path: no handle_id, use basic exception cordon.
-                try {
-                    if (task.callback) {
-                        task.callback();
-                    }
-                }
-#ifdef AMIO_HAS_ECKIT
-                catch (const eckit::Exception& e) {
-                    // Emit stack trace and swallow (R12.2).
-                    emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
-                }
-#endif
-                catch (const std::exception& e) {
-                    emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
-                } catch (...) {
-                    emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, "Unknown exception (non-std)");
-                }
+                // Not ready yet -- re-enqueue.
+                write_queue_.push(std::move(task));
             }
-            // Advance the execution sequence counter.
-            state.exec_seq++;
         }
-
-        writes_completed_.fetch_add(1, std::memory_order_release);
-        in_flight_.fetch_sub(1, std::memory_order_acq_rel);
-
-        // Notify: drain waiters and other workers that may have
-        // re-enqueued tasks waiting on this sequence.
-        // Also notify backpressure waiters (R6.8): queue depth
-        // decreased, so blocked writers may proceed.
-        drain_cv_.notify_all();
-        cv_.notify_all();
-        backpressure_cv_.notify_all();
-        return true;
     }
 
     // --- Try prefetch queue ---
