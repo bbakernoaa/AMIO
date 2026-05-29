@@ -238,6 +238,10 @@ TEST_CASE("P23: Driver failure recorded - no failure on success", "[pbt][p23][dr
         auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
         std::size_t byte_count = payload_byte_count(shape, dtype);
         RC_PRE(byte_count > 0 && byte_count <= 65536);
+        auto& table = process_handle_table();
+        HandleKind kind;
+        void* payload = nullptr;
+        table.lookup(HandleTable::from_ptr(ctx.dataset), kind, &payload);
 
         std::vector<uint8_t> data(byte_count, 0x77);
         amio_io_handle io = nullptr;
