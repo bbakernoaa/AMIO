@@ -88,7 +88,7 @@ struct FailureTestContext {
         std::string yaml = make_manifest_yaml("netcdf4", 8, 65536, 1, 5000);
         manifest_path = write_manifest(dir, yaml);
 
-        amio_status_t rc = amio_init(manifest_path.c_str(), &core);
+        amio_status_t rc = amio::detail::init(manifest_path.c_str(), &core);
         if (rc != AMIO_OK || core == nullptr) {
             return;
         }
@@ -101,9 +101,12 @@ struct FailureTestContext {
         ofs << ds_yaml;
         ofs.close();
 
-        rc = amio_open_dataset(core, ds_path.c_str(), AMIO_MODE_WRITE, &dataset);
+        void* core_payload = nullptr;
+        process_handle_table().lookup(HandleTable::from_ptr(core), HandleKind::Core, &core_payload);
+
+        rc = amio::detail::open_dataset(core_payload, ds_path.c_str(), AMIO_MODE_WRITE, &dataset);
         if (rc != AMIO_OK || dataset == nullptr) {
-            amio_finalize(core);
+            amio::detail::finalize(core_payload);
             core = nullptr;
             return;
         }
@@ -113,10 +116,14 @@ struct FailureTestContext {
 
     ~FailureTestContext() {
         if (dataset) {
-            amio_close_dataset(dataset);
+            void* ds_payload = nullptr;
+            process_handle_table().lookup(HandleTable::from_ptr(dataset), HandleKind::Dataset, &ds_payload);
+            if (ds_payload) amio::detail::close_dataset(ds_payload);
         }
         if (core) {
-            amio_finalize(core);
+            void* core_payload = nullptr;
+            process_handle_table().lookup(HandleTable::from_ptr(core), HandleKind::Core, &core_payload);
+            if (core_payload) amio::detail::finalize(core_payload);
         }
     }
 
@@ -163,7 +170,7 @@ TEST_CASE("P23: Driver failure recorded - failure surfaces on flush", "[pbt][p23
         record->first_failure_code = AMIO_ERR_BACKEND_FAILURE;
 
         // Now flush should surface the failure.
-        amio_status_t flush_rc = amio_flush(ctx.dataset, 1000);
+        amio_status_t flush_rc = amio::detail::flush(record, 1000);
         RC_ASSERT(flush_rc == AMIO_ERR_BACKEND_FAILURE);
     });
 
@@ -202,7 +209,7 @@ TEST_CASE("P23: Driver failure recorded - failure retained until flush", "[pbt][
         // Multiple flush calls should all surface the same error.
         auto num_flushes = *rc::gen::inRange(1, 5);
         for (int i = 0; i < num_flushes; ++i) {
-            amio_status_t flush_rc = amio_flush(ctx.dataset, 100);
+            amio_status_t flush_rc = amio::detail::flush(record, 100);
             RC_ASSERT(flush_rc == static_cast<amio_status_t>(err_code));
         }
     });
@@ -234,11 +241,11 @@ TEST_CASE("P23: Driver failure recorded - no failure on success", "[pbt][p23][dr
 
         std::vector<uint8_t> data(byte_count, 0x77);
         amio_io_handle io = nullptr;
-        amio_status_t write_rc = amio_write(ctx.dataset, "success_var", data.data(), dtype, &shape, &io);
+        amio_status_t write_rc = amio::detail::write(payload, "success_var", data.data(), dtype, &shape, &io);
         RC_PRE(write_rc == AMIO_OK);
 
         // Flush should return AMIO_OK (no failure recorded).
-        amio_status_t flush_rc = amio_flush(ctx.dataset, 1000);
+        amio_status_t flush_rc = amio::detail::flush(payload, 1000);
         RC_ASSERT(flush_rc == AMIO_OK);
     });
 
@@ -273,7 +280,7 @@ TEST_CASE("P23: Driver failure recorded - error code preserved", "[pbt][p23][dri
         record->first_failure_code = AMIO_ERR_BACKEND_FAILURE;
         record->pending_writes.store(0);
 
-        amio_status_t flush_rc = amio_flush(ctx.dataset, 1000);
+        amio_status_t flush_rc = amio::detail::flush(record, 1000);
 
         // The exact error code should be surfaced.
         RC_ASSERT(flush_rc == AMIO_ERR_BACKEND_FAILURE);

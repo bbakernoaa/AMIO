@@ -342,8 +342,11 @@ void WorkerPool::worker_loop() {
             if (shutdown_.load(std::memory_order_acquire) && write_queue_.empty() && prefetch_queue_.empty()) {
                 return;
             }
-            // Otherwise, loop back and wait again.  This can happen
-            // when a write task is not yet ready (out-of-order seq).
+            // Otherwise, wait for a short duration if the queue is not empty but no task is ready
+            // to avoid high-CPU busy waiting while scanning the queue.
+            if (!write_queue_.empty() || !prefetch_queue_.empty()) {
+                cv_.wait_for(lock, std::chrono::milliseconds(10));
+            }
         }
     }
 }
