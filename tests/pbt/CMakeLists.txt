@@ -297,6 +297,30 @@ set_tests_properties(pbt.p13_bounding_box_selectivity PROPERTIES LABELS "pbt;p13
 # ####################################################################################################################################################
 add_executable(pbt_p14_prefetch_failure_surfaces test_p14_prefetch_failure_surfaces.cpp)
 
+target_link_libraries(pbt_p14_prefetch_failure_surfaces PRIVATE AMIO::pbt_common Threads::Threads)
+
+add_test(NAME pbt.p14_prefetch_failure_surfaces COMMAND pbt_p14_prefetch_failure_surfaces)
+set_tests_properties(pbt.p14_prefetch_failure_surfaces PROPERTIES LABELS "pbt;p14;prefetch;failure" TIMEOUT 180 ENVIRONMENT
+                                                                  "RC_PARAMS=max_success=100")
+
+# ####################################################################################################################################################
+# pbt_p15_driver_thread_invariant -- Property P15: Driver-thread invariant.
+#
+# For any amio_write, amio_read, or amio_flush: no Backend_Driver virtual method executes on calling thread; all execute exclusively on Worker_Pool
+# threads.
+#
+# Validates: R3.4, R6.1
+# ####################################################################################################################################################
+add_executable(
+    pbt_p15_driver_thread_invariant
+    test_p15_driver_thread_invariant.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
+    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp)
+
 target_link_libraries(pbt_p15_driver_thread_invariant PRIVATE AMIO::pbt_common Threads::Threads)
 
 add_test(NAME pbt.p15_driver_thread_invariant COMMAND pbt_p15_driver_thread_invariant)
@@ -428,27 +452,36 @@ set_tests_properties(pbt.p22_synchronous_wait_totality PROPERTIES LABELS "pbt;p2
 #
 # Validates: R6.6
 # ####################################################################################################################################################
-add_executable(
-    pbt_p23_driver_failure_recorded
-    test_p23_driver_failure_recorded.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core_stubs.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
-    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
-    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    add_executable
-    (
-    pbt_p23_driver_failure_recorded
-    test_p23_driver_failure_recorded.cpp)
+add_executable(pbt_p23_driver_failure_recorded test_p23_driver_failure_recorded.cpp)
+
+target_link_libraries(pbt_p23_driver_failure_recorded PRIVATE AMIO::pbt_common)
+
+add_test(NAME pbt.p23_driver_failure_recorded COMMAND pbt_p23_driver_failure_recorded)
+set_tests_properties(pbt.p23_driver_failure_recorded PROPERTIES LABELS "pbt;p23;driver_failure;recorded" TIMEOUT 180 ENVIRONMENT
+                                                                "RC_PARAMS=max_success=100")
+
+# ####################################################################################################################################################
+# pbt_p24_grib2_contiguity_gating -- Property P24: GRIB2 contiguity gating.
 #
 # For any Memory_View to GRIB2_Driver::write: bytes to encoder == row-major flatten; if contiguous+row-major → encoder receives underlying pointer
 # directly (no intermediate buffer); otherwise → encoder receives contiguous packed buffer.
 #
 # Validates: R9.4, R9.5
 # ####################################################################################################################################################
-add_executable(pbt_p23_driver_failure_recorded test_p23_driver_failure_recorded.cpp)
+add_executable(pbt_p24_grib2_contiguity_gating test_p24_grib2_contiguity_gating.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
+                                               ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp)
+
+target_link_libraries(pbt_p24_grib2_contiguity_gating PRIVATE AMIO::pbt_common)
+
+add_test(NAME pbt.p24_grib2_contiguity_gating COMMAND pbt_p24_grib2_contiguity_gating)
+set_tests_properties(pbt.p24_grib2_contiguity_gating PROPERTIES LABELS "pbt;p24;grib2;contiguity" TIMEOUT 180 ENVIRONMENT "RC_PARAMS=max_success=100")
+
+# ####################################################################################################################################################
+# pbt_p25_grib2_metadata_invariant -- Property P25: GRIB2 metadata invariant.
+#
+# For any GRIB2_Driver::write: every human-readable metadata string translated to WMO code before encoding; missing WMO key or DRT outside {Adaptive
+# Entropy Coding via libaec, Lossless JPEG2000} → eckit::Exception, zero output bytes.
+#
 # Validates: R9.3, R9.6, R9.7, R9.8
 # ####################################################################################################################################################
 add_executable(pbt_p25_grib2_metadata_invariant test_p25_grib2_metadata_invariant.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp

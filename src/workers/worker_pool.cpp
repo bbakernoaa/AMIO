@@ -165,7 +165,7 @@ amio_err_t WorkerPool::submit_write(DatasetVariableKey dv_key, std::function<voi
 
     // Backpressure handling (R6.8, R6.9).
     if (backpressure_.enabled) {
-        // If queue depth >= high_watermark, block until depth <= low_watermark.
+        // If queue depth >= high_watermark, block until depth < low_watermark.
         if (write_queue_.size() >= backpressure_.high_watermark) {
             backpressure_cv_.wait(
                 lock, [this]() { return write_queue_.size() <= backpressure_.low_watermark || shutdown_.load(std::memory_order_acquire); });
@@ -371,6 +371,17 @@ bool WorkerPool::try_execute_one(std::unique_lock<std::mutex>& lock) {
                 // Execute the write callback with the per-(dataset, variable)
                 // ordering mutex held.  This ensures that writes to the same
                 // pair are serialized at the backend level.
+                //
+                // IMPORTANT: The callback itself is responsible for dropping
+                // any AMIO-internal lock before issuing MPI-IO collectives
+                // (R3.7).  The dv_state.mu is held only across the backend
+                // serialize call.
+                //
+                // Exception cordon (R12.1, R12.2, R12.3, R12.4):
+                // The callback is wrapped in try/catch.  On exception:
+                //   1. emit_parallel_stacktrace (collective) BEFORE recording
+                //   2. Record outcome against originating handle
+                //   3. Buffer release happens after (caller's responsibility)
                 {
                     std::lock_guard<std::mutex> dv_lock(state.mu);
                     if (task.handle_id != 0) {
@@ -385,6 +396,7 @@ bool WorkerPool::try_execute_one(std::unique_lock<std::mutex>& lock) {
                         }
 #ifdef AMIO_HAS_ECKIT
                         catch (const eckit::Exception& e) {
+                            // Emit stack trace and swallow (R12.2).
                             emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
                         }
 #endif

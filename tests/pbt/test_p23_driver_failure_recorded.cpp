@@ -187,12 +187,12 @@ TEST_CASE("P23: Driver failure recorded - failure retained until flush", "[pbt][
         FailureTestContext ctx;
         RC_PRE(ctx.valid);
 
-        auto& table = process_handle_table();
         void* payload = nullptr;
         process_handle_table().lookup(HandleTable::from_ptr(ctx.dataset), HandleKind::Dataset, &payload);
         if (!payload) {
             RC_DISCARD("invalid handle");
         }
+
         auto* record = static_cast<DatasetRecord*>(payload);
 
         // Generate a random error code from the valid set.
@@ -234,16 +234,18 @@ TEST_CASE("P23: Driver failure recorded - no failure on success", "[pbt][p23][dr
         auto dtype = *rc::gen::arbitrary<amio_dtype_t>();
         std::size_t byte_count = payload_byte_count(shape, dtype);
         RC_PRE(byte_count > 0 && byte_count <= 65536);
-        void* payload = nullptr;
-        process_handle_table().lookup(HandleTable::from_ptr(ctx.dataset), HandleKind::Dataset, &payload);
 
         std::vector<uint8_t> data(byte_count, 0x77);
         amio_io_handle io = nullptr;
-        amio_status_t write_rc = amio::detail::write(payload, "success_var", data.data(), dtype, &shape, &io);
+
+        void* ds_payload = nullptr;
+        process_handle_table().lookup(HandleTable::from_ptr(ctx.dataset), HandleKind::Dataset, &ds_payload);
+
+        amio_status_t write_rc = amio::detail::write(ds_payload, "success_var", data.data(), dtype, &shape, &io);
         RC_PRE(write_rc == AMIO_OK);
 
         // Flush should return AMIO_OK (no failure recorded).
-        amio_status_t flush_rc = amio::detail::flush(payload, 1000);
+        amio_status_t flush_rc = amio::detail::flush(ds_payload, 1000);
         RC_ASSERT(flush_rc == AMIO_OK);
     });
 
@@ -275,6 +277,7 @@ TEST_CASE("P23: Driver failure recorded - error code preserved", "[pbt][p23][dri
         record->has_failure.store(true);
         record->first_failure_code = AMIO_ERR_BACKEND_FAILURE;
         record->pending_writes.store(0);
+
         amio_status_t flush_rc = amio::detail::flush(record, 1000);
 
         // The exact error code should be surfaced.
