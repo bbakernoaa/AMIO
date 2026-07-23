@@ -907,6 +907,13 @@ bool nc_type_to_dtype(int nc_type, amio_dtype_t &out) {
 #endif  // AMIO_HAS_NETCDF
 
 VariableInfo NetCDF_Driver::describe_variable(const std::string &name) {
+    // Serialize with every other driver entry point: this method issues
+    // nc_inq_* on the shared ncid_ from the caller thread and can race
+    // concurrent worker-pool reads — unlocked, that cross-thread use
+    // corrupts the (non-thread-safe) HDF5 and segfaults under
+    // amio_worker_threads >= 2 (and intermittently even at 1, where the
+    // caller thread races the single worker).
+    std::lock_guard<std::mutex> lock(g_nc_driver_mutex);
     VariableInfo info{};  // found == false by default.
 
     if (!is_open_ || is_write_mode_) {
