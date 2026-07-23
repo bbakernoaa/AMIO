@@ -33,14 +33,13 @@
 #include <mpi.h>
 
 #include <atomic>
+#include <conf/config.hpp>
 #include <cstdio>
 #include <cstring>
 #include <optional>
 #include <string>
 #include <thread>
 #include <vector>
-
-#include <conf/config.hpp>
 
 #include "drivers/netcdf/netcdf_driver.hpp"
 #include "factory/backend_driver.hpp"
@@ -171,8 +170,8 @@ int main() {
 
     const int describe_failures = g_describe_failures.load();
     const int read_failures = g_read_failures.load();
-    std::printf("describe iterations: %d x %d threads, describe failures: %d, read failures: %d\n",
-                kDescribeIterations, kDescribeThreads, describe_failures, read_failures);
+    std::printf("describe iterations: %d x %d threads, describe failures: %d, read failures: %d\n", kDescribeIterations, kDescribeThreads,
+                describe_failures, read_failures);
 
     std::remove(OUTPUT_PATH);
     if (describe_failures != 0 || read_failures != 0) {

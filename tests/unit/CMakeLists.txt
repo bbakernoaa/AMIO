@@ -24,11 +24,9 @@
 #   cordon traversal lands in AMIO_ERR_BACKEND_FAILURE -- the cordon itself is what this test pins.
 # ####################################################################################################################################################
 
-# AMIO's own source root. tests/unit builds both standalone (where
-# CMAKE_SOURCE_DIR == the AMIO root) and embedded in a superbuild via
-# add_subdirectory (where CMAKE_SOURCE_DIR is the consumer's root and
-# ${AMIO_ROOT}/src would resolve outside AMIO) -- always resolve
-# sources relative to this directory instead.
+# AMIO's own source root. tests/unit builds both standalone (where CMAKE_SOURCE_DIR == the AMIO root) and embedded in a superbuild via
+# add_subdirectory (where CMAKE_SOURCE_DIR is the consumer's root and ${AMIO_ROOT}/src would resolve outside AMIO) -- always resolve sources relative
+# to this directory instead.
 set(AMIO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
 add_executable(test_amio_strerror test_amio_strerror.cpp)
@@ -709,9 +707,8 @@ endif()
 # ####################################################################################################################################################
 if(AMIO_HAS_TENSORSTORE)
     add_executable(
-        test_read_zarr
-        test_read_zarr.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_driver.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_nczarr_fallback.cpp
-        ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
+        test_read_zarr test_read_zarr.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_driver.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_nczarr_fallback.cpp
+                       ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
 
     target_include_directories(test_read_zarr PRIVATE ${AMIO_ROOT}/src)
     target_compile_definitions(test_read_zarr PRIVATE AMIO_HAS_TENSORSTORE=1 AMIO_HAS_ECKIT=1)
@@ -738,8 +735,8 @@ endif()
 # Validates: Req 13.2, 13.3, 13.4, 13.5 (GRIB2 decode + bbox + lossless round trip).
 # ####################################################################################################################################################
 if(g2c_FOUND AND eckit_FOUND)
-    add_executable(test_read_grib2 test_read_grib2.cpp ${AMIO_ROOT}/src/drivers/grib2/grib2_driver.cpp
-                                   ${AMIO_ROOT}/src/factory/backend_factory.cpp ${AMIO_ROOT}/src/staging/staging_pool.cpp)
+    add_executable(test_read_grib2 test_read_grib2.cpp ${AMIO_ROOT}/src/drivers/grib2/grib2_driver.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp
+                                   ${AMIO_ROOT}/src/staging/staging_pool.cpp)
 
     target_include_directories(test_read_grib2 PRIVATE ${AMIO_ROOT}/src)
     target_compile_definitions(test_read_grib2 PRIVATE AMIO_HAS_G2C=1 AMIO_HAS_ECKIT=1)
@@ -778,13 +775,11 @@ if(netCDF_FOUND
    AND eckit_FOUND)
     set(_amio_mixed_sources
         test_read_mixed_format.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp ${AMIO_ROOT}/src/drivers/grib2/grib2_driver.cpp
-        ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp
-        ${AMIO_ROOT}/src/staging/staging_pool.cpp)
+        ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp ${AMIO_ROOT}/src/staging/staging_pool.cpp)
 
     # The Zarr (TensorStore) leg only compiles in the TensorStore build.
     if(AMIO_HAS_TENSORSTORE)
-        list(APPEND _amio_mixed_sources ${AMIO_ROOT}/src/drivers/zarr/zarr_driver.cpp
-             ${AMIO_ROOT}/src/drivers/zarr/zarr_nczarr_fallback.cpp)
+        list(APPEND _amio_mixed_sources ${AMIO_ROOT}/src/drivers/zarr/zarr_driver.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_nczarr_fallback.cpp)
     endif()
 
     add_executable(test_read_mixed_format ${_amio_mixed_sources})
@@ -887,8 +882,7 @@ set(_amio_worker_test_targets
     test_read_close_guard
     test_read_release_view
     test_read_e2e_smoke
-    test_config_loader
-)
+    test_config_loader)
 foreach(_target IN LISTS _amio_worker_test_targets)
     if(TARGET ${_target})
         if(LOGS_FOUND)
@@ -903,20 +897,18 @@ foreach(_target IN LISTS _amio_worker_test_targets)
     endif()
 endforeach()
 
-
 # ####################################################################################################################################################
 # test_netcdf_describe_thread_safety
 #
 # Regression test for the describe_variable() serialization hole: one thread hammers full reads (nc_get_vara under g_nc_driver_mutex) while two
-# threads hammer describe_variable() on the same open driver.  Without the lock_guard in describe_variable() the unserialized cross-thread
-# netCDF/HDF5 use crashes against a non-thread-safe HDF5 (the Debian parallel/openmpi flavor); with the lock the loops complete with consistent
-# metadata.  Compiles the netcdf driver directly (mirroring test_read_netcdf4) but builds a conf::Config via from_string, so it needs no eckit and
-# runs in environments where unit.read_netcdf4 is not built.
+# threads hammer describe_variable() on the same open driver.  Without the lock_guard in describe_variable() the unserialized cross-thread netCDF/HDF5
+# use crashes against a non-thread-safe HDF5 (the Debian parallel/openmpi flavor); with the lock the loops complete with consistent metadata. Compiles
+# the netcdf driver directly (mirroring test_read_netcdf4) but builds a conf::Config via from_string, so it needs no eckit and runs in environments
+# where unit.read_netcdf4 is not built.
 # ####################################################################################################################################################
 if(netCDF_FOUND AND MPI_C_FOUND)
-    add_executable(test_netcdf_describe_thread_safety
-                   test_netcdf_describe_thread_safety.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp
-                   ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
+    add_executable(test_netcdf_describe_thread_safety test_netcdf_describe_thread_safety.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp
+                                                      ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
 
     target_include_directories(test_netcdf_describe_thread_safety PRIVATE ${AMIO_ROOT}/src)
     target_compile_definitions(test_netcdf_describe_thread_safety PRIVATE AMIO_HAS_NETCDF=1)
