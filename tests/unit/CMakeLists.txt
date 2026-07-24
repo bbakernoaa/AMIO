@@ -941,3 +941,49 @@ if(netCDF_FOUND AND MPI_C_FOUND)
     add_test(NAME unit.netcdf_describe_thread_safety COMMAND test_netcdf_describe_thread_safety)
     set_tests_properties(unit.netcdf_describe_thread_safety PROPERTIES LABELS "unit;read;netcdf4;threads;regression" TIMEOUT 120)
 endif()
+
+# ####################################################################################################################################################
+# test_netcdf_dimension_names
+#
+# Regression test for order-dependent dimension naming: a data variable defined before its coordinate variables must still land on the canonical
+# (time, lev, lat, lon) dimensions -- with amio_worker_threads >= 2 the async write tasks complete in nondeterministic order, and the pre-fix
+# define path minted synthetic "<var>_dim<d>" names when the coordinate's dimension did not exist yet (observed as nox(time, lev, nox_dim2, lon)
+# with a detached lat).  Replays that interleaving deterministically (data variable first, then coordinates) plus the conventional order.
+# Same build pattern as test_netcdf_describe_thread_safety (driver compiled in, conf from_string, no eckit).
+# ####################################################################################################################################################
+if(netCDF_FOUND AND MPI_C_FOUND)
+    add_executable(test_netcdf_dimension_names
+                   test_netcdf_dimension_names.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp
+                   ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
+
+    target_include_directories(test_netcdf_dimension_names PRIVATE ${AMIO_ROOT}/src)
+    target_compile_definitions(test_netcdf_dimension_names PRIVATE AMIO_HAS_NETCDF=1)
+    target_link_libraries(test_netcdf_dimension_names PRIVATE AMIO::public_headers)
+    if(CONF_FOUND)
+        target_link_libraries(test_netcdf_dimension_names PRIVATE HELM::CONF)
+    endif()
+
+    # Link the same netCDF runtime as driver_netcdf (parallel when available, serial otherwise).
+    if(AMIO_NETCDF_PAR_LIB)
+        get_target_property(_amio_dimnames_nc_inc netCDF::netcdf INTERFACE_INCLUDE_DIRECTORIES)
+        if(_amio_dimnames_nc_inc)
+            target_include_directories(test_netcdf_dimension_names PRIVATE ${_amio_dimnames_nc_inc})
+        endif()
+        target_link_libraries(test_netcdf_dimension_names PRIVATE ${AMIO_NETCDF_PAR_LIB})
+    else()
+        target_link_libraries(test_netcdf_dimension_names PRIVATE netCDF::netcdf)
+    endif()
+    if(AMIO_NETCDF_MPI_INCLUDE_DIR)
+        target_include_directories(test_netcdf_dimension_names PRIVATE ${AMIO_NETCDF_MPI_INCLUDE_DIR})
+    endif()
+    target_link_libraries(test_netcdf_dimension_names PRIVATE MPI::MPI_C)
+    if(MPI_CXX_FOUND)
+        target_link_libraries(test_netcdf_dimension_names PRIVATE MPI::MPI_CXX)
+    endif()
+    if(Threads_FOUND)
+        target_link_libraries(test_netcdf_dimension_names PRIVATE Threads::Threads)
+    endif()
+
+    add_test(NAME unit.netcdf_dimension_names COMMAND test_netcdf_dimension_names)
+    set_tests_properties(unit.netcdf_dimension_names PROPERTIES LABELS "unit;write;netcdf4;dimensions;regression" TIMEOUT 60)
+endif()
