@@ -24,6 +24,11 @@
 #   cordon traversal lands in AMIO_ERR_BACKEND_FAILURE -- the cordon itself is what this test pins.
 # ####################################################################################################################################################
 
+# AMIO's own source root. tests/unit builds both standalone (where CMAKE_SOURCE_DIR == the AMIO root) and embedded in a superbuild via
+# add_subdirectory (where CMAKE_SOURCE_DIR is the consumer's root and ${AMIO_ROOT}/src would resolve outside AMIO) -- always resolve sources relative
+# to this directory instead.
+set(AMIO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 add_executable(test_amio_strerror test_amio_strerror.cpp)
 
 target_link_libraries(test_amio_strerror PRIVATE AMIO::public_headers AMIO::amio_core)
@@ -43,9 +48,9 @@ set_tests_properties(unit.amio_strerror PROPERTIES LABELS "unit;c_boundary;error
 # Compiles `handle_table.cpp` directly into the test binary so the private header `src/c_boundary/handle_table.hpp` is reachable without exposing it
 # through the public include tree.
 # ####################################################################################################################################################
-add_executable(test_handle_table test_handle_table.cpp ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp)
+add_executable(test_handle_table test_handle_table.cpp ${AMIO_ROOT}/src/c_boundary/handle_table.cpp)
 
-target_include_directories(test_handle_table PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_handle_table PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_handle_table PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -77,9 +82,9 @@ set_tests_properties(unit.amio_api_handle_validation PROPERTIES LABELS "unit;c_b
 #
 # Validates: R3.2, R3.3
 # ####################################################################################################################################################
-add_executable(test_thread_pinning test_thread_pinning.cpp ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp)
+add_executable(test_thread_pinning test_thread_pinning.cpp ${AMIO_ROOT}/src/workers/thread_pinning.cpp)
 
-target_include_directories(test_thread_pinning PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_thread_pinning PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_thread_pinning PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -97,9 +102,9 @@ set_tests_properties(unit.thread_pinning PROPERTIES LABELS "unit;workers;pinning
 #
 # Validates: R3.5, R3.6
 # ####################################################################################################################################################
-add_executable(test_comm_split test_comm_split.cpp ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp)
+add_executable(test_comm_split test_comm_split.cpp ${AMIO_ROOT}/src/workers/comm_split.cpp)
 
-target_include_directories(test_comm_split PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_comm_split PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_comm_split PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -117,9 +122,9 @@ set_tests_properties(unit.comm_split PROPERTIES LABELS "unit;workers;comm_split"
 #
 # Validates: R1.3, R1.5, R2.2, R2.6, R2.9, R3.10, R5.6, R5.9
 # ####################################################################################################################################################
-add_executable(test_staging_pool test_staging_pool.cpp ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp)
+add_executable(test_staging_pool test_staging_pool.cpp ${AMIO_ROOT}/src/staging/staging_pool.cpp)
 
-target_include_directories(test_staging_pool PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_staging_pool PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_staging_pool PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -143,14 +148,14 @@ set_tests_properties(unit.staging_pool PROPERTIES LABELS "unit;staging;pool" TIM
 add_executable(
     test_worker_pool
     test_worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp)
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp)
 
-target_include_directories(test_worker_pool PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_worker_pool PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_worker_pool PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -171,21 +176,21 @@ set_tests_properties(unit.worker_pool PROPERTIES LABELS "unit;workers;pool" TIME
 add_executable(
     test_exception_bridge
     test_exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp)
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp)
 
-target_include_directories(test_exception_bridge PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_exception_bridge PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_exception_bridge PRIVATE AMIO::public_headers)
 if(CONF_FOUND)
     target_link_libraries(test_exception_bridge PRIVATE HELM::CONF)
 else()
     # Fallback: CONF include path from workspace until find_package(CONF) is integrated (task 10).
-    target_include_directories(test_exception_bridge PRIVATE ${CMAKE_SOURCE_DIR}/../conf/include)
+    target_include_directories(test_exception_bridge PRIVATE ${AMIO_ROOT}/../conf/include)
 endif()
 if(Threads_FOUND)
     target_link_libraries(test_exception_bridge PRIVATE Threads::Threads)
@@ -205,27 +210,27 @@ set_tests_properties(unit.exception_bridge PROPERTIES LABELS "unit;workers;excep
 add_executable(
     test_logs_integration
     test_logs_integration.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp)
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp)
 
-target_include_directories(test_logs_integration PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_logs_integration PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_logs_integration PRIVATE AMIO::public_headers)
 if(CONF_FOUND)
     target_link_libraries(test_logs_integration PRIVATE HELM::CONF)
 else()
     # Fallback: CONF include path from workspace until find_package(CONF) is integrated (task 10).
-    target_include_directories(test_logs_integration PRIVATE ${CMAKE_SOURCE_DIR}/../conf/include)
+    target_include_directories(test_logs_integration PRIVATE ${AMIO_ROOT}/../conf/include)
 endif()
 if(LOGS_FOUND)
     target_link_libraries(test_logs_integration PRIVATE HELM::LOGS)
 else()
     # Fallback: LOGS include path from workspace until find_package(LOGS) is integrated (task 10).
-    target_include_directories(test_logs_integration PRIVATE ${CMAKE_SOURCE_DIR}/../logs/include)
+    target_include_directories(test_logs_integration PRIVATE ${AMIO_ROOT}/../logs/include)
 endif()
 if(Threads_FOUND)
     target_link_libraries(test_logs_integration PRIVATE Threads::Threads)
@@ -242,9 +247,9 @@ set_tests_properties(unit.logs_integration PROPERTIES LABELS "unit;logs;integrat
 #
 # Validates: R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7, R4.8
 # ####################################################################################################################################################
-add_executable(test_backend_factory test_backend_factory.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp)
+add_executable(test_backend_factory test_backend_factory.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
 
-target_include_directories(test_backend_factory PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_backend_factory PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_backend_factory PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -262,9 +267,9 @@ set_tests_properties(unit.backend_factory PROPERTIES LABELS "unit;factory;backen
 #
 # Validates: R1.2, R1.3, R1.5, R11.3, R11.4, R11.5, R11.6, R11.7
 # ####################################################################################################################################################
-add_executable(test_config_loader test_config_loader.cpp ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp)
+add_executable(test_config_loader test_config_loader.cpp ${AMIO_ROOT}/src/config/config_loader.cpp)
 
-target_include_directories(test_config_loader PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_config_loader PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_config_loader PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -308,21 +313,21 @@ set_tests_properties(unit.dataset_lifecycle PROPERTIES LABELS "unit;factory;data
 add_executable(
     test_write_snapshot
     test_write_snapshot.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_api.cpp
-    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
-    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp)
+    ${AMIO_ROOT}/src/c_boundary/amio_api.cpp
+    ${AMIO_ROOT}/src/factory/backend_factory.cpp
+    ${AMIO_ROOT}/src/config/config_loader.cpp
+    ${AMIO_ROOT}/src/c_boundary/handle_table.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_core.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp
+    ${AMIO_ROOT}/src/staging/staging_pool.cpp
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/prefetch/prefetch_queue.cpp)
 
-target_include_directories(test_write_snapshot PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_write_snapshot PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_write_snapshot PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -343,16 +348,16 @@ set_tests_properties(unit.write_snapshot PROPERTIES LABELS "unit;write;snapshot;
 add_executable(
     test_read_prefetch
     test_read_prefetch.cpp
-    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp
-    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp)
+    ${AMIO_ROOT}/src/prefetch/prefetch_queue.cpp
+    ${AMIO_ROOT}/src/staging/staging_pool.cpp
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp)
 
-target_include_directories(test_read_prefetch PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_read_prefetch PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_read_prefetch PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -374,20 +379,20 @@ set_tests_properties(unit.read_prefetch PROPERTIES LABELS "unit;prefetch;read" T
 add_executable(
     test_read_bbox_validation
     test_read_bbox_validation.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
-    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
-    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp)
+    ${AMIO_ROOT}/src/c_boundary/amio_core.cpp
+    ${AMIO_ROOT}/src/c_boundary/handle_table.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp
+    ${AMIO_ROOT}/src/config/config_loader.cpp
+    ${AMIO_ROOT}/src/factory/backend_factory.cpp
+    ${AMIO_ROOT}/src/staging/staging_pool.cpp
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/prefetch/prefetch_queue.cpp)
 
-target_include_directories(test_read_bbox_validation PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_read_bbox_validation PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_read_bbox_validation PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -411,20 +416,20 @@ set_tests_properties(unit.read_bbox_validation PROPERTIES LABELS "unit;read;bbox
 add_executable(
     test_read_capacity_guard
     test_read_capacity_guard.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
-    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
-    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp)
+    ${AMIO_ROOT}/src/c_boundary/amio_core.cpp
+    ${AMIO_ROOT}/src/c_boundary/handle_table.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp
+    ${AMIO_ROOT}/src/config/config_loader.cpp
+    ${AMIO_ROOT}/src/factory/backend_factory.cpp
+    ${AMIO_ROOT}/src/staging/staging_pool.cpp
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/prefetch/prefetch_queue.cpp)
 
-target_include_directories(test_read_capacity_guard PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_read_capacity_guard PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_read_capacity_guard PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -448,20 +453,20 @@ set_tests_properties(unit.read_capacity_guard PROPERTIES LABELS "unit;read;capac
 add_executable(
     test_read_close_guard
     test_read_close_guard.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
-    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
-    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp)
+    ${AMIO_ROOT}/src/c_boundary/amio_core.cpp
+    ${AMIO_ROOT}/src/c_boundary/handle_table.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp
+    ${AMIO_ROOT}/src/config/config_loader.cpp
+    ${AMIO_ROOT}/src/factory/backend_factory.cpp
+    ${AMIO_ROOT}/src/staging/staging_pool.cpp
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/prefetch/prefetch_queue.cpp)
 
-target_include_directories(test_read_close_guard PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_read_close_guard PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_read_close_guard PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -486,21 +491,21 @@ set_tests_properties(unit.read_close_guard PROPERTIES LABELS "unit;read;close;vi
 add_executable(
     test_read_release_view
     test_read_release_view.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_api.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
-    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
-    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp)
+    ${AMIO_ROOT}/src/c_boundary/amio_api.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_core.cpp
+    ${AMIO_ROOT}/src/c_boundary/handle_table.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp
+    ${AMIO_ROOT}/src/config/config_loader.cpp
+    ${AMIO_ROOT}/src/factory/backend_factory.cpp
+    ${AMIO_ROOT}/src/staging/staging_pool.cpp
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/prefetch/prefetch_queue.cpp)
 
-target_include_directories(test_read_release_view PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_read_release_view PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_read_release_view PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -526,21 +531,21 @@ set_tests_properties(unit.read_release_view PROPERTIES LABELS "unit;read;view;re
 add_executable(
     test_read_e2e_smoke
     test_read_e2e_smoke.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_api.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_core.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/handle_table.cpp
-    ${CMAKE_SOURCE_DIR}/src/c_boundary/amio_strerror.cpp
-    ${CMAKE_SOURCE_DIR}/src/config/config_loader.cpp
-    ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-    ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/worker_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/thread_pinning.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/mpi_threading.cpp
-    ${CMAKE_SOURCE_DIR}/src/workers/exception_bridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/prefetch/prefetch_queue.cpp)
+    ${AMIO_ROOT}/src/c_boundary/amio_api.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_core.cpp
+    ${AMIO_ROOT}/src/c_boundary/handle_table.cpp
+    ${AMIO_ROOT}/src/c_boundary/amio_strerror.cpp
+    ${AMIO_ROOT}/src/config/config_loader.cpp
+    ${AMIO_ROOT}/src/factory/backend_factory.cpp
+    ${AMIO_ROOT}/src/staging/staging_pool.cpp
+    ${AMIO_ROOT}/src/workers/worker_pool.cpp
+    ${AMIO_ROOT}/src/workers/thread_pinning.cpp
+    ${AMIO_ROOT}/src/workers/comm_split.cpp
+    ${AMIO_ROOT}/src/workers/mpi_threading.cpp
+    ${AMIO_ROOT}/src/workers/exception_bridge.cpp
+    ${AMIO_ROOT}/src/prefetch/prefetch_queue.cpp)
 
-target_include_directories(test_read_e2e_smoke PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_read_e2e_smoke PRIVATE ${AMIO_ROOT}/src)
 
 target_link_libraries(test_read_e2e_smoke PRIVATE AMIO::public_headers)
 if(Threads_FOUND)
@@ -622,10 +627,10 @@ set_tests_properties(unit.lifecycle_grib2 PROPERTIES LABELS "unit;lifecycle;grib
 if(eckit_FOUND AND netCDF_FOUND AND NOT AMIO_HAS_TENSORSTORE)
     add_executable(
         test_cf_attributes
-        test_cf_attributes.cpp ${CMAKE_SOURCE_DIR}/src/drivers/zarr/zarr_driver.cpp ${CMAKE_SOURCE_DIR}/src/drivers/zarr/zarr_nczarr_fallback.cpp
-        ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp)
+        test_cf_attributes.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_driver.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_nczarr_fallback.cpp
+        ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
 
-    target_include_directories(test_cf_attributes PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_include_directories(test_cf_attributes PRIVATE ${AMIO_ROOT}/src)
     target_compile_definitions(test_cf_attributes PRIVATE AMIO_NCZARR_FALLBACK AMIO_HAS_ECKIT=1)
     target_link_libraries(test_cf_attributes PRIVATE AMIO::public_headers eckit netCDF::netcdf)
     if(Threads_FOUND)
@@ -651,10 +656,10 @@ endif()
 # Validates: Req 9.1, 9.2, 9.3, 9.4 (NetCDF-4 read end-to-end).
 # ####################################################################################################################################################
 if(netCDF_FOUND AND MPI_C_FOUND AND eckit_FOUND)
-    add_executable(test_read_netcdf4 test_read_netcdf4.cpp ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp
-                                     ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp)
+    add_executable(test_read_netcdf4 test_read_netcdf4.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp
+                                     ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
 
-    target_include_directories(test_read_netcdf4 PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_include_directories(test_read_netcdf4 PRIVATE ${AMIO_ROOT}/src)
     target_compile_definitions(test_read_netcdf4 PRIVATE AMIO_HAS_NETCDF=1 AMIO_HAS_ECKIT=1)
     target_link_libraries(test_read_netcdf4 PRIVATE AMIO::public_headers eckit)
 
@@ -702,11 +707,10 @@ endif()
 # ####################################################################################################################################################
 if(AMIO_HAS_TENSORSTORE)
     add_executable(
-        test_read_zarr
-        test_read_zarr.cpp ${CMAKE_SOURCE_DIR}/src/drivers/zarr/zarr_driver.cpp ${CMAKE_SOURCE_DIR}/src/drivers/zarr/zarr_nczarr_fallback.cpp
-        ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp)
+        test_read_zarr test_read_zarr.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_driver.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_nczarr_fallback.cpp
+                       ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
 
-    target_include_directories(test_read_zarr PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_include_directories(test_read_zarr PRIVATE ${AMIO_ROOT}/src)
     target_compile_definitions(test_read_zarr PRIVATE AMIO_HAS_TENSORSTORE=1 AMIO_HAS_ECKIT=1)
     target_link_libraries(test_read_zarr PRIVATE AMIO::public_headers eckit TensorStore::tensorstore)
     if(Threads_FOUND)
@@ -731,10 +735,10 @@ endif()
 # Validates: Req 13.2, 13.3, 13.4, 13.5 (GRIB2 decode + bbox + lossless round trip).
 # ####################################################################################################################################################
 if(g2c_FOUND AND eckit_FOUND)
-    add_executable(test_read_grib2 test_read_grib2.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
-                                   ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp)
+    add_executable(test_read_grib2 test_read_grib2.cpp ${AMIO_ROOT}/src/drivers/grib2/grib2_driver.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp
+                                   ${AMIO_ROOT}/src/staging/staging_pool.cpp)
 
-    target_include_directories(test_read_grib2 PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_include_directories(test_read_grib2 PRIVATE ${AMIO_ROOT}/src)
     target_compile_definitions(test_read_grib2 PRIVATE AMIO_HAS_G2C=1 AMIO_HAS_ECKIT=1)
     target_link_libraries(test_read_grib2 PRIVATE AMIO::public_headers eckit g2c::g2c)
     if(Threads_FOUND)
@@ -770,19 +774,17 @@ if(netCDF_FOUND
    AND MPI_C_FOUND
    AND eckit_FOUND)
     set(_amio_mixed_sources
-        test_read_mixed_format.cpp ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
-        ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-        ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp)
+        test_read_mixed_format.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp ${AMIO_ROOT}/src/drivers/grib2/grib2_driver.cpp
+        ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp ${AMIO_ROOT}/src/staging/staging_pool.cpp)
 
     # The Zarr (TensorStore) leg only compiles in the TensorStore build.
     if(AMIO_HAS_TENSORSTORE)
-        list(APPEND _amio_mixed_sources ${CMAKE_SOURCE_DIR}/src/drivers/zarr/zarr_driver.cpp
-             ${CMAKE_SOURCE_DIR}/src/drivers/zarr/zarr_nczarr_fallback.cpp)
+        list(APPEND _amio_mixed_sources ${AMIO_ROOT}/src/drivers/zarr/zarr_driver.cpp ${AMIO_ROOT}/src/drivers/zarr/zarr_nczarr_fallback.cpp)
     endif()
 
     add_executable(test_read_mixed_format ${_amio_mixed_sources})
 
-    target_include_directories(test_read_mixed_format PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_include_directories(test_read_mixed_format PRIVATE ${AMIO_ROOT}/src)
     target_compile_definitions(test_read_mixed_format PRIVATE AMIO_HAS_NETCDF=1 AMIO_HAS_G2C=1 AMIO_HAS_ECKIT=1)
     if(AMIO_HAS_TENSORSTORE)
         target_compile_definitions(test_read_mixed_format PRIVATE AMIO_HAS_TENSORSTORE=1)
@@ -839,7 +841,7 @@ endif()
 if(netCDF_FOUND AND MPI_C_FOUND)
     add_executable(test_e2e_netcdf_roundtrip test_e2e_netcdf_roundtrip.cpp)
 
-    target_include_directories(test_e2e_netcdf_roundtrip PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_include_directories(test_e2e_netcdf_roundtrip PRIVATE ${AMIO_ROOT}/src)
 
     target_link_libraries(test_e2e_netcdf_roundtrip PRIVATE AMIO::public_headers AMIO::amio_core MPI::MPI_C)
 
@@ -880,8 +882,7 @@ set(_amio_worker_test_targets
     test_read_close_guard
     test_read_release_view
     test_read_e2e_smoke
-    test_config_loader
-)
+    test_config_loader)
 foreach(_target IN LISTS _amio_worker_test_targets)
     if(TARGET ${_target})
         if(LOGS_FOUND)
@@ -896,3 +897,92 @@ foreach(_target IN LISTS _amio_worker_test_targets)
     endif()
 endforeach()
 
+# ####################################################################################################################################################
+# test_netcdf_describe_thread_safety
+#
+# Regression test for the describe_variable() serialization hole: one thread hammers full reads (nc_get_vara under g_nc_driver_mutex) while two
+# threads hammer describe_variable() on the same open driver.  Without the lock_guard in describe_variable() the unserialized cross-thread netCDF/HDF5
+# use crashes against a non-thread-safe HDF5 (the Debian parallel/openmpi flavor); with the lock the loops complete with consistent metadata. Compiles
+# the netcdf driver directly (mirroring test_read_netcdf4) but builds a conf::Config via from_string, so it needs no eckit and runs in environments
+# where unit.read_netcdf4 is not built.
+# ####################################################################################################################################################
+if(netCDF_FOUND AND MPI_C_FOUND)
+    add_executable(test_netcdf_describe_thread_safety test_netcdf_describe_thread_safety.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp
+                                                      ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
+
+    target_include_directories(test_netcdf_describe_thread_safety PRIVATE ${AMIO_ROOT}/src)
+    target_compile_definitions(test_netcdf_describe_thread_safety PRIVATE AMIO_HAS_NETCDF=1)
+    target_link_libraries(test_netcdf_describe_thread_safety PRIVATE AMIO::public_headers)
+    if(CONF_FOUND)
+        target_link_libraries(test_netcdf_describe_thread_safety PRIVATE HELM::CONF)
+    endif()
+
+    # Link the same netCDF runtime as driver_netcdf (parallel when available, serial otherwise).
+    if(AMIO_NETCDF_PAR_LIB)
+        get_target_property(_amio_describe_nc_inc netCDF::netcdf INTERFACE_INCLUDE_DIRECTORIES)
+        if(_amio_describe_nc_inc)
+            target_include_directories(test_netcdf_describe_thread_safety PRIVATE ${_amio_describe_nc_inc})
+        endif()
+        target_link_libraries(test_netcdf_describe_thread_safety PRIVATE ${AMIO_NETCDF_PAR_LIB})
+    else()
+        target_link_libraries(test_netcdf_describe_thread_safety PRIVATE netCDF::netcdf)
+    endif()
+    if(AMIO_NETCDF_MPI_INCLUDE_DIR)
+        target_include_directories(test_netcdf_describe_thread_safety PRIVATE ${AMIO_NETCDF_MPI_INCLUDE_DIR})
+    endif()
+    target_link_libraries(test_netcdf_describe_thread_safety PRIVATE MPI::MPI_C)
+    if(MPI_CXX_FOUND)
+        target_link_libraries(test_netcdf_describe_thread_safety PRIVATE MPI::MPI_CXX)
+    endif()
+    if(Threads_FOUND)
+        target_link_libraries(test_netcdf_describe_thread_safety PRIVATE Threads::Threads)
+    endif()
+
+    add_test(NAME unit.netcdf_describe_thread_safety COMMAND test_netcdf_describe_thread_safety)
+    set_tests_properties(unit.netcdf_describe_thread_safety PROPERTIES LABELS "unit;read;netcdf4;threads;regression" TIMEOUT 120)
+endif()
+
+# ####################################################################################################################################################
+# test_netcdf_dimension_names
+#
+# Regression test for order-dependent dimension naming: a data variable defined before its coordinate variables must still land on the canonical
+# (time, lev, lat, lon) dimensions -- with amio_worker_threads >= 2 the async write tasks complete in nondeterministic order, and the pre-fix define
+# path minted synthetic "<var>_dim<d>" names when the coordinate's dimension did not exist yet (observed as nox(time, lev, nox_dim2, lon) with a
+# detached lat).  Replays that interleaving deterministically (data variable first, then coordinates) plus the conventional order. Same build pattern
+# as test_netcdf_describe_thread_safety (driver compiled in, conf from_string, no eckit).
+# ####################################################################################################################################################
+if(netCDF_FOUND AND MPI_C_FOUND)
+    add_executable(test_netcdf_dimension_names test_netcdf_dimension_names.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp
+                                               ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
+
+    target_include_directories(test_netcdf_dimension_names PRIVATE ${AMIO_ROOT}/src)
+    target_compile_definitions(test_netcdf_dimension_names PRIVATE AMIO_HAS_NETCDF=1)
+    target_link_libraries(test_netcdf_dimension_names PRIVATE AMIO::public_headers)
+    if(CONF_FOUND)
+        target_link_libraries(test_netcdf_dimension_names PRIVATE HELM::CONF)
+    endif()
+
+    # Link the same netCDF runtime as driver_netcdf (parallel when available, serial otherwise).
+    if(AMIO_NETCDF_PAR_LIB)
+        get_target_property(_amio_dimnames_nc_inc netCDF::netcdf INTERFACE_INCLUDE_DIRECTORIES)
+        if(_amio_dimnames_nc_inc)
+            target_include_directories(test_netcdf_dimension_names PRIVATE ${_amio_dimnames_nc_inc})
+        endif()
+        target_link_libraries(test_netcdf_dimension_names PRIVATE ${AMIO_NETCDF_PAR_LIB})
+    else()
+        target_link_libraries(test_netcdf_dimension_names PRIVATE netCDF::netcdf)
+    endif()
+    if(AMIO_NETCDF_MPI_INCLUDE_DIR)
+        target_include_directories(test_netcdf_dimension_names PRIVATE ${AMIO_NETCDF_MPI_INCLUDE_DIR})
+    endif()
+    target_link_libraries(test_netcdf_dimension_names PRIVATE MPI::MPI_C)
+    if(MPI_CXX_FOUND)
+        target_link_libraries(test_netcdf_dimension_names PRIVATE MPI::MPI_CXX)
+    endif()
+    if(Threads_FOUND)
+        target_link_libraries(test_netcdf_dimension_names PRIVATE Threads::Threads)
+    endif()
+
+    add_test(NAME unit.netcdf_dimension_names COMMAND test_netcdf_dimension_names)
+    set_tests_properties(unit.netcdf_dimension_names PROPERTIES LABELS "unit;write;netcdf4;dimensions;regression" TIMEOUT 60)
+endif()

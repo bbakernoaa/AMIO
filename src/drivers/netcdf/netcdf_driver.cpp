@@ -31,6 +31,7 @@ extern MPI_Comm g_amio_parent_comm;
 #endif
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstring>
 #include <iostream>
@@ -55,6 +56,16 @@ static void nc_check(int status, const std::string &context) {
         std::string msg = "NetCDF error in " + context + ": " + nc_strerror(status) + " (nc_errno=" + std::to_string(status) + ")";
         throw std::runtime_error(msg);
     }
+}
+
+// Canonical axis names, indexed by offset from the fastest-varying
+// dimension (X -> lon, Y -> lat, Z -> lev, T -> time).
+static constexpr std::array<const char *, 4> kCanonicalAxisNames = {"lon", "lat", "lev", "time"};
+
+// True when `name` is one of the canonical axis names -- i.e. the variable
+// is a coordinate variable owning its own same-named dimension.
+static bool is_canonical_axis_name(const std::string &name) {
+    return std::find(kCanonicalAxisNames.begin(), kCanonicalAxisNames.end(), name) != kCanonicalAxisNames.end();
 }
 
 // Write one attribute set onto `varid` (use NC_GLOBAL for file-level
@@ -489,14 +500,55 @@ void NetCDF_Driver::write(const StagingBuffer &src, const VarMeta &meta) {
         for (int32_t d = 0; d < meta.shape.rank; ++d) {
             std::size_t target_len = static_cast<std::size_t>(meta.shape.extents[d]);
             std::string dim_name = meta.name + "_dim" + std::to_string(d);
-            if ((meta.name == "lon" || meta.name == "lat" || meta.name == "lev" || meta.name == "time") && meta.shape.rank == 1) {
+            if (is_canonical_axis_name(meta.name) && meta.shape.rank == 1) {
                 dim_name = meta.name;
             }
 
             int existing_dimid = -1;
             bool found_shared = false;
+            // When false, the canonical name below is claimed for creation and
+            // the length-matching heuristics are skipped for this slot.
+            bool scan_for_shared = true;
 
-            if (meta.name != "lon" && meta.name != "lat" && meta.name != "lev" && meta.name != "time") {
+            if (!is_canonical_axis_name(meta.name)) {
+                // Canonical axis name for this slot by position (the same
+                // convention the scorer below uses): X -> lon, Y -> lat,
+                // Z -> lev, T -> time.  Resolve it FIRST -- bind it when
+                // present, claim it for creation when absent -- so dimension
+                // naming does not depend on write-task completion order:
+                // resolving from "whatever dims exist right now" let a data
+                // variable defined before its coordinates (async writes,
+                // amio_worker_threads >= 2) mint synthetic "<var>_dim<d>"
+                // names, e.g. nox(time, lev, nox_dim2, lon) with a detached
+                // lat coordinate.
+                std::string canonical_name;
+                const int32_t axis_offset = meta.shape.rank - 1 - d;
+                if (meta.shape.rank >= 2 && axis_offset < static_cast<int32_t>(kCanonicalAxisNames.size())) {
+                    canonical_name = kCanonicalAxisNames[axis_offset];
+                }
+                if (!canonical_name.empty()) {
+                    int canonical_dimid = -1;
+                    if (nc_inq_dimid(ncid_, canonical_name.c_str(), &canonical_dimid) == NC_NOERR) {
+                        std::size_t canonical_len = 0;
+                        if (nc_inq_dimlen(ncid_, canonical_dimid, &canonical_len) == NC_NOERR &&
+                            (canonical_len == target_len || canonical_name == "time")) {
+                            existing_dimid = canonical_dimid;
+                            found_shared = true;
+                        }
+                        // Canonical name exists with a different length: an
+                        // unconventional layout -- fall through to the
+                        // length-matching heuristics, as before.
+                    } else {
+                        // Absent: claim the canonical name for this axis; the
+                        // shared definition path below creates it (time as
+                        // NC_UNLIMITED).
+                        dim_name = canonical_name;
+                        scan_for_shared = false;
+                    }
+                }
+            }
+
+            if (!found_shared && scan_for_shared && !is_canonical_axis_name(meta.name)) {
                 // Find all existing dimensions with matching length.
                 int num_dims = 0;
                 if (nc_inq_ndims(ncid_, &num_dims) == NC_NOERR) {
@@ -907,6 +959,13 @@ bool nc_type_to_dtype(int nc_type, amio_dtype_t &out) {
 #endif  // AMIO_HAS_NETCDF
 
 VariableInfo NetCDF_Driver::describe_variable(const std::string &name) {
+    // Serialize with every other driver entry point: this method issues
+    // nc_inq_* on the shared ncid_ from the caller thread and can race
+    // concurrent worker-pool reads — unlocked, that cross-thread use
+    // corrupts the (non-thread-safe) HDF5 and segfaults under
+    // amio_worker_threads >= 2 (and intermittently even at 1, where the
+    // caller thread races the single worker).
+    std::lock_guard<std::mutex> lock(g_nc_driver_mutex);
     VariableInfo info{};  // found == false by default.
 
     if (!is_open_ || is_write_mode_) {
