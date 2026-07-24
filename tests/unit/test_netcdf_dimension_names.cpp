@@ -21,11 +21,10 @@
 #include <mpi.h>
 #include <netcdf.h>
 
+#include <conf/config.hpp>
 #include <cstdio>
 #include <string>
 #include <vector>
-
-#include <conf/config.hpp>
 
 #include "drivers/netcdf/netcdf_driver.hpp"
 #include "factory/backend_driver.hpp"
@@ -128,17 +127,13 @@ void check_file(const std::string &path, const std::string &label) {
     expect(nc_inq_varid(ncid, "nox", &varid) == NC_NOERR, label + ": nox present");
     int ndims = 0;
     int dimids[NC_MAX_VAR_DIMS] = {0};
-    expect(nc_inq_varndims(ncid, varid, &ndims) == NC_NOERR && ndims == 4,
-           label + ": nox is rank 4");
+    expect(nc_inq_varndims(ncid, varid, &ndims) == NC_NOERR && ndims == 4, label + ": nox is rank 4");
     expect(nc_inq_vardimid(ncid, varid, dimids) == NC_NOERR, label + ": nox dimids");
     const char *expected[4] = {"time", "lev", "lat", "lon"};
     for (int d = 0; d < 4; ++d) {
         char name[NC_MAX_NAME + 1] = {0};
-        expect(nc_inq_dimname(ncid, dimids[d], name) == NC_NOERR,
-               label + ": dim name " + std::to_string(d));
-        expect(std::string(name) == expected[d],
-               label + ": nox dim " + std::to_string(d) + " is '" + name + "', expected '" +
-                   expected[d] + "'");
+        expect(nc_inq_dimname(ncid, dimids[d], name) == NC_NOERR, label + ": dim name " + std::to_string(d));
+        expect(std::string(name) == expected[d], label + ": nox dim " + std::to_string(d) + " is '" + name + "', expected '" + expected[d] + "'");
     }
 
     int ndims_total = 0;
@@ -146,21 +141,18 @@ void check_file(const std::string &path, const std::string &label) {
     for (int i = 0; i < ndims_total; ++i) {
         char name[NC_MAX_NAME + 1] = {0};
         expect(nc_inq_dimname(ncid, i, name) == NC_NOERR, label + ": dim listing");
-        expect(std::string(name).find("_dim") == std::string::npos,
-               label + ": synthetic dimension '" + name + "' present");
+        expect(std::string(name).find("_dim") == std::string::npos, label + ": synthetic dimension '" + name + "' present");
     }
 
     for (const char *coordinate : {"lon", "lat", "lev", "time"}) {
         int coord_varid = -1;
-        expect(nc_inq_varid(ncid, coordinate, &coord_varid) == NC_NOERR,
-               label + ": coordinate variable " + coordinate + " present");
+        expect(nc_inq_varid(ncid, coordinate, &coord_varid) == NC_NOERR, label + ": coordinate variable " + coordinate + " present");
         int coord_ndims = 0;
         int coord_dimid = -1;
         if (nc_inq_varndims(ncid, coord_varid, &coord_ndims) == NC_NOERR && coord_ndims == 1 &&
             nc_inq_vardimid(ncid, coord_varid, &coord_dimid) == NC_NOERR) {
             char name[NC_MAX_NAME + 1] = {0};
-            expect(nc_inq_dimname(ncid, coord_dimid, name) == NC_NOERR &&
-                       std::string(name) == coordinate,
+            expect(nc_inq_dimname(ncid, coord_dimid, name) == NC_NOERR && std::string(name) == coordinate,
                    label + ": " + coordinate + " bound to its own dimension");
         } else {
             expect(false, label + ": " + coordinate + " is rank 1");
@@ -168,13 +160,10 @@ void check_file(const std::string &path, const std::string &label) {
     }
 
     int unlimited_dimid = -1;
-    expect(nc_inq_unlimdim(ncid, &unlimited_dimid) == NC_NOERR && unlimited_dimid >= 0,
-           label + ": has a record dimension");
+    expect(nc_inq_unlimdim(ncid, &unlimited_dimid) == NC_NOERR && unlimited_dimid >= 0, label + ": has a record dimension");
     if (unlimited_dimid >= 0) {
         char name[NC_MAX_NAME + 1] = {0};
-        expect(nc_inq_dimname(ncid, unlimited_dimid, name) == NC_NOERR &&
-                   std::string(name) == "time",
-               label + ": time is the record dimension");
+        expect(nc_inq_dimname(ncid, unlimited_dimid, name) == NC_NOERR && std::string(name) == "time", label + ": time is the record dimension");
     }
 
     nc_close(ncid);

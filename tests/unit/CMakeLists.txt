@@ -946,15 +946,14 @@ endif()
 # test_netcdf_dimension_names
 #
 # Regression test for order-dependent dimension naming: a data variable defined before its coordinate variables must still land on the canonical
-# (time, lev, lat, lon) dimensions -- with amio_worker_threads >= 2 the async write tasks complete in nondeterministic order, and the pre-fix
-# define path minted synthetic "<var>_dim<d>" names when the coordinate's dimension did not exist yet (observed as nox(time, lev, nox_dim2, lon)
-# with a detached lat).  Replays that interleaving deterministically (data variable first, then coordinates) plus the conventional order.
-# Same build pattern as test_netcdf_describe_thread_safety (driver compiled in, conf from_string, no eckit).
+# (time, lev, lat, lon) dimensions -- with amio_worker_threads >= 2 the async write tasks complete in nondeterministic order, and the pre-fix define
+# path minted synthetic "<var>_dim<d>" names when the coordinate's dimension did not exist yet (observed as nox(time, lev, nox_dim2, lon) with a
+# detached lat).  Replays that interleaving deterministically (data variable first, then coordinates) plus the conventional order. Same build pattern
+# as test_netcdf_describe_thread_safety (driver compiled in, conf from_string, no eckit).
 # ####################################################################################################################################################
 if(netCDF_FOUND AND MPI_C_FOUND)
-    add_executable(test_netcdf_dimension_names
-                   test_netcdf_dimension_names.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp
-                   ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
+    add_executable(test_netcdf_dimension_names test_netcdf_dimension_names.cpp ${AMIO_ROOT}/src/drivers/netcdf/netcdf_driver.cpp
+                                               ${AMIO_ROOT}/src/drivers/common/var_attributes.cpp ${AMIO_ROOT}/src/factory/backend_factory.cpp)
 
     target_include_directories(test_netcdf_dimension_names PRIVATE ${AMIO_ROOT}/src)
     target_compile_definitions(test_netcdf_dimension_names PRIVATE AMIO_HAS_NETCDF=1)
