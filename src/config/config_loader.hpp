@@ -12,6 +12,11 @@
 // and Prefetch_Queue.  It provides:
 //
 //   * `parse(path) -> Config`: load and validate a manifest file.
+//   * `parse_string(content, format) -> Config`: load and validate a
+//     manifest from an in-memory string, applying the identical
+//     validation, ValidationError reporting, and return codes as
+//     `parse(path)`. A supported internal path (not test-only) used by
+//     the string-based AMIO detail entry points.
 //   * `serialize(Config) -> string`: emit a YAML string from a
 //     Config struct with round-trip guarantee on field set, values,
 //     and structural nesting (R11.5).
@@ -173,7 +178,19 @@ class ConfigLoader {
     // The file format is auto-detected: .json → JSON, otherwise YAML.
     static amio_err_t parse(const std::string &path, Config &config_out, ValidationError &error_out);
 
-    // parse_string -- parse a manifest from a string (for testing).
+    // parse_string -- parse a manifest from an in-memory string.
+    //
+    // This is a first-class, supported internal API that mirrors
+    // parse(path, ...): it applies the identical single-pass schema
+    // validation, reports failures through the same ValidationError
+    // structure, and returns the same AMIO_ERR_* codes. The only
+    // difference from parse() is the manifest source -- an in-memory
+    // string here versus a file path in parse(). Because there is no
+    // file, AMIO_ERR_MANIFEST_NOT_FOUND cannot be returned on this path.
+    //
+    // Used by the string-based AMIO detail entry points
+    // (init_from_string / open_dataset_from_string) so callers can open
+    // datasets from an in-memory manifest without writing a file to disk.
     //
     // `format` should be "yaml" or "json".
     static amio_err_t parse_string(const std::string &content, const std::string &format, Config &config_out, ValidationError &error_out);

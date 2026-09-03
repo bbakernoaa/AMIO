@@ -119,6 +119,56 @@ AMIO_API amio_status_t amio_finalize(amio_core_handle core);
 AMIO_API amio_status_t amio_open_dataset(amio_core_handle core, const char *config_path, int32_t mode, amio_dataset_handle *out_dataset);
 
 /**
+ * @brief Initialize AMIO from an in-memory manifest string.
+ *
+ * Behaves exactly like amio_init(), except the manifest is supplied as a
+ * NUL-terminated string rather than read from a file path.
+ *
+ * @param[in]  manifest_content  Non-NULL manifest text in the given format.
+ * @param[in]  format            "yaml" or "json".
+ * @param[out] out_core          Non-NULL pointer; on success receives a freshly-minted
+ *                               opaque core handle. On failure set to NULL.
+ *
+ * @return AMIO_OK on success, or one of:
+ *   - AMIO_ERR_INVALID_INPUT — NULL manifest_content/format/out_core
+ *   - AMIO_ERR_MANIFEST_INVALID — manifest parse/validation error (R1.5)
+ *   - AMIO_ERR_BACKEND_FAILURE — pool construction failure
+ *
+ * @code
+ * amio_core_handle core = NULL;
+ * amio_status_t rc = amio_init_from_string(manifest_text, "yaml", &core);
+ * if (rc != AMIO_OK) {
+ *     fprintf(stderr, "Init failed: %s\n", amio_strerror(rc));
+ * }
+ * @endcode
+ */
+AMIO_API amio_status_t amio_init_from_string(const char *manifest_content, const char *format, amio_core_handle *out_core);
+
+/**
+ * @brief Open a dataset from an in-memory config string.
+ *
+ * Behaves exactly like amio_open_dataset(), except the dataset config is
+ * supplied as a NUL-terminated string rather than read from a file path.
+ *
+ * @param[in]  core            A valid, initialized AMIO_Core handle.
+ * @param[in]  config_content  Non-NULL config text in the given format.
+ * @param[in]  format          "yaml" or "json".
+ * @param[in]  mode            AMIO_MODE_WRITE or AMIO_MODE_READ.
+ * @param[out] out_dataset     Non-NULL pointer; on success receives a dataset handle.
+ *                             On failure set to NULL.
+ *
+ * @return AMIO_OK on success, or one of:
+ *   - AMIO_ERR_NULL_HANDLE — core is NULL
+ *   - AMIO_ERR_INVALID_HANDLE — core stale or wrong kind
+ *   - AMIO_ERR_INVALID_INPUT — NULL config_content/format/out_dataset, or invalid mode
+ *   - AMIO_ERR_MANIFEST_INVALID — config parse/validation error
+ *   - AMIO_ERR_UNKNOWN_BACKEND — backend name not in registry (R4.6)
+ *   - AMIO_ERR_BACKEND_FAILURE — driver open failed
+ */
+AMIO_API amio_status_t amio_open_dataset_from_string(amio_core_handle core, const char *config_content, const char *format, int32_t mode,
+                                                     amio_dataset_handle *out_dataset);
+
+/**
  * @brief Flush pending writes and close a dataset, releasing driver resources.
  *
  * Equivalent to calling amio_flush() followed by releasing the driver.
