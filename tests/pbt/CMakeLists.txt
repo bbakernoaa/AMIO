@@ -340,9 +340,8 @@ set_tests_properties(pbt.p15_driver_thread_invariant PROPERTIES LABELS "pbt;p15;
 # ####################################################################################################################################################
 # pbt_p16_exception_bridge -- Property P16: Exception bridge invariant.
 #
-# For any exception on Worker_Pool thread (std::exception, unknown): C boundary catches, records AMIO_ERR_* against handle, ensures
-# parallel stack-trace emission completes before surfacing, surfaces on next flush/close/wait without remapping, preserves trace for AMIO_Core
-# lifetime.
+# For any exception on Worker_Pool thread (std::exception, unknown): C boundary catches, records AMIO_ERR_* against handle, ensures parallel
+# stack-trace emission completes before surfacing, surfaces on next flush/close/wait without remapping, preserves trace for AMIO_Core lifetime.
 #
 # Validates: R12.1, R12.2, R12.4, R12.9, R12.10
 # ####################################################################################################################################################
