@@ -51,6 +51,17 @@ amio_err_t ConfigLoader::validate(const Config &config, ValidationError &error_o
         return AMIO_ERR_MANIFEST_INVALID;
     }
 
+    // staging_pool.max_buffer_count [buffer_count, 4096] -- the auto-grow
+    // ceiling must be at least the initial count (else the pool could not
+    // hold its own provisioned slots) and within the hard limit.
+    if (config.staging_pool.max_buffer_count < config.staging_pool.buffer_count ||
+        config.staging_pool.max_buffer_count > kMaxBufferCount) {
+        error_out.field_path = "staging_pool.max_buffer_count";
+        error_out.message = "max_buffer_count must be in [buffer_count, 4096], got " + std::to_string(config.staging_pool.max_buffer_count) +
+                            " with buffer_count " + std::to_string(config.staging_pool.buffer_count);
+        return AMIO_ERR_MANIFEST_INVALID;
+    }
+
     // worker_pool.threads [1, 256]
     if (config.worker_pool.threads < kMinThreads || config.worker_pool.threads > kMaxThreads) {
         error_out.field_path = "worker_pool.threads";
@@ -147,6 +158,9 @@ amio_err_t ConfigLoader::populate_from_conf(const conf::Config &manifest, Config
 
         current_key = "staging_pool.buffer_capacity_bytes";
         if (manifest.has(current_key)) config_out.staging_pool.buffer_capacity_bytes = static_cast<std::size_t>(manifest.get_int(current_key));
+
+        current_key = "staging_pool.max_buffer_count";
+        if (manifest.has(current_key)) config_out.staging_pool.max_buffer_count = static_cast<std::size_t>(manifest.get_int(current_key));
 
         // -- Worker pool --
         current_key = "worker_pool.threads";
@@ -301,6 +315,7 @@ std::string ConfigLoader::serialize(const Config &config) {
     out << "staging_pool:\n";
     out << "  buffer_count: " << config.staging_pool.buffer_count << "\n";
     out << "  buffer_capacity_bytes: " << config.staging_pool.buffer_capacity_bytes << "\n";
+    out << "  max_buffer_count: " << config.staging_pool.max_buffer_count << "\n";
 
     out << "worker_pool:\n";
     out << "  threads: " << config.worker_pool.threads << "\n";

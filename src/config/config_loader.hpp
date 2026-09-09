@@ -72,9 +72,16 @@ namespace amio::detail {
 // ===================================================================
 
 // StagingPoolConfig -- buffer pool sizing.
+//
+// buffer_count is the initial slot count (a provisioning hint).  The pool
+// auto-grows on demand up to max_buffer_count (hard ceiling,
+// [1, 4096], default kMaxBufferCount) so an under-provisioned count can
+// never crash a host model with AMIO_ERR_STAGING_BACKPRESSURE; set
+// max_buffer_count == buffer_count to keep the pool strictly bounded.
 struct StagingPoolConfig {
     std::size_t buffer_count = 16;                // [1, 4096]
     std::size_t buffer_capacity_bytes = 1048576;  // [1, 1 GiB] (default 1 MiB)
+    std::size_t max_buffer_count = 4096;          // [buffer_count, 4096]
 };
 
 // WorkerPoolConfig (config-level) -- thread pool sizing and pinning.
@@ -221,7 +228,7 @@ class ConfigLoader {
 // ===================================================================
 
 inline bool operator==(const StagingPoolConfig &a, const StagingPoolConfig &b) {
-    return a.buffer_count == b.buffer_count && a.buffer_capacity_bytes == b.buffer_capacity_bytes;
+    return a.buffer_count == b.buffer_count && a.buffer_capacity_bytes == b.buffer_capacity_bytes && a.max_buffer_count == b.max_buffer_count;
 }
 
 inline bool operator==(const WorkerPoolCfg &a, const WorkerPoolCfg &b) {
