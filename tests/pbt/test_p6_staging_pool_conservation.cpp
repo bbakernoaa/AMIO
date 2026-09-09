@@ -63,7 +63,11 @@ TEST_CASE("Property 6: Staging_Pool conservation - all buffers returned after re
         // Use a short timeout since we don't want to block in tests.
         constexpr std::int64_t timeout_ms = 1;
 
-        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms);
+        // Bounded mode: this property asserts conservation of a FIXED slot
+        // set (free_count == buffer_count), which is the historical hard-
+        // limit contract.  Auto-grow would legitimately change total count.
+        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms, buffer_count,
+                                       amio::detail::StagingPool::GrowMode::Bounded);
 
         // Verify initial state: all buffers are free.
         RC_ASSERT(pool.free_buffer_count() == buffer_count);
@@ -143,7 +147,8 @@ TEST_CASE("Property 6: Staging_Pool conservation - no buffer simultaneously free
         const auto buffer_capacity = *rc::gen::inRange<std::size_t>(64, 4097);
         constexpr std::int64_t timeout_ms = 1;
 
-        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms);
+        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms, buffer_count,
+                                       amio::detail::StagingPool::GrowMode::Bounded);
 
         // Generate a sequence of acquire/release operations.
         const auto num_ops = *rc::gen::inRange<std::size_t>(4, 65);
@@ -199,7 +204,8 @@ TEST_CASE("Property 6: Staging_Pool conservation - ref_count multi-view sharing"
         const auto buffer_capacity = *rc::gen::inRange<std::size_t>(128, 4097);
         constexpr std::int64_t timeout_ms = 1;
 
-        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms);
+        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms, buffer_count,
+                                       amio::detail::StagingPool::GrowMode::Bounded);
 
         // Acquire some buffers.
         const auto num_acquire = *rc::gen::inRange<std::size_t>(1, buffer_count + 1);

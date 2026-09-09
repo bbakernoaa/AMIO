@@ -61,7 +61,7 @@ static rc::Gen<Config> genRangeInvalidManifest() {
     return rc::gen::exec([]() {
         auto cfg = *rc::gen::arbitrary<Config>();
 
-        int field = *rc::gen::inRange(0, 6);
+        int field = *rc::gen::inRange(0, 7);
         switch (field) {
             case 0: {
                 static const std::vector<std::size_t> bad = {0, 4097, 10000};
@@ -91,6 +91,11 @@ static rc::Gen<Config> genRangeInvalidManifest() {
                 cfg.staging_timeout_ms = *rc::gen::elementOf(bad);
                 break;
             }
+            case 6:
+                // max_buffer_count above the hard [.,4096] ceiling.  buffer_count
+                // stays valid (from the arbitrary base), so this is the sole defect.
+                cfg.staging_pool.max_buffer_count = cfg.staging_pool.buffer_count + 4097;
+                break;
         }
         return cfg;
     });
