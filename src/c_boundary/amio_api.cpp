@@ -189,14 +189,24 @@ AMIO_API amio_status_t amio_read(amio_dataset_handle dataset, const char *var_na
                          [&](void *payload) -> amio_status_t { return amio::detail::read(payload, var_name, timestep, bbox, out_view); });
 }
 
-AMIO_API amio_status_t amio_get_var_attribute(amio_dataset_handle dataset, const char *var_name, const char *attr_name, char *out_buf, size_t buf_cap,
-                                              size_t *out_len) {
+AMIO_API amio_status_t amio_get_var_attribute_text(amio_dataset_handle dataset, const char *var_name, const char *attr_name, char *out_buf,
+                                                   size_t buf_cap, size_t *out_len) {
     if (attr_name == nullptr || out_len == nullptr) {
         return AMIO_ERR_INVALID_INPUT;
     }
     *out_len = 0;
     return kind_dispatch(dataset, HandleKind::Dataset, [&](void *payload) -> amio_status_t {
-        return amio::detail::get_var_attribute(payload, var_name, attr_name, out_buf, buf_cap, out_len);
+        return amio::detail::get_var_attribute_text(payload, var_name, attr_name, out_buf, buf_cap, out_len);
+    });
+}
+
+AMIO_API amio_status_t amio_get_var_attribute_double(amio_dataset_handle dataset, const char *var_name, const char *attr_name, double *out_value) {
+    if (attr_name == nullptr || out_value == nullptr) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    *out_value = 0.0;
+    return kind_dispatch(dataset, HandleKind::Dataset, [&](void *payload) -> amio_status_t {
+        return amio::detail::get_var_attribute_double(payload, var_name, attr_name, out_value);
     });
 }
 
@@ -232,6 +242,13 @@ AMIO_API amio_status_t amio_view_shape(amio_view_handle view, amio_shape_t *out_
     }
     std::memset(out_shape, 0, sizeof(amio_shape_t));
     return kind_dispatch(view, HandleKind::View, [&](void *payload) -> amio_status_t { return amio::detail::view_shape(payload, out_shape); });
+}
+
+AMIO_API amio_status_t amio_view_dtype(amio_view_handle view, amio_dtype_t *out_dtype) {
+    if (out_dtype == nullptr) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    return kind_dispatch(view, HandleKind::View, [&](void *payload) -> amio_status_t { return amio::detail::view_dtype(payload, out_dtype); });
 }
 
 // amio_strerror is intentionally NOT defined in this translation

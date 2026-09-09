@@ -842,13 +842,13 @@ static VariableReadState *resolve_variable(DatasetRecord *record, const std::str
 }
 
 // ---------------------------------------------------------------
-// get_var_attribute -- read a CF text attribute for a variable (or a
+// get_var_attribute_text -- read a CF text attribute for a variable (or a
 // global attribute when var_name is empty/NULL). Two-call sizing: pass
 // out_buf == NULL to obtain the length via out_len, then call again with
 // a buffer. Returns AMIO_ERR_BACKEND_FAILURE when the attribute is absent
 // or the backend cannot provide it (callers treat that as "no attribute").
-amio_status_t get_var_attribute(void *dataset_payload, const char *var_name, const char *attr_name, char *out_buf, std::size_t buf_cap,
-                                std::size_t *out_len) {
+amio_status_t get_var_attribute_text(void *dataset_payload, const char *var_name, const char *attr_name, char *out_buf, std::size_t buf_cap,
+                                     std::size_t *out_len) {
     auto *record = static_cast<DatasetRecord *>(dataset_payload);
 
     if (attr_name == nullptr || attr_name[0] == '\0' || out_len == nullptr) {
@@ -878,6 +878,36 @@ amio_status_t get_var_attribute(void *dataset_payload, const char *var_name, con
         }
         out_buf[n] = '\0';
     }
+    return AMIO_OK;
+}
+
+// ---------------------------------------------------------------
+// get_var_attribute_double -- read a numeric attribute (CF packing
+// attributes such as "scale_factor"/"add_offset", or "_FillValue") for a
+// variable, or a global attribute when var_name is empty/NULL. The stored
+// value is converted to double whatever its on-disk type. Returns
+// AMIO_ERR_BACKEND_FAILURE when the attribute is absent or non-numeric
+// (callers treat that as "no attribute").
+amio_status_t get_var_attribute_double(void *dataset_payload, const char *var_name, const char *attr_name, double *out_value) {
+    auto *record = static_cast<DatasetRecord *>(dataset_payload);
+
+    if (attr_name == nullptr || attr_name[0] == '\0' || out_value == nullptr) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    if (record->mode != AMIO_MODE_READ) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    if (!record->driver) {
+        return AMIO_ERR_BACKEND_FAILURE;
+    }
+
+    std::optional<double> value =
+        record->driver->get_numeric_attribute(var_name != nullptr ? std::string(var_name) : std::string(), std::string(attr_name));
+    if (!value) {
+        return AMIO_ERR_BACKEND_FAILURE;
+    }
+
+    *out_value = *value;
     return AMIO_OK;
 }
 
@@ -981,6 +1011,7 @@ amio_status_t read(void *dataset_payload, const char *var_name, std::int64_t tim
     view_rec->core = core;
     view_rec->dataset_id = record->dataset_id;
     view_rec->timestep = timestep;
+    view_rec->dtype = vs->info.dtype;
     if (bbox != nullptr) {
         view_rec->shape.rank = bbox->rank;
         for (int d = 0; d < bbox->rank && d < AMIO_MAX_RANK; ++d) {
@@ -1089,6 +1120,15 @@ amio_status_t view_shape(void *view_payload, amio_shape_t *out_shape) {
         return AMIO_ERR_INVALID_HANDLE;
     }
     *out_shape = view_rec->shape;
+    return AMIO_OK;
+}
+
+amio_status_t view_dtype(void *view_payload, amio_dtype_t *out_dtype) {
+    auto *view_rec = static_cast<ViewRecord *>(view_payload);
+    if (view_rec == nullptr) {
+        return AMIO_ERR_INVALID_HANDLE;
+    }
+    *out_dtype = view_rec->dtype;
     return AMIO_OK;
 }
 

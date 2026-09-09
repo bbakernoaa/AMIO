@@ -76,6 +76,7 @@ struct ViewRecord {
     std::uint64_t dataset_id = 0;
     std::int64_t timestep = -1;
     amio_shape_t shape = {};
+    amio_dtype_t dtype = AMIO_DTYPE_F32;  // element type of staging_buf
 };
 
 // ---------------------------------------------------------------
@@ -249,8 +250,10 @@ amio_status_t write(void *dataset_payload, const char *var_name, const void *hos
 
 amio_status_t read(void *dataset_payload, const char *var_name, std::int64_t timestep, const amio_bbox_t *bbox, amio_view_handle *out_view);
 
-amio_status_t get_var_attribute(void *dataset_payload, const char *var_name, const char *attr_name, char *out_buf, std::size_t buf_cap,
-                                std::size_t *out_len);
+amio_status_t get_var_attribute_text(void *dataset_payload, const char *var_name, const char *attr_name, char *out_buf, std::size_t buf_cap,
+                                     std::size_t *out_len);
+
+amio_status_t get_var_attribute_double(void *dataset_payload, const char *var_name, const char *attr_name, double *out_value);
 
 amio_status_t flush(void *dataset_payload, std::int64_t timeout_ms);
 
@@ -263,6 +266,8 @@ amio_status_t release_view(void *view_payload);
 amio_status_t view_data(void *view_payload, const void **out_data, std::size_t *out_size);
 
 amio_status_t view_shape(void *view_payload, amio_shape_t *out_shape);
+
+amio_status_t view_dtype(void *view_payload, amio_dtype_t *out_dtype);
 
 }  // namespace amio::detail
 

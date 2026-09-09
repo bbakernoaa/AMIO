@@ -35,8 +35,10 @@ extern MPI_Comm g_amio_parent_comm;
 #include <cstring>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace amio::detail {
 
@@ -927,6 +929,38 @@ std::optional<std::string> NetCDF_Driver::get_text_attribute(const std::string &
     }
     val.resize(std::strlen(val.c_str()));  // trim any trailing NUL
     return val;
+#else
+    (void)var_name;
+    (void)attr_name;
+    return std::nullopt;
+#endif
+}
+
+std::optional<double> NetCDF_Driver::get_numeric_attribute(const std::string &var_name, const std::string &attr_name) {
+    if (!is_open_ || is_write_mode_) {
+        return std::nullopt;
+    }
+#ifdef AMIO_HAS_NETCDF
+    int varid = NC_GLOBAL;
+    if (!var_name.empty()) {
+        if (nc_inq_varid(ncid_, var_name.c_str(), &varid) != NC_NOERR) {
+            return std::nullopt;
+        }
+    }
+    int att_type = 0;
+    std::size_t len = 0;
+    if (nc_inq_att(ncid_, varid, attr_name.c_str(), &att_type, &len) != NC_NOERR || len == 0) {
+        return std::nullopt;
+    }
+    if (att_type == NC_CHAR || att_type == NC_STRING) {
+        return std::nullopt;
+    }
+    // nc_get_att_double converts from any numeric on-disk type.
+    std::vector<double> vals(len);
+    if (nc_get_att_double(ncid_, varid, attr_name.c_str(), vals.data()) != NC_NOERR) {
+        return std::nullopt;
+    }
+    return vals.front();
 #else
     (void)var_name;
     (void)attr_name;

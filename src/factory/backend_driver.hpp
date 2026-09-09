@@ -271,6 +271,19 @@ class Backend_Driver {
         return std::nullopt;
     }
 
+    // get_numeric_attribute -- read a numeric attribute (e.g. CF packing
+    // attributes "scale_factor"/"add_offset") for a variable, or a global
+    // attribute when var_name is empty.  The value is converted to double
+    // whatever its on-disk type; only the first element of a multi-valued
+    // attribute is returned.  Returns nullopt when the attribute is absent,
+    // non-numeric, the driver is not open for reading, or the backend cannot
+    // provide attributes.  Default: unsupported (nullopt).
+    virtual std::optional<double> get_numeric_attribute(const std::string &var_name, const std::string &attr_name) {
+        (void)var_name;
+        (void)attr_name;
+        return std::nullopt;
+    }
+
     // flush -- ensure all previously written data is durable.
     //
     // Blocks until all pending internal write operations (if any)

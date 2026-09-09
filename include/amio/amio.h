@@ -199,8 +199,27 @@ AMIO_API amio_status_t amio_read(amio_dataset_handle dataset, const char *var_na
  *   - AMIO_ERR_NULL_HANDLE / AMIO_ERR_INVALID_HANDLE — bad dataset handle
  *   - AMIO_ERR_BACKEND_FAILURE — attribute absent or backend cannot provide it
  */
-AMIO_API amio_status_t amio_get_var_attribute(amio_dataset_handle dataset, const char *var_name, const char *attr_name, char *out_buf, size_t buf_cap,
-                                              size_t *out_len);
+AMIO_API amio_status_t amio_get_var_attribute_text(amio_dataset_handle dataset, const char *var_name, const char *attr_name, char *out_buf,
+                                                   size_t buf_cap, size_t *out_len);
+
+/**
+ * @brief Read a variable's numeric attribute (e.g. "scale_factor", "add_offset").
+ *
+ * The stored value is converted to double regardless of its on-disk type.
+ * Only the first element of a multi-valued attribute is returned. Pass an
+ * empty or NULL @p var_name to read a global attribute.
+ *
+ * @param[in]  dataset    A read dataset handle from amio_open_dataset().
+ * @param[in]  var_name   Variable name, or ""/NULL for a global attribute.
+ * @param[in]  attr_name  NUL-terminated attribute name.
+ * @param[out] out_value  Receives the attribute value.
+ *
+ * @return AMIO_OK on success, or one of:
+ *   - AMIO_ERR_INVALID_INPUT — NULL attr_name/out_value, or a write-mode dataset
+ *   - AMIO_ERR_NULL_HANDLE / AMIO_ERR_INVALID_HANDLE — bad dataset handle
+ *   - AMIO_ERR_BACKEND_FAILURE — attribute absent, non-numeric, or unavailable
+ */
+AMIO_API amio_status_t amio_get_var_attribute_double(amio_dataset_handle dataset, const char *var_name, const char *attr_name, double *out_value);
 
 /**
  * @brief Block until all pending writes for a dataset complete or timeout.
@@ -272,6 +291,24 @@ AMIO_API amio_status_t amio_view_data(amio_view_handle view, const void **out_da
  *   - AMIO_ERR_INVALID_INPUT — out_shape is NULL
  */
 AMIO_API amio_status_t amio_view_shape(amio_view_handle view, amio_shape_t *out_shape);
+
+/**
+ * @brief Retrieve the element type of an outstanding read view.
+ *
+ * The buffer returned by amio_view_data() holds elements of this type, as
+ * reported by the backend for the variable that was read. Callers must consult
+ * this before interpreting the payload: the byte size alone cannot distinguish
+ * (for example) 32-bit integers from single-precision floats.
+ *
+ * @param[in]  view       A valid view handle from amio_read().
+ * @param[out] out_dtype  Non-NULL pointer; receives the element type.
+ *
+ * @return AMIO_OK on success, or one of:
+ *   - AMIO_ERR_NULL_HANDLE — view is NULL
+ *   - AMIO_ERR_INVALID_HANDLE — view stale or wrong kind
+ *   - AMIO_ERR_INVALID_INPUT — out_dtype is NULL
+ */
+AMIO_API amio_status_t amio_view_dtype(amio_view_handle view, amio_dtype_t *out_dtype);
 
 /**
  * @brief Release a read-side Memory_View, returning its buffer to the pool.

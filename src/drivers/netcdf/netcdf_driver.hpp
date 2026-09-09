@@ -102,6 +102,11 @@ class NetCDF_Driver : public Backend_Driver {
     // or the driver is not open for reading.  (CF time-axis decoding support.)
     std::optional<std::string> get_text_attribute(const std::string &var_name, const std::string &attr_name) override;
 
+    // Read a numeric attribute ("scale_factor", "add_offset", ...) for a
+    // variable, or a global attribute when var_name is empty.  Returns
+    // nullopt if absent, non-numeric, or the driver is not open for reading.
+    std::optional<double> get_numeric_attribute(const std::string &var_name, const std::string &attr_name) override;
+
    public:
     // ----- Static utility methods (public for testability) -----
 
