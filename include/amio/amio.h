@@ -45,7 +45,7 @@ extern "C" {
  *  @{
  */
 #define AMIO_ABI_VERSION_MAJOR 0 /**< ABI major version */
-#define AMIO_ABI_VERSION_MINOR 1 /**< ABI minor version */
+#define AMIO_ABI_VERSION_MINOR 2 /**< ABI minor version */
 #define AMIO_ABI_VERSION_PATCH 0 /**< ABI patch version */
 /** @} */
 
@@ -178,6 +178,29 @@ AMIO_API amio_status_t amio_write(amio_dataset_handle dataset, const char *var_n
  */
 AMIO_API amio_status_t amio_read(amio_dataset_handle dataset, const char *var_name, int64_t timestep, const amio_bbox_t *bbox,
                                  amio_view_handle *out_view);
+
+/**
+ * @brief Read a variable's text attribute (e.g. "units", "calendar").
+ *
+ * Two-call pattern: pass @p out_buf == NULL to query the length via
+ * @p out_len, then call again with a buffer of @p buf_cap bytes. The written
+ * string is NUL-terminated and truncated to fit. Pass an empty or NULL
+ * @p var_name to read a global attribute.
+ *
+ * @param[in]  dataset    A read dataset handle from amio_open_dataset().
+ * @param[in]  var_name   Variable name, or ""/NULL for a global attribute.
+ * @param[in]  attr_name  NUL-terminated attribute name.
+ * @param[out] out_buf    Destination buffer, or NULL to size only.
+ * @param[in]  buf_cap    Capacity of @p out_buf in bytes.
+ * @param[out] out_len    Receives the attribute length in bytes (excl. NUL).
+ *
+ * @return AMIO_OK on success, or one of:
+ *   - AMIO_ERR_INVALID_INPUT — NULL attr_name/out_len, or a write-mode dataset
+ *   - AMIO_ERR_NULL_HANDLE / AMIO_ERR_INVALID_HANDLE — bad dataset handle
+ *   - AMIO_ERR_BACKEND_FAILURE — attribute absent or backend cannot provide it
+ */
+AMIO_API amio_status_t amio_get_var_attribute(amio_dataset_handle dataset, const char *var_name, const char *attr_name, char *out_buf, size_t buf_cap,
+                                              size_t *out_len);
 
 /**
  * @brief Block until all pending writes for a dataset complete or timeout.

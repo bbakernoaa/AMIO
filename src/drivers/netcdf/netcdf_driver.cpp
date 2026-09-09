@@ -906,6 +906,34 @@ bool nc_type_to_dtype(int nc_type, amio_dtype_t &out) {
 }  // namespace
 #endif  // AMIO_HAS_NETCDF
 
+std::optional<std::string> NetCDF_Driver::get_text_attribute(const std::string &var_name, const std::string &attr_name) {
+    if (!is_open_ || is_write_mode_) {
+        return std::nullopt;
+    }
+#ifdef AMIO_HAS_NETCDF
+    int varid = NC_GLOBAL;
+    if (!var_name.empty()) {
+        if (nc_inq_varid(ncid_, var_name.c_str(), &varid) != NC_NOERR) {
+            return std::nullopt;
+        }
+    }
+    std::size_t len = 0;
+    if (nc_inq_attlen(ncid_, varid, attr_name.c_str(), &len) != NC_NOERR || len == 0) {
+        return std::nullopt;
+    }
+    std::string val(len, '\0');
+    if (nc_get_att_text(ncid_, varid, attr_name.c_str(), val.data()) != NC_NOERR) {
+        return std::nullopt;
+    }
+    val.resize(std::strlen(val.c_str()));  // trim any trailing NUL
+    return val;
+#else
+    (void)var_name;
+    (void)attr_name;
+    return std::nullopt;
+#endif
+}
+
 VariableInfo NetCDF_Driver::describe_variable(const std::string &name) {
     VariableInfo info{};  // found == false by default.
 

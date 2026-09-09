@@ -189,6 +189,17 @@ AMIO_API amio_status_t amio_read(amio_dataset_handle dataset, const char *var_na
                          [&](void *payload) -> amio_status_t { return amio::detail::read(payload, var_name, timestep, bbox, out_view); });
 }
 
+AMIO_API amio_status_t amio_get_var_attribute(amio_dataset_handle dataset, const char *var_name, const char *attr_name, char *out_buf, size_t buf_cap,
+                                              size_t *out_len) {
+    if (attr_name == nullptr || out_len == nullptr) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    *out_len = 0;
+    return kind_dispatch(dataset, HandleKind::Dataset, [&](void *payload) -> amio_status_t {
+        return amio::detail::get_var_attribute(payload, var_name, attr_name, out_buf, buf_cap, out_len);
+    });
+}
+
 AMIO_API amio_status_t amio_flush(amio_dataset_handle dataset, int64_t timeout_ms) {
     return kind_dispatch(dataset, HandleKind::Dataset, [&](void *payload) -> amio_status_t { return amio::detail::flush(payload, timeout_ms); });
 }

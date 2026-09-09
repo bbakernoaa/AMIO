@@ -249,6 +249,9 @@ amio_status_t write(void *dataset_payload, const char *var_name, const void *hos
 
 amio_status_t read(void *dataset_payload, const char *var_name, std::int64_t timestep, const amio_bbox_t *bbox, amio_view_handle *out_view);
 
+amio_status_t get_var_attribute(void *dataset_payload, const char *var_name, const char *attr_name, char *out_buf, std::size_t buf_cap,
+                                std::size_t *out_len);
+
 amio_status_t flush(void *dataset_payload, std::int64_t timeout_ms);
 
 amio_status_t close(void *dataset_payload);

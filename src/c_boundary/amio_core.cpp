@@ -842,6 +842,45 @@ static VariableReadState *resolve_variable(DatasetRecord *record, const std::str
 }
 
 // ---------------------------------------------------------------
+// get_var_attribute -- read a CF text attribute for a variable (or a
+// global attribute when var_name is empty/NULL). Two-call sizing: pass
+// out_buf == NULL to obtain the length via out_len, then call again with
+// a buffer. Returns AMIO_ERR_BACKEND_FAILURE when the attribute is absent
+// or the backend cannot provide it (callers treat that as "no attribute").
+amio_status_t get_var_attribute(void *dataset_payload, const char *var_name, const char *attr_name, char *out_buf, std::size_t buf_cap,
+                                std::size_t *out_len) {
+    auto *record = static_cast<DatasetRecord *>(dataset_payload);
+
+    if (attr_name == nullptr || attr_name[0] == '\0' || out_len == nullptr) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    if (record->mode != AMIO_MODE_READ) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    if (!record->driver) {
+        return AMIO_ERR_BACKEND_FAILURE;
+    }
+
+    std::optional<std::string> value =
+        record->driver->get_text_attribute(var_name != nullptr ? std::string(var_name) : std::string(), std::string(attr_name));
+    if (!value) {
+        return AMIO_ERR_BACKEND_FAILURE;
+    }
+
+    *out_len = value->size();
+    if (out_buf != nullptr && buf_cap > 0) {
+        std::size_t n = value->size();
+        if (n > buf_cap - 1) {
+            n = buf_cap - 1;
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+            out_buf[i] = (*value)[i];
+        }
+        out_buf[n] = '\0';
+    }
+    return AMIO_OK;
+}
+
 // amio_read -- task 8: read coordinator + lazy per-variable resolve
 //
 // Validation order (design §5):
