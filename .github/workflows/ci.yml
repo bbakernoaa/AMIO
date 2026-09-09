@@ -3,7 +3,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,7 +40,7 @@ jobs:
       - name: Build and Test
         run: |
           docker run --rm -v ${{ github.workspace }}:/src:ro -w /tmp/build amio-dev:latest \
-            bash -c "cmake /src -GNinja \
+            bash -c "CMAKE_PREFIX_PATH=/opt/helm cmake /src -GNinja \
               -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
               -DAMIO_BUILD_TESTING=ON \
               -DAMIO_BUILD_EXAMPLES=ON \

@@ -138,8 +138,23 @@ RUN git clone --depth 1 https://github.com/emil-e/rapidcheck.git /tmp/rc-src \
     && ninja -j$(nproc) && ninja install \
     && rm -rf /tmp/rc-src /tmp/rc-build
 
-ENV CMAKE_PREFIX_PATH="/opt/ecbuild;/opt/eckit;/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck"
-ENV LD_LIBRARY_PATH="/opt/eckit/lib:/opt/jasper/lib:/opt/g2c/lib"
+# HELM Micro-libraries (configuration and MPI and logging)
+RUN git clone --depth 1 https://github.com/bbakerNOAA/HELM-Project.git /tmp/helm-src \
+    && for project in conf logs halo; do \
+      echo ${project} \
+      && mkdir /tmp/helm-${project}-build \
+      && cmake -S /tmp/helm-src/libs/${project} -B /tmp/helm-${project}-build -GNinja \
+         -DCMAKE_INSTALL_PREFIX=/opt/helm \
+         -DCMAKE_BUILD_TYPE=Release \
+      && cmake --build /tmp/helm-${project}-build \
+      && cmake --install /tmp/helm-${project}-build --prefix /opt/helm \
+      && rm -rf /tmp/helm-${project}-build ; \
+    done \
+    && rm -rf /tmp/helm-src \
+    && ls -R /opt/helm
+
+ENV CMAKE_PREFIX_PATH="/opt/ecbuild;/opt/eckit;/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck;/opt/helm"
+ENV LD_LIBRARY_PATH="/opt/eckit/lib:/opt/jasper/lib:/opt/g2c/lib:/opt/helm/lib"
 
 # ===================================================================
 # Stage 2: build - configure, compile, test, and install AMIO
