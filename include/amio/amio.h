@@ -230,6 +230,28 @@ AMIO_API amio_status_t amio_read(amio_dataset_handle dataset, const char *var_na
                                  amio_view_handle *out_view);
 
 /**
+ * @brief Query a variable's shape and record count without reading data.
+ *
+ * Returns the variable's per-timestep shape (the same shape amio_read()
+ * validates a bbox against) and its total timestep count.  Stages NO
+ * payload, so a caller can size a selective read (and its record loop)
+ * without probing amio_read() at out-of-range timesteps.
+ *
+ * @param[in]  dataset             A read-mode dataset handle.
+ * @param[in]  var_name            NUL-terminated variable identifier.
+ * @param[out] out_shape           Receives the variable's shape descriptor.
+ * @param[out] out_total_timesteps Receives the number of temporal records
+ *                                 (1 for a non-time-varying variable).
+ *
+ * @return AMIO_OK on success, or one of:
+ *   - AMIO_ERR_NULL_HANDLE — dataset is NULL
+ *   - AMIO_ERR_INVALID_HANDLE — dataset stale or wrong kind
+ *   - AMIO_ERR_INVALID_INPUT — NULL var_name/outputs or write-mode dataset
+ *   - AMIO_ERR_BACKEND_FAILURE — variable absent / driver cannot describe it
+ */
+AMIO_API amio_status_t amio_describe(amio_dataset_handle dataset, const char *var_name, amio_shape_t *out_shape, int64_t *out_total_timesteps);
+
+/**
  * @brief Block until all pending writes for a dataset complete or timeout.
  *
  * @param[in] dataset     A write dataset handle.

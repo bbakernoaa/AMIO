@@ -953,9 +953,11 @@ static VariableReadState *resolve_variable(DatasetRecord *record, const std::str
                                                    static_cast<std::int64_t>(record->dataset_config.prefetch.read_timeout_s), pool, workers,
                                                    record->driver.get(), record->dataset_id, var_name, info, info.total_timesteps);
 
-    // Kick off the initial min(depth, total_timesteps) look-ahead
-    // fetches for this variable (Req 5.1).
-    state->queue->schedule_initial();
+    // The initial look-ahead window is NOT scheduled here: the first
+    // get_buffer call self-kicks-off, so the window starts at the timestep
+    // the host actually requests and uses the caller's latched selection
+    // (bbox) rather than eagerly staging full records from timestep 0.
+    // (schedule_initial remains public for tests and explicit warm-up.)
 
     VariableReadState *raw = state.get();
     record->variables.emplace(var_name, std::move(state));
@@ -988,6 +990,30 @@ static VariableReadState *resolve_variable(DatasetRecord *record, const std::str
 //
 // Validates: R2.3, R2.4, R3.1, R3.2, R4.5, R5.1, R5.2, R5.3, R6.4, R6.5, R6.6, R12.1, R12.2, R12.3, R12.4
 // ---------------------------------------------------------------
+amio_status_t describe(void *dataset_payload, const char *var_name, amio_shape_t *out_shape, std::int64_t *out_total_timesteps) {
+    auto *record = static_cast<DatasetRecord *>(dataset_payload);
+
+    if (var_name == nullptr || var_name[0] == '\0' || out_shape == nullptr || out_total_timesteps == nullptr) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    if (record->mode != AMIO_MODE_READ) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+
+    // resolve_variable caches the driver's describe_variable result in the
+    // per-variable read state.  Since the look-ahead window now self-kicks-
+    // off on the first get_buffer (not at resolve time), calling describe
+    // resolves metadata WITHOUT staging any payload.
+    VariableReadState *vs = resolve_variable(record, var_name);
+    if (vs == nullptr) {
+        return AMIO_ERR_BACKEND_FAILURE;
+    }
+
+    *out_shape = vs->info.shape;
+    *out_total_timesteps = vs->info.total_timesteps;
+    return AMIO_OK;
+}
+
 amio_status_t read(void *dataset_payload, const char *var_name, std::int64_t timestep, const amio_bbox_t *bbox, amio_view_handle *out_view) {
     auto *record = static_cast<DatasetRecord *>(dataset_payload);
 

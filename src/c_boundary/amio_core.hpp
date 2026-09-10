@@ -304,6 +304,16 @@ amio_status_t open_dataset_from_string(void *core_payload, const char *config_co
 
 amio_status_t close_dataset(void *dataset_payload);
 
+// describe -- query a variable's per-timestep shape and record count WITHOUT
+// staging any payload.  Returns AMIO_ERR_INVALID_INPUT for a null/empty name
+// or null outputs, AMIO_ERR_INVALID_INPUT on a write-mode dataset, and
+// AMIO_ERR_BACKEND_FAILURE when the driver cannot describe the variable.
+// `out_shape` receives the variable's Dataset_Metadata shape (the same shape
+// amio_read validates a bbox against); `out_total_timesteps` the number of
+// temporal records.  Lets a caller size a bounding box (and its record loop)
+// without the binary-search-over-amio_read probe it would otherwise need.
+amio_status_t describe(void *dataset_payload, const char *var_name, amio_shape_t *out_shape, std::int64_t *out_total_timesteps);
+
 amio_status_t write(void *dataset_payload, const char *var_name, const void *host_data, amio_dtype_t dtype, const amio_shape_t *shape,
                     amio_io_handle *out_io);
 

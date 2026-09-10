@@ -216,6 +216,19 @@ AMIO_API amio_status_t amio_write(amio_dataset_handle dataset, const char *var_n
                          [&](void *payload) -> amio_status_t { return amio::detail::write(payload, var_name, host_data, dtype, shape, out_io); });
 }
 
+AMIO_API amio_status_t amio_describe(amio_dataset_handle dataset, const char *var_name, amio_shape_t *out_shape, int64_t *out_total_timesteps) {
+    if (out_shape == nullptr || out_total_timesteps == nullptr) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    *out_shape = amio_shape_t{};
+    *out_total_timesteps = 0;
+    if (var_name == nullptr) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    return kind_dispatch(dataset, HandleKind::Dataset,
+                         [&](void *payload) -> amio_status_t { return amio::detail::describe(payload, var_name, out_shape, out_total_timesteps); });
+}
+
 AMIO_API amio_status_t amio_read(amio_dataset_handle dataset, const char *var_name, int64_t timestep, const amio_bbox_t *bbox,
                                  amio_view_handle *out_view) {
     if (out_view == nullptr) {

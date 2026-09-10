@@ -41,12 +41,38 @@ PrefetchQueue::~PrefetchQueue() {
     cancel_pending();
 }
 
+bool PrefetchQueue::bbox_same(const std::optional<amio_bbox_t> &a, const std::optional<amio_bbox_t> &b) noexcept {
+    if (!a.has_value() != !b.has_value()) {
+        return false;  // one full-record, one windowed.
+    }
+    if (!a.has_value()) {
+        return true;  // both full-record.
+    }
+    const amio_bbox_t &x = *a;
+    const amio_bbox_t &y = *b;
+    if (x.rank != y.rank) {
+        return false;
+    }
+    for (int d = 0; d < x.rank && d < AMIO_MAX_RANK; ++d) {
+        if (x.offsets[d] != y.offsets[d] || x.extents[d] != y.extents[d] || x.strides[d] != y.strides[d]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void PrefetchQueue::schedule_initial() {
-    // Schedule min(N, M) fetches for timesteps [0, min(N, M)).
+    // Schedule min(N, M) fetches for timesteps [0, min(N, M)) using the
+    // latched selection (nullopt == full record when nothing has been
+    // latched yet).
     std::int64_t count = static_cast<std::int64_t>(std::min(static_cast<std::int64_t>(depth_), total_timesteps_));
 
+    {
+        std::lock_guard<std::mutex> lock(mu_);
+        kicked_off_ = true;
+    }
     for (std::int64_t t = 0; t < count; ++t) {
-        schedule_fetch(t, nullptr);
+        schedule_fetch(t);
     }
 }
 
@@ -56,6 +82,29 @@ amio_status_t PrefetchQueue::get_buffer(std::int64_t timestep, const amio_bbox_t
 
     std::unique_lock<std::mutex> lock(mu_);
 
+    // ---- Latch the caller's selection (see header doc) ----
+    // Every look-ahead fetch from now on reads this same sub-region, so
+    // prefetch traffic matches the window the host is consuming instead of
+    // pulling full records behind the caller's back.
+    const std::optional<amio_bbox_t> req_bbox = (bbox != nullptr) ? std::optional<amio_bbox_t>(*bbox) : std::nullopt;
+    latched_bbox_ = req_bbox;
+
+    // ---- First-touch kick-off ----
+    // Open the look-ahead window starting at the timestep the host actually
+    // requested (not at 0), so records before the first read are never
+    // staged.  resolve_variable no longer pre-schedules; this is the normal
+    // entry point for the prefetch pipeline.
+    if (!kicked_off_) {
+        kicked_off_ = true;
+        std::int64_t count = static_cast<std::int64_t>(std::min(static_cast<std::int64_t>(depth_), total_timesteps_ - timestep));
+        // schedule_fetch re-locks mu_, so release it around the dispatches.
+        lock.unlock();
+        for (std::int64_t k = 0; k < count; ++k) {
+            schedule_fetch(timestep + k);
+        }
+        lock.lock();
+    }
+
     // Check if the fetch already failed.
     auto fail_it = failed_.find(timestep);
     if (fail_it != failed_.end()) {
@@ -64,19 +113,34 @@ amio_status_t PrefetchQueue::get_buffer(std::int64_t timestep, const amio_bbox_t
         return static_cast<amio_status_t>(err);
     }
 
-    // Check if the buffer is already completed.
+    // Check if the buffer is already completed -- but ONLY return it when it
+    // was fetched with exactly the requested selection.  A buffer staged
+    // under a different window (e.g. a full record prefetched before the
+    // caller's bbox was latched) is released and re-fetched below, so the
+    // host never sees data that does not match its bbox.
     auto comp_it = completed_.find(timestep);
     if (comp_it != completed_.end()) {
-        *out_buf = comp_it->second;
+        auto fb_it = fetched_bbox_.find(timestep);
+        std::optional<amio_bbox_t> have = (fb_it != fetched_bbox_.end()) ? std::optional<amio_bbox_t>(fb_it->second) : std::nullopt;
+        if (bbox_same(have, req_bbox)) {
+            *out_buf = comp_it->second;
+            completed_.erase(comp_it);
+            fetched_bbox_.erase(timestep);
+            return AMIO_OK;
+        }
+        // Stale selection: drop it and fall through to a fresh fetch.
+        if (pool_) {
+            pool_->release(comp_it->second);
+        }
         completed_.erase(comp_it);
-        return AMIO_OK;
+        fetched_bbox_.erase(timestep);
     }
 
     // Check if the timestep is pending -- if not, schedule it now.
     if (pending_.find(timestep) == pending_.end()) {
         // Not pending, not completed, not failed -- schedule it.
         lock.unlock();
-        schedule_fetch(timestep, bbox);
+        schedule_fetch(timestep);
         lock.lock();
     }
 
@@ -84,12 +148,27 @@ amio_status_t PrefetchQueue::get_buffer(std::int64_t timestep, const amio_bbox_t
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(read_timeout_s_);
 
     while (true) {
-        // Check completed.
+        // Check completed (exact-selection match, same rule as above).
         comp_it = completed_.find(timestep);
         if (comp_it != completed_.end()) {
-            *out_buf = comp_it->second;
+            auto fb_it = fetched_bbox_.find(timestep);
+            std::optional<amio_bbox_t> have = (fb_it != fetched_bbox_.end()) ? std::optional<amio_bbox_t>(fb_it->second) : std::nullopt;
+            if (bbox_same(have, req_bbox)) {
+                *out_buf = comp_it->second;
+                completed_.erase(comp_it);
+                fetched_bbox_.erase(timestep);
+                return AMIO_OK;
+            }
+            // A fetch with a stale selection landed while we waited:
+            // release it and re-fetch with the current selection.
+            if (pool_) {
+                pool_->release(comp_it->second);
+            }
             completed_.erase(comp_it);
-            return AMIO_OK;
+            fetched_bbox_.erase(timestep);
+            lock.unlock();
+            schedule_fetch(timestep);
+            lock.lock();
         }
 
         // Check failed.
@@ -128,42 +207,23 @@ amio_status_t PrefetchQueue::get_buffer(std::int64_t timestep, const amio_bbox_t
 
 void PrefetchQueue::schedule_next(std::int64_t current_timestep) {
     std::int64_t next_t = current_timestep + static_cast<std::int64_t>(depth_);
-    if (next_t < total_timesteps_) {
-        // Only schedule if not already pending, completed, or failed.
-        std::lock_guard<std::mutex> lock(mu_);
-        if (pending_.find(next_t) == pending_.end() && completed_.find(next_t) == completed_.end() && failed_.find(next_t) == failed_.end()) {
-            // Release lock before scheduling to avoid holding mu_
-            // during potentially blocking operations.
-        } else {
-            return;  // Already tracked.
-        }
-        // We need to schedule outside the lock.
-        // Mark as pending under the lock first.
-        pending_.insert(next_t);
-    } else {
+    if (next_t >= total_timesteps_) {
         return;  // Out of bounds, no fetch needed.
     }
-
-    // Perform the actual scheduling outside the lock.
-    if (workers_ != nullptr) {
-        // Dispatch to worker pool as a prefetch task.
-        std::int64_t distance = next_t - current_timestep;
-        auto self = this;
-        auto timestep_to_fetch = next_t;
-
-        workers_->submit_prefetch(timestep_to_fetch, distance, dataset_id_,
-                                  [self, timestep_to_fetch]() { self->sync_fetch(timestep_to_fetch, nullptr); });
-    } else {
-        // Synchronous fallback: perform the fetch directly.
-        // Note: pending_ was already marked above under the lock.
-        sync_fetch(next_t, nullptr);
-    }
+    // schedule_fetch performs the already-tracked check and marks pending
+    // under the lock itself, then dispatches with the latched selection.
+    schedule_fetch(next_t);
 }
 
-void PrefetchQueue::mark_complete(std::int64_t timestep, StagingBuffer *buf) {
+void PrefetchQueue::mark_complete(std::int64_t timestep, StagingBuffer *buf, const std::optional<amio_bbox_t> &bbox) {
     std::lock_guard<std::mutex> lock(mu_);
     pending_.erase(timestep);
     completed_[timestep] = buf;
+    if (bbox.has_value()) {
+        fetched_bbox_[timestep] = *bbox;
+    } else {
+        fetched_bbox_.erase(timestep);
+    }
     cv_.notify_all();
 }
 
@@ -188,6 +248,7 @@ void PrefetchQueue::cancel_pending() {
         }
     }
     completed_.clear();
+    fetched_bbox_.clear();
     failed_.clear();
     cv_.notify_all();
 }
@@ -207,7 +268,8 @@ std::size_t PrefetchQueue::failed_count() const noexcept {
     return failed_.size();
 }
 
-void PrefetchQueue::schedule_fetch(std::int64_t timestep, const amio_bbox_t *bbox) {
+void PrefetchQueue::schedule_fetch(std::int64_t timestep) {
+    std::optional<amio_bbox_t> sel;
     {
         std::lock_guard<std::mutex> lock(mu_);
         if (cancelled_) return;
@@ -217,20 +279,25 @@ void PrefetchQueue::schedule_fetch(std::int64_t timestep, const amio_bbox_t *bbo
             return;
         }
         pending_.insert(timestep);
+        sel = latched_bbox_;  // fetch the host's window, not the full record
     }
 
     if (workers_ != nullptr) {
-        // Dispatch to worker pool as a prefetch task.
+        // Dispatch to worker pool as a prefetch task.  The selection is
+        // captured BY VALUE: the latched bbox may change (or the caller's
+        // bbox storage may vanish) before the worker runs, so a raw pointer
+        // here would dangle.
         auto self = this;
         auto ts = timestep;
 
         workers_->submit_prefetch(timestep,
                                   timestep,  // distance = timestep (from position 0)
-                                  dataset_id_, [self, ts, bbox]() { self->sync_fetch(ts, bbox); });
+                                  dataset_id_,
+                                  [self, ts, sel]() { self->sync_fetch(ts, sel.has_value() ? &*sel : nullptr); });
     } else {
         // Synchronous fallback: perform the fetch directly on the
         // calling thread.
-        sync_fetch(timestep, bbox);
+        sync_fetch(timestep, sel.has_value() ? &*sel : nullptr);
     }
 }
 
@@ -269,6 +336,25 @@ void PrefetchQueue::sync_fetch(std::int64_t timestep, const amio_bbox_t *bbox) {
             }
             if (valid) {
                 payload_bytes = elem * product;
+            }
+        }
+
+        // When a selection is active, size the acquisition from the bbox
+        // extents (the payload the driver will actually write) rather than
+        // the full variable shape: a band-window fetch must not force a
+        // full-record buffer.
+        if (bbox != nullptr && bbox->rank > 0) {
+            std::size_t win_product = 1;
+            bool win_valid = elem > 0;
+            for (int d = 0; d < bbox->rank && d < AMIO_MAX_RANK; ++d) {
+                if (bbox->extents[d] <= 0) {
+                    win_valid = false;
+                    break;
+                }
+                win_product *= static_cast<std::size_t>(bbox->extents[d]);
+            }
+            if (win_valid) {
+                payload_bytes = elem * win_product;
             }
         }
 
@@ -331,7 +417,7 @@ void PrefetchQueue::sync_fetch(std::int64_t timestep, const amio_bbox_t *bbox) {
             return;
         }
 
-        mark_complete(timestep, buf);
+        mark_complete(timestep, buf, (bbox != nullptr) ? std::optional<amio_bbox_t>(*bbox) : std::nullopt);
     } catch (const std::exception &e) {
         std::cerr << "[AMIO PREFETCH ERROR] driver_->read failed: " << e.what() << std::endl;
         if (pool_ && buf) {
