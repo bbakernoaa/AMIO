@@ -1126,9 +1126,16 @@ VariableInfo NetCDF_Driver::describe_variable(const std::string &name) {
     }
 
     int reported_rank = ndims - shape_start;
+    if (reported_rank < 1 && ndims >= 1) {
+        // The variable is nothing but the record dimension, so it is that
+        // axis's coordinate variable rather than a field sampled along it
+        // (e.g. `double time(time)`).  Describe it whole, so one read returns
+        // the entire axis instead of the variable being undescribable.
+        total_timesteps = 1;
+        shape_start = 0;
+        reported_rank = ndims;
+    }
     if (reported_rank < 1 || reported_rank > AMIO_MAX_RANK) {
-        // A variable consisting solely of the record dimension has no
-        // per-timestep spatial shape we can describe for sizing.
         return info;
     }
 
