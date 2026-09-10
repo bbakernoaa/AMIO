@@ -54,8 +54,7 @@ amio_err_t ConfigLoader::validate(const Config &config, ValidationError &error_o
     // staging_pool.max_buffer_count [buffer_count, 4096] -- the auto-grow
     // ceiling must be at least the initial count (else the pool could not
     // hold its own provisioned slots) and within the hard limit.
-    if (config.staging_pool.max_buffer_count < config.staging_pool.buffer_count ||
-        config.staging_pool.max_buffer_count > kMaxBufferCount) {
+    if (config.staging_pool.max_buffer_count < config.staging_pool.buffer_count || config.staging_pool.max_buffer_count > kMaxBufferCount) {
         error_out.field_path = "staging_pool.max_buffer_count";
         error_out.message = "max_buffer_count must be in [buffer_count, 4096], got " + std::to_string(config.staging_pool.max_buffer_count) +
                             " with buffer_count " + std::to_string(config.staging_pool.buffer_count);

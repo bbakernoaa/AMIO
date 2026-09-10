@@ -292,8 +292,7 @@ void PrefetchQueue::schedule_fetch(std::int64_t timestep) {
 
         workers_->submit_prefetch(timestep,
                                   timestep,  // distance = timestep (from position 0)
-                                  dataset_id_,
-                                  [self, ts, sel]() { self->sync_fetch(ts, sel.has_value() ? &*sel : nullptr); });
+                                  dataset_id_, [self, ts, sel]() { self->sync_fetch(ts, sel.has_value() ? &*sel : nullptr); });
     } else {
         // Synchronous fallback: perform the fetch directly on the
         // calling thread.

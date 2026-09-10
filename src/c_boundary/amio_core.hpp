@@ -18,6 +18,7 @@
 #define AMIO_SRC_C_BOUNDARY_AMIO_CORE_HPP
 
 #include <atomic>
+#include <conf/config.hpp>
 #include <cstdint>
 #include <logs/logger.hpp>
 #include <memory>
@@ -26,8 +27,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <conf/config.hpp>
 
 #include "amio/amio_errors.h"
 #include "amio/amio_types.h"

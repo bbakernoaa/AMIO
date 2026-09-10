@@ -28,10 +28,8 @@ add_subdirectory(unit)
 if(NOT TARGET Catch2::Catch2)
     find_package(Catch2 3 CONFIG QUIET)
 endif()
-# A parent project (e.g. CECE) may already provide the `rapidcheck` target via
-# FetchContent.  Re-running find_package(rapidcheck CONFIG) in that case tries
-# to re-declare the installed export set and errors on the partial overlap, so
-# only search when the target is not already available.
+# A parent project (e.g. CECE) may already provide the `rapidcheck` target via FetchContent.  Re-running find_package(rapidcheck CONFIG) in that case
+# tries to re-declare the installed export set and errors on the partial overlap, so only search when the target is not already available.
 if(NOT TARGET rapidcheck)
     find_package(rapidcheck CONFIG QUIET)
 endif()

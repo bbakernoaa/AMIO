@@ -25,7 +25,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-
 #include <iostream>
 
 namespace amio::detail {
@@ -33,8 +32,7 @@ namespace amio::detail {
 StagingPool::StagingPool(std::size_t buffer_count, std::size_t buffer_capacity, std::int64_t timeout_ms)
     : StagingPool(buffer_count, buffer_capacity, timeout_ms, kMaxBufferCount, GrowMode::Grow) {}
 
-StagingPool::StagingPool(std::size_t buffer_count, std::size_t buffer_capacity, std::int64_t timeout_ms, std::size_t max_buffer_count,
-                         GrowMode mode)
+StagingPool::StagingPool(std::size_t buffer_count, std::size_t buffer_capacity, std::int64_t timeout_ms, std::size_t max_buffer_count, GrowMode mode)
     : buffer_count_(buffer_count), buffer_capacity_(buffer_capacity), timeout_ms_(timeout_ms), grow_mode_(mode) {
     assert(buffer_count >= kMinBufferCount && buffer_count <= kMaxBufferCount);
     assert(buffer_capacity >= kMinBufferCapacity && buffer_capacity <= kMaxBufferCapacity);

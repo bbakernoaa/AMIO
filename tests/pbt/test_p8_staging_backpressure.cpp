@@ -55,8 +55,7 @@ TEST_CASE("P8: exhausted StagingPool returns nullptr within timeout", "[pbt][p8]
 
             // Create the pool with the generated timeout.  Bounded mode:
             // backpressure is the contract under test here.
-            amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms, buffer_count,
-                                           amio::detail::StagingPool::GrowMode::Bounded);
+            amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms, buffer_count, amio::detail::StagingPool::GrowMode::Bounded);
 
             // Verify initial state.
             RC_ASSERT(pool.total_buffer_count() == buffer_count);
@@ -138,8 +137,7 @@ TEST_CASE("P8: source data unmodified after backpressure rejection", "[pbt][p8][
         std::vector<std::byte> original_data = source_data;
 
         // Create pool and exhaust it (Bounded: no auto-grow past count).
-        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms, buffer_count,
-                                       amio::detail::StagingPool::GrowMode::Bounded);
+        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms, buffer_count, amio::detail::StagingPool::GrowMode::Bounded);
 
         std::vector<amio::detail::StagingBuffer *> acquired;
         for (std::size_t i = 0; i < buffer_count; ++i) {

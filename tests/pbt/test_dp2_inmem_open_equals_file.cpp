@@ -94,8 +94,7 @@ amio_core_handle make_core() {
 // **Validates: Requirements 2.1, 2.2**
 // ===================================================================
 
-TEST_CASE("Feature: driver-io-regrid-perf, Property 2: in-memory open equals file-based open",
-          "[pbt][driver-io-regrid-perf][dp2][inmem_open]") {
+TEST_CASE("Feature: driver-io-regrid-perf, Property 2: in-memory open equals file-based open", "[pbt][driver-io-regrid-perf][dp2][inmem_open]") {
     ensure_noop_backend_registered();
 
     auto result = rc::check("amio_open_dataset_from_string(content) agrees with amio_open_dataset(path) for identical dataset config", []() {

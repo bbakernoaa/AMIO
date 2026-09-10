@@ -100,8 +100,8 @@ amio_status_t init_from_config(const Config &cfg, amio_core_handle *out_core) {
     auto core = std::make_unique<AMIO_Core>();
     try {
         core->staging_pool = std::make_unique<StagingPool>(cfg.staging_pool.buffer_count, cfg.staging_pool.buffer_capacity_bytes,
-                                                           static_cast<std::int64_t>(cfg.staging_timeout_ms),
-                                                           cfg.staging_pool.max_buffer_count, StagingPool::GrowMode::Grow);
+                                                           static_cast<std::int64_t>(cfg.staging_timeout_ms), cfg.staging_pool.max_buffer_count,
+                                                           StagingPool::GrowMode::Grow);
 
         if (cfg.worker_pool.threads > 0) {
             WorkerPoolConfig wp{};

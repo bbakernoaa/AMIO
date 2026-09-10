@@ -101,8 +101,7 @@ static bool is_config_expected_valid(const Config &cfg) {
 // **Validates: Requirements 2.1, 2.2**
 // ===================================================================
 
-TEST_CASE("Feature: driver-io-regrid-perf, Property 1: in-memory init equals file-based init",
-          "[pbt][driver-io-regrid-perf][dp1][inmem_init]") {
+TEST_CASE("Feature: driver-io-regrid-perf, Property 1: in-memory init equals file-based init", "[pbt][driver-io-regrid-perf][dp1][inmem_init]") {
     auto result = rc::check(
         "amio_init_from_string(content) agrees with amio_init(path) for a valid "
         "manifest: both succeed and yield a usable core handle",

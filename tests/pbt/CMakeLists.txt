@@ -20,9 +20,8 @@
 if(NOT TARGET Catch2::Catch2)
     find_package(Catch2 3 REQUIRED CONFIG)
 endif()
-# `rapidcheck` may already be provided by a parent project via FetchContent
-# (e.g. CECE's top-level build).  Only search when it is not already defined to
-# avoid re-declaring the installed rapidcheck export set.
+# `rapidcheck` may already be provided by a parent project via FetchContent (e.g. CECE's top-level build).  Only search when it is not already defined
+# to avoid re-declaring the installed rapidcheck export set.
 if(NOT TARGET rapidcheck)
     find_package(rapidcheck REQUIRED CONFIG)
 endif()
@@ -347,9 +346,8 @@ set_tests_properties(pbt.p15_driver_thread_invariant PROPERTIES LABELS "pbt;p15;
 # ####################################################################################################################################################
 # pbt_p16_exception_bridge -- Property P16: Exception bridge invariant.
 #
-# For any exception on Worker_Pool thread (std::exception, unknown): C boundary catches, records AMIO_ERR_* against handle, ensures
-# parallel stack-trace emission completes before surfacing, surfaces on next flush/close/wait without remapping, preserves trace for AMIO_Core
-# lifetime.
+# For any exception on Worker_Pool thread (std::exception, unknown): C boundary catches, records AMIO_ERR_* against handle, ensures parallel
+# stack-trace emission completes before surfacing, surfaces on next flush/close/wait without remapping, preserves trace for AMIO_Core lifetime.
 #
 # Validates: R12.1, R12.2, R12.4, R12.9, R12.10
 # ####################################################################################################################################################
@@ -529,14 +527,11 @@ add_executable(
     ${AMIO_SOURCE_DIR}/src/drivers/common/var_attributes.cpp)
 
 target_link_libraries(pbt_dp1_inmem_init_equals_file PRIVATE AMIO::pbt_common)
-# backend_factory.cpp (compiled into this target) references the
-# amio_register_*_driver symbols defined in the backend driver libraries.
-# Link them so the static registration entry points resolve.
+# backend_factory.cpp (compiled into this target) references the amio_register_*_driver symbols defined in the backend driver libraries. Link them so
+# the static registration entry points resolve.
 target_link_libraries(pbt_dp1_inmem_init_equals_file PRIVATE driver_netcdf driver_zarr driver_grib2)
-# The test compiles AMIO C++ sources (amio_core.cpp, config_loader.cpp, the
-# c_boundary layer) directly and pulls in private headers that include the
-# HELM micro-library headers (conf/config.hpp, halo/*, logs/*).  Those are
-# PRIVATE deps of amio_core, so their include paths do not propagate through
+# The test compiles AMIO C++ sources (amio_core.cpp, config_loader.cpp, the c_boundary layer) directly and pulls in private headers that include the
+# HELM micro-library headers (conf/config.hpp, halo/*, logs/*).  Those are PRIVATE deps of amio_core, so their include paths do not propagate through
 # AMIO::amio_core -- link them here for their INTERFACE include directories.
 if(CONF_FOUND)
     target_link_libraries(pbt_dp1_inmem_init_equals_file PRIVATE HELM::CONF)
@@ -563,7 +558,8 @@ set_tests_properties(pbt.dp1_inmem_init_equals_file PROPERTIES LABELS "pbt;dp1;d
 #
 # For any INVALID manifest content (out-of-range fields or malformed YAML): amio_init_from_string returns AMIO_ERR_MANIFEST_INVALID (never
 # AMIO_ERR_MANIFEST_NOT_FOUND) and mints no handle; amio_open_dataset_from_string likewise rejects invalid config content with the documented
-# parse-error code and no dataset handle.  Example tests cover the null-argument edge cases (null content/format/out-handle -> AMIO_ERR_INVALID_INPUT).
+# parse-error code and no dataset handle.  Example tests cover the null-argument edge cases (null content/format/out-handle ->
+# AMIO_ERR_INVALID_INPUT).
 #
 # Validates: Requirements 8.1
 # ####################################################################################################################################################
@@ -590,14 +586,11 @@ add_executable(
     ${AMIO_SOURCE_DIR}/src/drivers/common/var_attributes.cpp)
 
 target_link_libraries(pbt_dp3_inmem_invalid_rejected PRIVATE AMIO::pbt_common)
-# backend_factory.cpp (compiled into this target) references the
-# amio_register_*_driver symbols defined in the backend driver libraries.
-# Link them so the static registration entry points resolve.
+# backend_factory.cpp (compiled into this target) references the amio_register_*_driver symbols defined in the backend driver libraries. Link them so
+# the static registration entry points resolve.
 target_link_libraries(pbt_dp3_inmem_invalid_rejected PRIVATE driver_netcdf driver_zarr driver_grib2)
-# The test compiles AMIO C++ sources (amio_core.cpp, config_loader.cpp, the
-# c_boundary layer) directly and pulls in private headers that include the
-# HELM micro-library headers (conf/config.hpp, halo/*, logs/*).  Those are
-# PRIVATE deps of amio_core, so their include paths do not propagate through
+# The test compiles AMIO C++ sources (amio_core.cpp, config_loader.cpp, the c_boundary layer) directly and pulls in private headers that include the
+# HELM micro-library headers (conf/config.hpp, halo/*, logs/*).  Those are PRIVATE deps of amio_core, so their include paths do not propagate through
 # AMIO::amio_core -- link them here for their INTERFACE include directories.
 if(CONF_FOUND)
     target_link_libraries(pbt_dp3_inmem_invalid_rejected PRIVATE HELM::CONF)
@@ -746,9 +739,8 @@ set_tests_properties(pbt.p27_abi_stability PROPERTIES LABELS "pbt;p27;abi;stabil
 # Validates: R7.2, R7.3
 # ####################################################################################################################################################
 add_executable(
-    pbt_p28_netcdf_data_model_validation
-    test_p28_netcdf_data_model_validation.cpp ${AMIO_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp
-    ${AMIO_SOURCE_DIR}/src/drivers/common/var_attributes.cpp ${AMIO_SOURCE_DIR}/src/factory/backend_factory.cpp)
+    pbt_p28_netcdf_data_model_validation test_p28_netcdf_data_model_validation.cpp ${AMIO_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp
+                                         ${AMIO_SOURCE_DIR}/src/drivers/common/var_attributes.cpp ${AMIO_SOURCE_DIR}/src/factory/backend_factory.cpp)
 
 target_link_libraries(pbt_p28_netcdf_data_model_validation PRIVATE AMIO::pbt_common)
 
@@ -944,10 +936,8 @@ add_executable(
     ${AMIO_SOURCE_DIR}/src/drivers/common/var_attributes.cpp)
 
 target_link_libraries(pbt_dp2_inmem_open_equals_file PRIVATE AMIO::pbt_common)
-# The test compiles AMIO C++ sources directly and pulls in private headers
-# (factory/backend_driver.hpp -> conf/config.hpp, halo/*, logs/*).  Those are
-# PRIVATE deps of amio_core so their include paths do not propagate through
-# AMIO::amio_core -- link them here for their INTERFACE include directories.
+# The test compiles AMIO C++ sources directly and pulls in private headers (factory/backend_driver.hpp -> conf/config.hpp, halo/*, logs/*).  Those are
+# PRIVATE deps of amio_core so their include paths do not propagate through AMIO::amio_core -- link them here for their INTERFACE include directories.
 if(CONF_FOUND)
     target_link_libraries(pbt_dp2_inmem_open_equals_file PRIVATE HELM::CONF)
 endif()
@@ -957,11 +947,9 @@ endif()
 if(LOGS_FOUND)
     target_link_libraries(pbt_dp2_inmem_open_equals_file PRIVATE HELM::LOGS)
 endif()
-# MPI::MPI_C / MPI::MPI_CXX come transitively via HELM::HALO/LOGS for the link
-# closure.  Like pbt_dp1, this target does NOT initialize MPI or link the MPI
-# test listener: the logger's configure_communicator only calls MPI_Comm_rank
-# when MPI is already initialized, and the NoOpDriver open is a no-op, so the
-# open-equivalence property runs without a live MPI environment.
+# MPI::MPI_C / MPI::MPI_CXX come transitively via HELM::HALO/LOGS for the link closure.  Like pbt_dp1, this target does NOT initialize MPI or link the
+# MPI test listener: the logger's configure_communicator only calls MPI_Comm_rank when MPI is already initialized, and the NoOpDriver open is a no-op,
+# so the open-equivalence property runs without a live MPI environment.
 if(MPI_C_FOUND)
     target_link_libraries(pbt_dp2_inmem_open_equals_file PRIVATE MPI::MPI_C)
 endif()

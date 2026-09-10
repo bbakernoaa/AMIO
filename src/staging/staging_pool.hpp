@@ -255,7 +255,7 @@ class StagingPool {
     std::vector<std::size_t> free_list_;
 
     // Configuration.
-    std::size_t buffer_count_;   // initial slot count (provisioning hint)
+    std::size_t buffer_count_;      // initial slot count (provisioning hint)
     std::size_t max_buffer_count_;  // hard ceiling on total slots
     std::size_t buffer_capacity_;
     std::int64_t timeout_ms_;

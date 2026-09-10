@@ -148,8 +148,7 @@ struct Arbitrary<amio::detail::Config> {
             cfg.staging_pool.buffer_capacity_bytes = *gen::inRange<std::size_t>(1, 1048577);  // [1, 1 MiB] for tests
             // Auto-grow ceiling: [buffer_count, 4096] (validate() requires
             // max >= count so the pool can always hold its provisioned slots).
-            cfg.staging_pool.max_buffer_count =
-                *gen::inRange<std::size_t>(cfg.staging_pool.buffer_count, 4097);
+            cfg.staging_pool.max_buffer_count = *gen::inRange<std::size_t>(cfg.staging_pool.buffer_count, 4097);
 
             // Worker pool: threads [1, 256]
             cfg.worker_pool.threads = *gen::inRange<std::size_t>(1, 257);

@@ -525,7 +525,7 @@ void test_bbox_mismatch_refetches() {
     // First touch: latch bboxA, kickoff stages t0,t1,t2 all with bboxA.
     assert(pq.get_buffer(0, &bboxA, &buf) == AMIO_OK);
     assert(buf != nullptr);
-    assert(driver.read_count() == 3);   // t0,t1,t2
+    assert(driver.read_count() == 3);  // t0,t1,t2
     assert(driver.bbox_read_count() == 3);
 
     // Request t1 under a DIFFERENT selection.  completed_[1] holds a bboxA
@@ -533,7 +533,7 @@ void test_bbox_mismatch_refetches() {
     // read, and it carries a bbox.
     assert(pq.get_buffer(1, &bboxB, &buf) == AMIO_OK);
     assert(buf != nullptr);
-    assert(driver.read_count() == 4);   // +1 re-fetch of t1
+    assert(driver.read_count() == 4);  // +1 re-fetch of t1
     assert(driver.bbox_read_count() == 4);
     assert(driver.last_had_bbox());
 
