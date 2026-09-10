@@ -248,6 +248,7 @@ AMIO_API amio_status_t amio_view_dtype(amio_view_handle view, amio_dtype_t *out_
     if (out_dtype == nullptr) {
         return AMIO_ERR_INVALID_INPUT;
     }
+    *out_dtype = AMIO_DTYPE_F32;
     return kind_dispatch(view, HandleKind::View, [&](void *payload) -> amio_status_t { return amio::detail::view_dtype(payload, out_dtype); });
 }
 
