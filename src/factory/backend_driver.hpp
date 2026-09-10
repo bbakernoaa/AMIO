@@ -265,9 +265,8 @@ class Backend_Driver {
     // not open for reading, or the backend cannot provide attributes.
     // Default: unsupported (nullopt) so non-netCDF drivers need not
     // implement it.
-    virtual std::optional<std::string> get_text_attribute(const std::string &var_name, const std::string &attr_name) {
-        (void)var_name;
-        (void)attr_name;
+    virtual std::optional<std::string> get_text_attribute([[maybe_unused]] const std::string &var_name,
+                                                          [[maybe_unused]] const std::string &attr_name) {
         return std::nullopt;
     }
 
@@ -278,9 +277,7 @@ class Backend_Driver {
     // attribute is returned.  Returns nullopt when the attribute is absent,
     // non-numeric, the driver is not open for reading, or the backend cannot
     // provide attributes.  Default: unsupported (nullopt).
-    virtual std::optional<double> get_numeric_attribute(const std::string &var_name, const std::string &attr_name) {
-        (void)var_name;
-        (void)attr_name;
+    virtual std::optional<double> get_numeric_attribute([[maybe_unused]] const std::string &var_name, [[maybe_unused]] const std::string &attr_name) {
         return std::nullopt;
     }
 
