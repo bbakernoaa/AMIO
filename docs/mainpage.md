@@ -24,24 +24,24 @@ data through pluggable backend drivers.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                   Host Application                       │
-│              (C / C++ / Fortran)                         │
+│                   Host Application                      │
+│              (C / C++ / Fortran)                        │
 ├─────────────────────────────────────────────────────────┤
-│              AMIO Public API (C99 FFI)                   │
+│              AMIO Public API (C99 FFI)                  │
 │         amio.h / amio_mod (Fortran)                     │
 ├─────────────────────────────────────────────────────────┤
-│                  C-Boundary Layer                        │
-│    Handle Table │ Exception Bridge │ Config Loader       │
+│                  C-Boundary Layer                       │
+│    Handle Table │ Exception Bridge │ Config Loader      │
 ├─────────────────────────────────────────────────────────┤
 │   Staging Pool  │  Worker Pool  │  Prefetch Queue       │
 ├─────────────────────────────────────────────────────────┤
-│              Backend Factory (Plugin Registry)           │
-├──────────────┬──────────────┬───────────────────────────┤
-│  NetCDF-4    │   Zarr v3    │       GRIB2               │
-│  Driver      │   Driver     │       Driver              │
+│              Backend Factory (Plugin Registry)          │
+├───────────────┬──────────────┬──────────────────────────┤
+│  NetCDF-4     │   Zarr v3    │      GRIB2               │
+│  Driver       │   Driver     │      Driver              │
 │ (HDF5/pnetcdf)│(TensorStore/ │  (nceplibs-g2c)          │
-│              │  NCZarr)     │                           │
-└──────────────┴──────────────┴───────────────────────────┘
+│               │  NCZarr)     │                          │
+└───────────────┴──────────────┴──────────────────────────┘
 ```
 
 ## Quick Start
