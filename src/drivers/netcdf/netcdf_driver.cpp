@@ -927,7 +927,9 @@ std::optional<std::string> NetCDF_Driver::get_text_attribute(const std::string &
     if (nc_get_att_text(ncid_, varid, attr_name.c_str(), val.data()) != NC_NOERR) {
         return std::nullopt;
     }
-    val.resize(std::strlen(val.c_str()));  // trim any trailing NUL
+    // Trim only trailing NUL padding; interior NULs are preserved.
+    const std::size_t last = val.find_last_not_of('\0');
+    val.resize(last == std::string::npos ? 0 : last + 1);
     return val;
 #else
     (void)var_name;
