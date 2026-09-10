@@ -919,18 +919,40 @@ std::optional<std::string> NetCDF_Driver::get_text_attribute(const std::string &
             return std::nullopt;
         }
     }
+    nc_type att_type = NC_NAT;
     std::size_t len = 0;
-    if (nc_inq_attlen(ncid_, varid, attr_name.c_str(), &len) != NC_NOERR || len == 0) {
+    if (nc_inq_att(ncid_, varid, attr_name.c_str(), &att_type, &len) != NC_NOERR || len == 0) {
         return std::nullopt;
     }
-    std::string val(len, '\0');
-    if (nc_get_att_text(ncid_, varid, attr_name.c_str(), val.data()) != NC_NOERR) {
-        return std::nullopt;
+
+    if (att_type == NC_CHAR) {
+        std::string val(len, '\0');
+        if (nc_get_att_text(ncid_, varid, attr_name.c_str(), val.data()) != NC_NOERR) {
+            return std::nullopt;
+        }
+        // Trim only trailing NUL padding; interior NULs are preserved.
+        const std::size_t last = val.find_last_not_of('\0');
+        val.resize(last == std::string::npos ? 0 : last + 1);
+        return val;
     }
-    // Trim only trailing NUL padding; interior NULs are preserved.
-    const std::size_t last = val.find_last_not_of('\0');
-    val.resize(last == std::string::npos ? 0 : last + 1);
-    return val;
+
+    if (att_type == NC_STRING) {
+        // `len` counts strings, not bytes: a scalar attribute has len == 1 and strs[0] is the whole
+        // value; for a string vector only that first string is returned (see #14).  Unlike the
+        // NC_CHAR path, interior NULs cannot survive here -- netCDF exposes no length for these.
+        std::vector<char *> strs(len, nullptr);
+        if (nc_get_att_string(ncid_, varid, attr_name.c_str(), strs.data()) != NC_NOERR) {
+            return std::nullopt;
+        }
+        std::string val;
+        if (strs[0] != nullptr) {
+            val.assign(strs[0]);
+        }
+        nc_free_string(len, strs.data());
+        return val;
+    }
+
+    return std::nullopt;  // numeric attribute -- callers want get_numeric_attribute
 #else
     (void)var_name;
     (void)attr_name;
@@ -949,7 +971,7 @@ std::optional<double> NetCDF_Driver::get_numeric_attribute(const std::string &va
             return std::nullopt;
         }
     }
-    int att_type = 0;
+    nc_type att_type = NC_NAT;
     std::size_t len = 0;
     if (nc_inq_att(ncid_, varid, attr_name.c_str(), &att_type, &len) != NC_NOERR || len == 0) {
         return std::nullopt;

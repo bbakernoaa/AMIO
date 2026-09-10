@@ -98,8 +98,10 @@ class NetCDF_Driver : public Backend_Driver {
     VariableInfo describe_variable(const std::string &name) override;
 
     // Read a CF text attribute ("units", "calendar", ...) for a variable, or
-    // a global attribute when var_name is empty.  Returns nullopt if absent
-    // or the driver is not open for reading.  (CF time-axis decoding support.)
+    // a global attribute when var_name is empty.  Handles both NC_CHAR and
+    // NC_STRING storage; for a multi-element NC_STRING attribute only the first
+    // string is returned.  Returns nullopt if absent, numeric, or the driver is
+    // not open for reading.  (CF time-axis decoding support.)
     std::optional<std::string> get_text_attribute(const std::string &var_name, const std::string &attr_name) override;
 
     // Read a numeric attribute ("scale_factor", "add_offset", ...) for a
