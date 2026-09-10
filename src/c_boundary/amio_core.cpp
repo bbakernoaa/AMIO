@@ -17,6 +17,7 @@
 
 #include "c_boundary/amio_core.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
@@ -869,13 +870,9 @@ amio_status_t get_var_attribute_text(void *dataset_payload, const char *var_name
 
     *out_len = value->size();
     if (out_buf != nullptr && buf_cap > 0) {
-        std::size_t n = value->size();
-        if (n > buf_cap - 1) {
-            n = buf_cap - 1;
-        }
-        for (std::size_t i = 0; i < n; ++i) {
-            out_buf[i] = (*value)[i];
-        }
+        // memcpy, not strncpy: the value may contain interior NULs, which strncpy would truncate at.
+        const std::size_t n = std::min(value->size(), buf_cap - 1);
+        std::memcpy(out_buf, value->data(), n);
         out_buf[n] = '\0';
     }
     return AMIO_OK;
