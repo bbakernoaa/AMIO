@@ -938,8 +938,8 @@ std::optional<std::string> NetCDF_Driver::get_text_attribute(const std::string &
 
     if (att_type == NC_STRING) {
         // `len` counts strings, not bytes: a scalar attribute has len == 1 and strs[0] is the whole
-        // value; for a string vector only that first string is returned (see #14).  Unlike the
-        // NC_CHAR path, interior NULs cannot survive here -- netCDF exposes no length for these.
+        // value; for a string vector only that first string is returned.  Interior NULs need no
+        // handling -- the netCDF API takes and returns NUL-terminated C strings, so it cannot store them.
         std::vector<char *> strs(len, nullptr);
         if (nc_get_att_string(ncid_, varid, attr_name.c_str(), strs.data()) != NC_NOERR) {
             return std::nullopt;
