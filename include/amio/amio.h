@@ -191,11 +191,13 @@ AMIO_API amio_status_t amio_read(amio_dataset_handle dataset, const char *var_na
  * @param[in]  var_name   Variable name, or ""/NULL for a global attribute.
  * @param[in]  attr_name  NUL-terminated attribute name.
  * @param[out] out_buf    Destination buffer, or NULL to size only.
- * @param[in]  buf_cap    Capacity of @p out_buf in bytes.
+ * @param[in]  buf_cap    Capacity of @p out_buf in bytes; must be non-zero when
+ *                        @p out_buf is non-NULL.
  * @param[out] out_len    Receives the attribute length in bytes (excl. NUL).
  *
  * @return AMIO_OK on success, or one of:
- *   - AMIO_ERR_INVALID_INPUT — NULL attr_name/out_len, or a write-mode dataset
+ *   - AMIO_ERR_INVALID_INPUT — NULL attr_name/out_len, a non-NULL @p out_buf with
+ *     @p buf_cap == 0, or a write-mode dataset
  *   - AMIO_ERR_NULL_HANDLE / AMIO_ERR_INVALID_HANDLE — bad dataset handle
  *   - AMIO_ERR_BACKEND_FAILURE — attribute absent or backend cannot provide it
  */

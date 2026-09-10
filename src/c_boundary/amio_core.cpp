@@ -855,6 +855,10 @@ amio_status_t get_var_attribute_text(void *dataset_payload, const char *var_name
     if (attr_name == nullptr || attr_name[0] == '\0' || out_len == nullptr) {
         return AMIO_ERR_INVALID_INPUT;
     }
+    // A buffer with no capacity cannot be NUL-terminated; size-only queries pass out_buf == NULL.
+    if (out_buf != nullptr && buf_cap == 0) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
     if (record->mode != AMIO_MODE_READ) {
         return AMIO_ERR_INVALID_INPUT;
     }
@@ -869,7 +873,7 @@ amio_status_t get_var_attribute_text(void *dataset_payload, const char *var_name
     }
 
     *out_len = value->size();
-    if (out_buf != nullptr && buf_cap > 0) {
+    if (out_buf != nullptr) {
         // memcpy, not strncpy: the value may contain interior NULs, which strncpy would truncate at.
         const std::size_t n = std::min(value->size(), buf_cap - 1);
         std::memcpy(out_buf, value->data(), n);
