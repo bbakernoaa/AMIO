@@ -18,6 +18,7 @@
 #define AMIO_SRC_C_BOUNDARY_AMIO_CORE_HPP
 
 #include <atomic>
+#include <conf/config.hpp>
 #include <cstdint>
 #include <logs/logger.hpp>
 #include <memory>
@@ -238,11 +239,79 @@ HandleTable &process_handle_table();
 
 amio_status_t init(const char *manifest_path, amio_core_handle *out_core);
 
+// ---------------------------------------------------------------
+// init_from_config -- shared core-construction path for init().
+//
+// Runs the pool-construction + LOGS-init + handle-mint sequence
+// (steps 2-4 of the current init()) from an already-parsed Config.
+// Both the path-based init() and the forthcoming string-based
+// init_from_string() converge on this helper so the runtime-build
+// logic lives in exactly one place.
+//
+//   * Pool construction failure -> AMIO_ERR_BACKEND_FAILURE, no
+//     handle minted (Req 1.4).
+//   * On success mints the core handle and writes *out_core.
+// ---------------------------------------------------------------
+amio_status_t init_from_config(const Config &cfg, amio_core_handle *out_core);
+
+// ---------------------------------------------------------------
+// init_from_string -- in-memory manifest variant of init().
+//
+// Parses `manifest_content` in the given `format` ("yaml"/"json")
+// via ConfigLoader::parse_string, then delegates to init_from_config
+// so the pool-construction + LOGS-init + handle-mint path is shared
+// with the file-based init() (design §"Shared-body factoring").
+//
+//   * parse_string failure -> AMIO_ERR_MANIFEST_INVALID (never
+//     AMIO_ERR_MANIFEST_NOT_FOUND -- there is no file), no handle
+//     minted.
+//   * Otherwise behaves exactly like init().
+// ---------------------------------------------------------------
+amio_status_t init_from_string(const char *manifest_content, const char *format, amio_core_handle *out_core);
+
 amio_status_t finalize(void *core_payload);
 
 amio_status_t open_dataset(void *core_payload, const char *config_path, std::int32_t mode, amio_dataset_handle *out_dataset);
 
+// Shared open path: builds the backend driver from the parsed backend
+// key, sets the communicator, opens the driver in the requested mode
+// with `manifest_cfg`, and constructs/registers the DatasetRecord.
+// Both the path-based `open_dataset` and the string-based
+// `open_dataset_from_string` (task 3.1) converge here after producing
+// their `config` (backend key) and `manifest_cfg` (driver config).
+amio_status_t open_dataset_from_config(void *core_payload, const Config &config, conf::Config manifest_cfg, std::int32_t mode,
+                                       amio_dataset_handle *out_dataset);
+
+// ---------------------------------------------------------------
+// open_dataset_from_string -- in-memory config variant of
+// open_dataset().
+//
+// Parses the backend key from `config_content` (in the given
+// `format`) via ConfigLoader::parse_string, builds the driver
+// conf::Config via conf::Config::from_string, then delegates to
+// open_dataset_from_config so the factory-build + communicator-set +
+// open + DatasetRecord path is shared with the file-based
+// open_dataset (design §"Shared-body factoring").
+//
+//   * parse_string failure -> AMIO_ERR_MANIFEST_INVALID (never
+//     AMIO_ERR_MANIFEST_NOT_FOUND -- there is no file), no handle
+//     minted.
+//   * Otherwise behaves exactly like open_dataset().
+// ---------------------------------------------------------------
+amio_status_t open_dataset_from_string(void *core_payload, const char *config_content, const char *format, std::int32_t mode,
+                                       amio_dataset_handle *out_dataset);
+
 amio_status_t close_dataset(void *dataset_payload);
+
+// describe -- query a variable's per-timestep shape and record count WITHOUT
+// staging any payload.  Returns AMIO_ERR_INVALID_INPUT for a null/empty name
+// or null outputs, AMIO_ERR_INVALID_INPUT on a write-mode dataset, and
+// AMIO_ERR_BACKEND_FAILURE when the driver cannot describe the variable.
+// `out_shape` receives the variable's Dataset_Metadata shape (the same shape
+// amio_read validates a bbox against); `out_total_timesteps` the number of
+// temporal records.  Lets a caller size a bounding box (and its record loop)
+// without the binary-search-over-amio_read probe it would otherwise need.
+amio_status_t describe(void *dataset_payload, const char *var_name, amio_shape_t *out_shape, std::int64_t *out_total_timesteps);
 
 amio_status_t write(void *dataset_payload, const char *var_name, const void *host_data, amio_dtype_t dtype, const amio_shape_t *shape,
                     amio_io_handle *out_io);

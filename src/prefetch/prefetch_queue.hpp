@@ -34,6 +34,7 @@
 #include <functional>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -99,8 +100,11 @@ class PrefetchQueue {
 
     // schedule_initial -- schedule the initial min(N, M) fetches.
     //
-    // Called once after construction to kick off the prefetch
-    // pipeline.  Schedules fetches for timesteps [0, min(N, M)).
+    // Schedules fetches for timesteps [0, min(N, M)) using the currently
+    // latched selection (see get_buffer).  Exposed for tests and for callers
+    // that want to warm the window from record 0; the normal read path does
+    // NOT need it, because get_buffer self-kicks-off the look-ahead window
+    // at the first timestep the host actually requests.
     void schedule_initial();
 
     // get_buffer -- retrieve the completed buffer for timestep T.
@@ -108,6 +112,21 @@ class PrefetchQueue {
     // If the buffer is ready, returns it immediately (no I/O on
     // calling thread).  If not ready, blocks until the worker
     // completes the fetch or the read timeout expires.
+    //
+    // Selection (bounding box) handling:
+    //   * The returned buffer ALWAYS matches `bbox` exactly.  A completed
+    //     fetch made with a different selection is released and re-fetched,
+    //     so varying the selection between calls stays correct.
+    //   * `bbox` is also latched as the queue's current selection, so every
+    //     look-ahead fetch (the initial window and schedule_next
+    //     replenishment) reads the same sub-region the host is consuming
+    //     rather than a full record.  This is what makes band-scoped reads
+    //     on an MPI rank actually reduce disk traffic: without the latch,
+    //     prefetch would keep issuing full-record reads behind the caller's
+    //     back.
+    //   * On the first call for this variable the look-ahead window is
+    //     kicked off starting at `timestep` (not at 0), so records the host
+    //     never reads are never staged.
     //
     // Returns:
     //   AMIO_OK with *out_buf set on success.
@@ -125,8 +144,11 @@ class PrefetchQueue {
     // mark_complete -- mark a timestep as successfully fetched.
     //
     // Called by the worker thread (or synchronous fallback) when
-    // the fetch completes.
-    void mark_complete(std::int64_t timestep, StagingBuffer *buf);
+    // the fetch completes.  `bbox` records the selection the buffer was
+    // actually filled with, so get_buffer can tell an exact match from a
+    // stale window.  It defaults to nullopt (full record) for callers that
+    // do not care.
+    void mark_complete(std::int64_t timestep, StagingBuffer *buf, const std::optional<amio_bbox_t> &bbox = std::nullopt);
 
     // mark_failed -- record a fetch failure for a timestep.
     //
@@ -153,13 +175,18 @@ class PrefetchQueue {
     std::size_t failed_count() const noexcept;
 
    private:
-    // Schedule a single fetch for the given timestep.
-    // Caller must NOT hold mu_.
-    void schedule_fetch(std::int64_t timestep, const amio_bbox_t *bbox);
+    // Schedule a single fetch for the given timestep, using the currently
+    // latched selection.  Caller must NOT hold mu_.
+    void schedule_fetch(std::int64_t timestep);
 
     // Perform a synchronous fetch (used when worker_pool is null).
     // Caller must NOT hold mu_.
     void sync_fetch(std::int64_t timestep, const amio_bbox_t *bbox);
+
+    // bbox_same -- true when two optional selections address exactly the
+    // same sub-region (rank, offsets, extents and strides all equal).
+    // Two nullopts are "the same" (both full-record).
+    static bool bbox_same(const std::optional<amio_bbox_t> &a, const std::optional<amio_bbox_t> &b) noexcept;
 
     // ---- Members ----
 
@@ -181,8 +208,18 @@ class PrefetchQueue {
 
     // State tracking.
     std::map<std::int64_t, StagingBuffer *> completed_;  // timestep -> buffer
+    std::map<std::int64_t, amio_bbox_t> fetched_bbox_;   // timestep -> selection that filled completed_[t]
     std::set<std::int64_t> pending_;                     // timesteps being fetched
     std::map<std::int64_t, amio_err_t> failed_;          // timestep -> error code
+
+    // Latched selection: the sub-region the host is consuming, taken from
+    // the most recent get_buffer call.  Look-ahead fetches use it so
+    // prefetch traffic matches the caller's window.  nullopt == full record.
+    std::optional<amio_bbox_t> latched_bbox_;
+
+    // True once the look-ahead window has been opened (by the first
+    // get_buffer, or by an explicit schedule_initial call).
+    bool kicked_off_ = false;
 
     // Cancellation flag.
     bool cancelled_ = false;

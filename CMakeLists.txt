@@ -67,10 +67,14 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 option(AMIO_BUILD_TESTING "Build AMIO unit and property-based tests" OFF)
+# When AMIO is consumed as a subproject (e.g. CECE's top-level build), only the property-based test suite can be built cleanly -- the
+# unit/integration/ci subdirectories assume the standalone AMIO configure environment.  This option adds ONLY tests/pbt so a parent project can
+# build/run the AMIO PBT targets without enabling the full standalone test tree.
+option(AMIO_BUILD_PBT_ONLY "Build only the AMIO property-based (PBT) test suite" OFF)
 option(AMIO_BUILD_DOCS "Build Doxygen documentation" OFF)
 option(AMIO_BUILD_EXAMPLES "Build usage examples" OFF)
 
-if(AMIO_BUILD_TESTING)
+if(AMIO_BUILD_TESTING OR AMIO_BUILD_PBT_ONLY)
     enable_testing()
 endif()
 
@@ -478,6 +482,27 @@ target_link_libraries(amio_fortran PUBLIC amio_public_headers amio_core)
 
 if(AMIO_BUILD_TESTING)
     add_subdirectory(tests)
+elseif(AMIO_BUILD_PBT_ONLY)
+    # PBT-only path: add just tests/pbt.  Catch2 / RapidCheck are located by tests/pbt/CMakeLists.txt (reusing a parent-provided rapidcheck target
+    # when present).
+    if(NOT TARGET Catch2::Catch2)
+        find_package(Catch2 3 CONFIG QUIET)
+    endif()
+    # Catch2 v3 is not installed in every consumer environment (e.g. the cece-dev image ships RapidCheck but not Catch2).  Fetch it when missing so
+    # the PBT harness -- which uses Catch2 v3 TEST_CASE + rc::check -- can build.
+    if(NOT TARGET Catch2::Catch2 AND NOT Catch2_FOUND)
+        include(FetchContent)
+        FetchContent_Declare(Catch2 GIT_REPOSITORY https://github.com/catchorg/Catch2.git GIT_TAG v3.5.2)
+        FetchContent_MakeAvailable(Catch2)
+    endif()
+    if(NOT TARGET rapidcheck)
+        find_package(rapidcheck CONFIG QUIET)
+    endif()
+    if((Catch2_FOUND OR TARGET Catch2::Catch2) AND (rapidcheck_FOUND OR TARGET rapidcheck))
+        add_subdirectory(tests/pbt)
+    else()
+        message(STATUS "AMIO PBT: Catch2 or RapidCheck not found; skipping tests/pbt/")
+    endif()
 endif()
 
 if(AMIO_BUILD_EXAMPLES)
