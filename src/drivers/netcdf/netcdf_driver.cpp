@@ -35,8 +35,10 @@ extern MPI_Comm g_amio_parent_comm;
 #include <cstring>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace amio::detail {
 
@@ -906,6 +908,90 @@ bool nc_type_to_dtype(int nc_type, amio_dtype_t &out) {
 }  // namespace
 #endif  // AMIO_HAS_NETCDF
 
+std::optional<std::string> NetCDF_Driver::get_text_attribute(const std::string &var_name, const std::string &attr_name) {
+    if (!is_open_ || is_write_mode_) {
+        return std::nullopt;
+    }
+#ifdef AMIO_HAS_NETCDF
+    int varid = NC_GLOBAL;
+    if (!var_name.empty()) {
+        if (nc_inq_varid(ncid_, var_name.c_str(), &varid) != NC_NOERR) {
+            return std::nullopt;
+        }
+    }
+    nc_type att_type = NC_NAT;
+    std::size_t len = 0;
+    if (nc_inq_att(ncid_, varid, attr_name.c_str(), &att_type, &len) != NC_NOERR || len == 0) {
+        return std::nullopt;
+    }
+
+    if (att_type == NC_CHAR) {
+        std::string val(len, '\0');
+        if (nc_get_att_text(ncid_, varid, attr_name.c_str(), val.data()) != NC_NOERR) {
+            return std::nullopt;
+        }
+        // Trim only trailing NUL padding; interior NULs are preserved.
+        const std::size_t last = val.find_last_not_of('\0');
+        val.resize(last == std::string::npos ? 0 : last + 1);
+        return val;
+    }
+
+    if (att_type == NC_STRING) {
+        // `len` counts strings, not bytes: a scalar attribute has len == 1 and strs[0] is the whole
+        // value; for a string vector only that first string is returned.  Interior NULs need no
+        // handling -- the netCDF API takes and returns NUL-terminated C strings, so it cannot store them.
+        std::vector<char *> strs(len, nullptr);
+        if (nc_get_att_string(ncid_, varid, attr_name.c_str(), strs.data()) != NC_NOERR) {
+            return std::nullopt;
+        }
+        std::string val;
+        if (strs[0] != nullptr) {
+            val.assign(strs[0]);
+        }
+        nc_free_string(len, strs.data());
+        return val;
+    }
+
+    return std::nullopt;  // numeric attribute -- callers want get_numeric_attribute
+#else
+    (void)var_name;
+    (void)attr_name;
+    return std::nullopt;
+#endif
+}
+
+std::optional<double> NetCDF_Driver::get_numeric_attribute(const std::string &var_name, const std::string &attr_name) {
+    if (!is_open_ || is_write_mode_) {
+        return std::nullopt;
+    }
+#ifdef AMIO_HAS_NETCDF
+    int varid = NC_GLOBAL;
+    if (!var_name.empty()) {
+        if (nc_inq_varid(ncid_, var_name.c_str(), &varid) != NC_NOERR) {
+            return std::nullopt;
+        }
+    }
+    nc_type att_type = NC_NAT;
+    std::size_t len = 0;
+    if (nc_inq_att(ncid_, varid, attr_name.c_str(), &att_type, &len) != NC_NOERR || len == 0) {
+        return std::nullopt;
+    }
+    if (att_type == NC_CHAR || att_type == NC_STRING) {
+        return std::nullopt;
+    }
+    // nc_get_att_double converts from any numeric on-disk type.
+    std::vector<double> vals(len);
+    if (nc_get_att_double(ncid_, varid, attr_name.c_str(), vals.data()) != NC_NOERR) {
+        return std::nullopt;
+    }
+    return vals.front();
+#else
+    (void)var_name;
+    (void)attr_name;
+    return std::nullopt;
+#endif
+}
+
 VariableInfo NetCDF_Driver::describe_variable(const std::string &name) {
     VariableInfo info{};  // found == false by default.
 
@@ -1064,9 +1150,16 @@ VariableInfo NetCDF_Driver::describe_variable(const std::string &name) {
     }
 
     int reported_rank = ndims - shape_start;
+    if (reported_rank < 1 && ndims >= 1) {
+        // The variable is nothing but the record dimension, so it is that
+        // axis's coordinate variable rather than a field sampled along it
+        // (e.g. `double time(time)`).  Describe it whole, so one read returns
+        // the entire axis instead of the variable being undescribable.
+        total_timesteps = 1;
+        shape_start = 0;
+        reported_rank = ndims;
+    }
     if (reported_rank < 1 || reported_rank > AMIO_MAX_RANK) {
-        // A variable consisting solely of the record dimension has no
-        // per-timestep spatial shape we can describe for sizing.
         return info;
     }
 

@@ -259,6 +259,28 @@ class Backend_Driver {
     // payload.  On failure, throws std::exception.
     virtual void read(StagingBuffer &dst, const VarMeta &meta, std::int64_t timestep, const std::optional<BoundingBox> &bbox) = 0;
 
+    // get_text_attribute -- read a CF text attribute (e.g. "units",
+    // "calendar") for a variable, or a global attribute when var_name is
+    // empty.  Returns nullopt when the attribute is absent, the driver is
+    // not open for reading, or the backend cannot provide attributes.
+    // Default: unsupported (nullopt) so non-netCDF drivers need not
+    // implement it.
+    virtual std::optional<std::string> get_text_attribute([[maybe_unused]] const std::string &var_name,
+                                                          [[maybe_unused]] const std::string &attr_name) {
+        return std::nullopt;
+    }
+
+    // get_numeric_attribute -- read a numeric attribute (e.g. CF packing
+    // attributes "scale_factor"/"add_offset") for a variable, or a global
+    // attribute when var_name is empty.  The value is converted to double
+    // whatever its on-disk type; only the first element of a multi-valued
+    // attribute is returned.  Returns nullopt when the attribute is absent,
+    // non-numeric, the driver is not open for reading, or the backend cannot
+    // provide attributes.  Default: unsupported (nullopt).
+    virtual std::optional<double> get_numeric_attribute([[maybe_unused]] const std::string &var_name, [[maybe_unused]] const std::string &attr_name) {
+        return std::nullopt;
+    }
+
     // flush -- ensure all previously written data is durable.
     //
     // Blocks until all pending internal write operations (if any)

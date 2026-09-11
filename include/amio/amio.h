@@ -45,7 +45,7 @@ extern "C" {
  *  @{
  */
 #define AMIO_ABI_VERSION_MAJOR 0 /**< ABI major version */
-#define AMIO_ABI_VERSION_MINOR 1 /**< ABI minor version */
+#define AMIO_ABI_VERSION_MINOR 2 /**< ABI minor version */
 #define AMIO_ABI_VERSION_PATCH 0 /**< ABI patch version */
 /** @} */
 
@@ -252,6 +252,50 @@ AMIO_API amio_status_t amio_read(amio_dataset_handle dataset, const char *var_na
 AMIO_API amio_status_t amio_describe(amio_dataset_handle dataset, const char *var_name, amio_shape_t *out_shape, int64_t *out_total_timesteps);
 
 /**
+ * @brief Read a variable's text attribute (e.g. "units", "calendar").
+ *
+ * Two-call pattern: pass @p out_buf == NULL to query the length via
+ * @p out_len, then call again with a buffer of @p buf_cap bytes. The written
+ * string is NUL-terminated and truncated to fit. Pass an empty or NULL
+ * @p var_name to read a global attribute.
+ *
+ * @param[in]  dataset    A read dataset handle from amio_open_dataset().
+ * @param[in]  var_name   Variable name, or ""/NULL for a global attribute.
+ * @param[in]  attr_name  NUL-terminated attribute name.
+ * @param[out] out_buf    Destination buffer, or NULL to size only.
+ * @param[in]  buf_cap    Capacity of @p out_buf in bytes; must be non-zero when
+ *                        @p out_buf is non-NULL.
+ * @param[out] out_len    Receives the attribute length in bytes (excl. NUL).
+ *
+ * @return AMIO_OK on success, or one of:
+ *   - AMIO_ERR_INVALID_INPUT — NULL attr_name/out_len, a non-NULL @p out_buf with
+ *     @p buf_cap == 0, or a write-mode dataset
+ *   - AMIO_ERR_NULL_HANDLE / AMIO_ERR_INVALID_HANDLE — bad dataset handle
+ *   - AMIO_ERR_BACKEND_FAILURE — attribute absent or backend cannot provide it
+ */
+AMIO_API amio_status_t amio_get_var_attribute_text(amio_dataset_handle dataset, const char *var_name, const char *attr_name, char *out_buf,
+                                                   size_t buf_cap, size_t *out_len);
+
+/**
+ * @brief Read a variable's numeric attribute (e.g. "scale_factor", "add_offset").
+ *
+ * The stored value is converted to double regardless of its on-disk type.
+ * Only the first element of a multi-valued attribute is returned. Pass an
+ * empty or NULL @p var_name to read a global attribute.
+ *
+ * @param[in]  dataset    A read dataset handle from amio_open_dataset().
+ * @param[in]  var_name   Variable name, or ""/NULL for a global attribute.
+ * @param[in]  attr_name  NUL-terminated attribute name.
+ * @param[out] out_value  Receives the attribute value.
+ *
+ * @return AMIO_OK on success, or one of:
+ *   - AMIO_ERR_INVALID_INPUT — NULL attr_name/out_value, or a write-mode dataset
+ *   - AMIO_ERR_NULL_HANDLE / AMIO_ERR_INVALID_HANDLE — bad dataset handle
+ *   - AMIO_ERR_BACKEND_FAILURE — attribute absent, non-numeric, or unavailable
+ */
+AMIO_API amio_status_t amio_get_var_attribute_double(amio_dataset_handle dataset, const char *var_name, const char *attr_name, double *out_value);
+
+/**
  * @brief Block until all pending writes for a dataset complete or timeout.
  *
  * @param[in] dataset     A write dataset handle.
@@ -321,6 +365,24 @@ AMIO_API amio_status_t amio_view_data(amio_view_handle view, const void **out_da
  *   - AMIO_ERR_INVALID_INPUT — out_shape is NULL
  */
 AMIO_API amio_status_t amio_view_shape(amio_view_handle view, amio_shape_t *out_shape);
+
+/**
+ * @brief Retrieve the element type of an outstanding read view.
+ *
+ * The buffer returned by amio_view_data() holds elements of this type, as
+ * reported by the backend for the variable that was read. Callers must consult
+ * this before interpreting the payload: the byte size alone cannot distinguish
+ * (for example) 32-bit integers from single-precision floats.
+ *
+ * @param[in]  view       A valid view handle from amio_read().
+ * @param[out] out_dtype  Non-NULL pointer; receives the element type.
+ *
+ * @return AMIO_OK on success, or one of:
+ *   - AMIO_ERR_NULL_HANDLE — view is NULL
+ *   - AMIO_ERR_INVALID_HANDLE — view stale or wrong kind
+ *   - AMIO_ERR_INVALID_INPUT — out_dtype is NULL
+ */
+AMIO_API amio_status_t amio_view_dtype(amio_view_handle view, amio_dtype_t *out_dtype);
 
 /**
  * @brief Release a read-side Memory_View, returning its buffer to the pool.
