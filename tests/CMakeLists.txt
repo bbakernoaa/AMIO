@@ -25,9 +25,15 @@ add_subdirectory(unit)
 
 # PBT (property-based tests) require Catch2 v3 and RapidCheck. These are installed at /opt/catch2 and /opt/rapidcheck in the dev container.  Skip this
 # subdirectory gracefully when they are not available (e.g., lightweight CI builds without PBT deps).
-find_package(Catch2 3 CONFIG QUIET)
-find_package(rapidcheck CONFIG QUIET)
-if(Catch2_FOUND AND rapidcheck_FOUND)
+if(NOT TARGET Catch2::Catch2)
+    find_package(Catch2 3 CONFIG QUIET)
+endif()
+# A parent project (e.g. CECE) may already provide the `rapidcheck` target via FetchContent.  Re-running find_package(rapidcheck CONFIG) in that case
+# tries to re-declare the installed export set and errors on the partial overlap, so only search when the target is not already available.
+if(NOT TARGET rapidcheck)
+    find_package(rapidcheck CONFIG QUIET)
+endif()
+if((Catch2_FOUND OR TARGET Catch2::Catch2) AND (rapidcheck_FOUND OR TARGET rapidcheck))
     add_subdirectory(pbt)
 else()
     message(STATUS "AMIO PBT: Catch2 or RapidCheck not found; skipping tests/pbt/")

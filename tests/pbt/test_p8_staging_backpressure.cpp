@@ -7,6 +7,11 @@
 // Source pointer is unmodified and queue depth is unchanged after a
 // backpressure rejection.
 //
+// These cases exercise the ORIGINAL hard-limit contract, which the pool
+// preserves in Bounded mode (and at the auto-grow ceiling).  The default
+// Grow mode deliberately never reaches this path -- an exhausted pool
+// appends a slot instead -- so the pools below are constructed Bounded.
+//
 // Min 100 iterations.
 //
 // **Validates: Requirements R2.6**
@@ -48,8 +53,9 @@ TEST_CASE("P8: exhausted StagingPool returns nullptr within timeout", "[pbt][p8]
             auto buffer_capacity = *rc::gen::inRange<std::size_t>(64, 4097);  // [64, 4096] bytes
             auto timeout_ms = *rc::gen::inRange<std::int64_t>(1, 101);        // [1, 100] ms
 
-            // Create the pool with the generated timeout.
-            amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms);
+            // Create the pool with the generated timeout.  Bounded mode:
+            // backpressure is the contract under test here.
+            amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms, buffer_count, amio::detail::StagingPool::GrowMode::Bounded);
 
             // Verify initial state.
             RC_ASSERT(pool.total_buffer_count() == buffer_count);
@@ -130,8 +136,8 @@ TEST_CASE("P8: source data unmodified after backpressure rejection", "[pbt][p8][
         // Keep a copy of the original source data for comparison.
         std::vector<std::byte> original_data = source_data;
 
-        // Create pool and exhaust it.
-        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms);
+        // Create pool and exhaust it (Bounded: no auto-grow past count).
+        amio::detail::StagingPool pool(buffer_count, buffer_capacity, timeout_ms, buffer_count, amio::detail::StagingPool::GrowMode::Bounded);
 
         std::vector<amio::detail::StagingBuffer *> acquired;
         for (std::size_t i = 0; i < buffer_count; ++i) {
@@ -172,7 +178,7 @@ TEST_CASE("P8: acquire succeeds when buffer released during wait", "[pbt][p8][st
         auto buffer_capacity = *rc::gen::inRange<std::size_t>(64, 1025);
         constexpr std::int64_t timeout_ms = 500;  // 500ms -- plenty of time
 
-        amio::detail::StagingPool pool(1, buffer_capacity, timeout_ms);
+        amio::detail::StagingPool pool(1, buffer_capacity, timeout_ms, 1, amio::detail::StagingPool::GrowMode::Bounded);
 
         // Exhaust the single buffer.
         auto *held_buf = pool.acquire(1);

@@ -79,6 +79,9 @@ class MockBackendDriver : public Backend_Driver {
         dst.used_bytes = fill_size;
 
         ++read_count_;
+        if (bbox.has_value()) {
+            ++bbox_read_count_;
+        }
         last_timestep_ = timestep;
         last_had_bbox_ = bbox.has_value();
     }
@@ -90,6 +93,9 @@ class MockBackendDriver : public Backend_Driver {
     int read_count() const {
         return read_count_;
     }
+    int bbox_read_count() const {
+        return bbox_read_count_;
+    }
     std::int64_t last_timestep() const {
         return last_timestep_;
     }
@@ -99,6 +105,7 @@ class MockBackendDriver : public Backend_Driver {
 
    private:
     int read_count_ = 0;
+    int bbox_read_count_ = 0;
     std::int64_t last_timestep_ = -1;
     bool last_had_bbox_ = false;
 };
@@ -438,6 +445,101 @@ void test_cancel_pending() {
     std::cout << "PASSED\n";
 }
 
+// Test: a bbox passed to get_buffer is LATCHED and applied to the whole
+// look-ahead window (kickoff + replenishment), not just the requested
+// timestep.  This is what makes band-scoped reads actually cut disk traffic
+// under MPI: without the latch, prefetch keeps issuing full-record reads.
+void test_bbox_latch_applies_to_lookahead() {
+    std::cout << "  test_bbox_latch_applies_to_lookahead... ";
+
+    StagingPool pool(8, 4096, 5000);
+    MockBackendDriver driver;
+    // depth=2, total=10.  No schedule_initial: the first get_buffer kicks off.
+    PrefetchQueue pq(2, 60, &pool, nullptr, &driver, 1, "var", kVarInfo, 10);
+
+    amio_bbox_t bbox{};
+    bbox.rank = 1;
+    bbox.offsets[0] = 0;
+    bbox.extents[0] = 64;  // proper subset of the 256-element variable
+    bbox.strides[0] = 1;
+
+    StagingBuffer *buf = nullptr;
+    assert(pq.get_buffer(0, &bbox, &buf) == AMIO_OK);
+    assert(buf != nullptr);
+
+    // Kickoff staged t0 and t1; BOTH must have been fetched with the bbox.
+    // read_count==2 proves exactly the two look-ahead fetches happened, and
+    // bbox_read_count==2 proves both carried the latched selection.
+    assert(driver.read_count() == 2);
+    assert(driver.bbox_read_count() == 2);
+
+    std::cout << "PASSED\n";
+}
+
+// Test: the first-touch kickoff opens the look-ahead window at the requested
+// timestep, NOT at 0.  Reading record 5 must stage {5,6} and never touch the
+// records before it, so a driver that only ever consumes a late record does
+// not pay for staging the whole prefix.
+void test_first_touch_kickoff_starts_at_timestep() {
+    std::cout << "  test_first_touch_kickoff_starts_at_timestep... ";
+
+    StagingPool pool(8, 4096, 5000);
+    MockBackendDriver driver;
+    PrefetchQueue pq(2, 60, &pool, nullptr, &driver, 1, "var", kVarInfo, 10);
+
+    StagingBuffer *buf = nullptr;
+    assert(pq.get_buffer(5, nullptr, &buf) == AMIO_OK);  // full read, no bbox
+    assert(buf != nullptr);
+
+    // Exactly depth=2 fetches (t5, t6).  If kickoff started at 0 it would
+    // have staged t0,t1 (wrong records) -- the count alone can't tell those
+    // apart, so also assert the LAST fetched timestep is 6 (== 5 + depth - 1).
+    assert(driver.read_count() == 2);
+    assert(driver.last_timestep() == 6);
+
+    std::cout << "PASSED\n";
+}
+
+// Test: a completed buffer fetched with a DIFFERENT selection than the one
+// now requested is released and re-fetched, so the host never receives data
+// that does not match its bbox.  The look-ahead for t1 was staged under
+// bboxA; requesting t1 under bboxB must trigger a fresh bboxB read.
+void test_bbox_mismatch_refetches() {
+    std::cout << "  test_bbox_mismatch_refetches... ";
+
+    StagingPool pool(8, 4096, 5000);
+    MockBackendDriver driver;
+    PrefetchQueue pq(3, 60, &pool, nullptr, &driver, 1, "var", kVarInfo, 10);
+
+    amio_bbox_t bboxA{};
+    bboxA.rank = 1;
+    bboxA.extents[0] = 64;
+    bboxA.strides[0] = 1;
+    amio_bbox_t bboxB{};
+    bboxB.rank = 1;
+    bboxB.offsets[0] = 64;
+    bboxB.extents[0] = 32;
+    bboxB.strides[0] = 1;
+
+    StagingBuffer *buf = nullptr;
+    // First touch: latch bboxA, kickoff stages t0,t1,t2 all with bboxA.
+    assert(pq.get_buffer(0, &bboxA, &buf) == AMIO_OK);
+    assert(buf != nullptr);
+    assert(driver.read_count() == 3);  // t0,t1,t2
+    assert(driver.bbox_read_count() == 3);
+
+    // Request t1 under a DIFFERENT selection.  completed_[1] holds a bboxA
+    // buffer -> stale -> released and re-fetched with bboxB.  Exactly one more
+    // read, and it carries a bbox.
+    assert(pq.get_buffer(1, &bboxB, &buf) == AMIO_OK);
+    assert(buf != nullptr);
+    assert(driver.read_count() == 4);  // +1 re-fetch of t1
+    assert(driver.bbox_read_count() == 4);
+    assert(driver.last_had_bbox());
+
+    std::cout << "PASSED\n";
+}
+
 }  // namespace test
 }  // namespace amio::detail
 
@@ -453,6 +555,9 @@ int main() {
     amio::detail::test::test_depth_clamping();
     amio::detail::test::test_read_timeout();
     amio::detail::test::test_cancel_pending();
+    amio::detail::test::test_bbox_latch_applies_to_lookahead();
+    amio::detail::test::test_first_touch_kickoff_starts_at_timestep();
+    amio::detail::test::test_bbox_mismatch_refetches();
 
     std::cout << "\nAll read prefetch path tests PASSED.\n";
     return 0;

@@ -77,8 +77,18 @@ DatasetAttributes parse_dataset_attributes(const conf::Config &config) {
     // common CF global attributes via try_string.
     if (config.has("global_attributes")) {
         // Read known global attribute keys that CF mandates or commonly uses.
-        static const char *known_global_keys[] = {"title",   "institution", "source",  "history", "references",
-                                                  "comment", "Conventions", "contact", "project"};
+        static const char *known_global_keys[] = {
+            "title", "institution", "source", "history", "references", "comment", "Conventions", "contact", "project",
+            // ACDD global attributes
+            "keywords", "summary", "acknowledgement", "id", "license", "creator_name", "creator_url", "creator_email", "publisher_name",
+            "publisher_url", "publisher_email", "geospatial_bounds", "geospatial_lat_min", "geospatial_lat_max", "geospatial_lon_min",
+            "geospatial_lon_max", "geospatial_vertical_min", "geospatial_vertical_max", "geospatial_vertical_positive", "geospatial_bounds_crs",
+            "geospatial_bounds_vertical_crs", "naming_authority", "project", "processing_level", "standard_name_vocabulary", "time_coverage_start",
+            "time_coverage_end", "time_coverage_duration", "time_coverage_resolution", "date_created", "date_modified", "date_metadata_modified",
+            // NCEI template attributes
+            "cdm_data_type", "featureType", "ncei_template_version", "uuid",
+            // Used by CECE's standalone writer
+            "gridspec_file"};
         for (const char *key : known_global_keys) {
             std::string dotted = std::string("global_attributes.") + key;
             auto val = config.try_string(dotted);
@@ -103,9 +113,10 @@ DatasetAttributes parse_dataset_attributes(const conf::Config &config) {
                 }
                 VarAttributes attrs;
                 // Read known CF/UGRID per-variable attribute keys.
-                static const char *known_var_keys[] = {"units",        "long_name",  "standard_name", "_FillValue", "coordinates",
-                                                       "cell_methods", "cf_role",    "mesh",          "location",   "topology_dimension",
-                                                       "scale_factor", "add_offset", "valid_min",     "valid_max",  "valid_range"};
+                static const char *known_var_keys[] = {
+                    "units",    "long_name",          "standard_name",        "_FillValue", "coordinates", "cell_methods", "cf_role",     "mesh",
+                    "location", "topology_dimension", "scale_factor",         "add_offset", "valid_min",   "valid_max",    "valid_range", "bounds",
+                    "axis",     "grid_mapping",       "coverage_content_type"};
                 for (const char *key : known_var_keys) {
                     std::string dotted = prefix + "." + key;
                     auto val = config.try_string(dotted);

@@ -880,8 +880,7 @@ set(_amio_worker_test_targets
     test_read_close_guard
     test_read_release_view
     test_read_e2e_smoke
-    test_config_loader
-)
+    test_config_loader)
 foreach(_target IN LISTS _amio_worker_test_targets)
     if(TARGET ${_target})
         if(LOGS_FOUND)
@@ -895,4 +894,3 @@ foreach(_target IN LISTS _amio_worker_test_targets)
         endif()
     endif()
 endforeach()
-

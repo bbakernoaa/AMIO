@@ -36,6 +36,11 @@ static bool is_config_expected_valid(const Config &cfg) {
         return false;
     }
 
+    // staging_pool.max_buffer_count [buffer_count, 4096]
+    if (cfg.staging_pool.max_buffer_count < cfg.staging_pool.buffer_count || cfg.staging_pool.max_buffer_count > 4096) {
+        return false;
+    }
+
     // worker_pool.threads [1, 256]
     if (cfg.worker_pool.threads < 1 || cfg.worker_pool.threads > 256) {
         return false;

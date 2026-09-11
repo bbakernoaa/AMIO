@@ -81,11 +81,28 @@ amio_status_t init(const char *manifest_path, amio_core_handle *out_core) {
         return static_cast<amio_status_t>(parse_rc);
     }
 
+    // ---- Steps 2-4: build the runtime + mint the handle from the
+    // parsed Config.  Shared with the string-based init path so the
+    // pool-construction / LOGS-init / handle-mint logic lives in one
+    // place (design §"Shared-body factoring").
+    return init_from_config(cfg, out_core);
+}
+
+// ---------------------------------------------------------------
+// init_from_config -- steps 2-4 of the original init(), factored out
+// so both the path-based init() and the string-based init_from_string()
+// share the identical pool-construction + LOGS-init + handle-mint path
+// from an already-parsed Config (design §"Shared-body factoring").
+//
+// Validates: R1.1, R1.2, R1.3, R1.4
+// ---------------------------------------------------------------
+amio_status_t init_from_config(const Config &cfg, amio_core_handle *out_core) {
     // ---- Step 2: Construct the runtime pools (Req 1.1, 1.2) ----
     auto core = std::make_unique<AMIO_Core>();
     try {
         core->staging_pool = std::make_unique<StagingPool>(cfg.staging_pool.buffer_count, cfg.staging_pool.buffer_capacity_bytes,
-                                                           static_cast<std::int64_t>(cfg.staging_timeout_ms));
+                                                           static_cast<std::int64_t>(cfg.staging_timeout_ms), cfg.staging_pool.max_buffer_count,
+                                                           StagingPool::GrowMode::Grow);
 
         if (cfg.worker_pool.threads > 0) {
             WorkerPoolConfig wp{};
@@ -133,6 +150,42 @@ amio_status_t init(const char *manifest_path, amio_core_handle *out_core) {
     *out_core = HandleTable::to_ptr(token);
     core.release();  // ownership transferred to the handle table
     return AMIO_OK;
+}
+
+// ---------------------------------------------------------------
+// init_from_string -- task 3.1: initialize the runtime from an
+// in-memory manifest string.
+//
+// Behaves exactly like init(), except the manifest is supplied as a
+// NUL-terminated string in `format` ("yaml"/"json") rather than read
+// from a file path.  It parses via ConfigLoader::parse_string and, on
+// success, delegates to the shared init_from_config helper so the
+// pool-construction / LOGS-init / handle-mint path is identical to the
+// file-based path (design §"Shared-body factoring").
+//
+//   * parse_string failure -> the loader's error code
+//     (AMIO_ERR_MANIFEST_INVALID for bad content); because there is no
+//     file, AMIO_ERR_MANIFEST_NOT_FOUND cannot occur.  No handle
+//     minted (Req 8.1).
+//   * Pool construction failure -> AMIO_ERR_BACKEND_FAILURE, no handle
+//     minted (Req 1.4).
+//
+// Validates: R2.1, R2.2, R8.1
+// ---------------------------------------------------------------
+amio_status_t init_from_string(const char *manifest_content, const char *format, amio_core_handle *out_core) {
+    // ---- Step 1: Parse + validate the in-memory manifest (Req 2.1) ----
+    Config cfg{};
+    ValidationError verr{};
+    amio_err_t parse_rc = ConfigLoader::parse_string(std::string(manifest_content), std::string(format), cfg, verr);
+    if (parse_rc != AMIO_OK) {
+        std::cerr << "[AMIO ERROR] in in-memory manifest (field: " << verr.field_path << "): " << verr.message << std::endl;
+        // Bad content -> MANIFEST_INVALID; no handle minted.
+        return static_cast<amio_status_t>(parse_rc);
+    }
+
+    // ---- Steps 2-4: build the runtime + mint the handle, shared with
+    // the path-based init() (design §"Shared-body factoring").
+    return init_from_config(cfg, out_core);
 }
 
 // ---------------------------------------------------------------
@@ -230,8 +283,6 @@ amio_status_t finalize(void *core_payload) {
 // Decision), so no eager prefetch scheduling happens here.
 // ---------------------------------------------------------------
 amio_status_t open_dataset(void *core_payload, const char *config_path, std::int32_t mode, amio_dataset_handle *out_dataset) {
-    auto *core = static_cast<AMIO_Core *>(core_payload);
-
     // Parse the dataset configuration to extract the backend key.
     Config config{};
     ValidationError verr{};
@@ -241,6 +292,37 @@ amio_status_t open_dataset(void *core_payload, const char *config_path, std::int
         // otherwise return the parse error.
         return static_cast<amio_status_t>(parse_rc);
     }
+
+    // Build a conf::Config from the manifest file for the driver's
+    // open_write / open_read (Req 13.1, 13.2).  The dataset-level
+    // configuration (path / uri / data_model / codec / ...) is parsed
+    // by each driver directly from this Config.
+    conf::Config manifest_cfg = conf::Config::from_file(std::string(config_path));
+
+    // Delegate the factory-build + communicator-set + open + record
+    // construction to the shared config-based helper so the path-based
+    // and string-based (task 3.1) open variants share one body.
+    return open_dataset_from_config(core_payload, config, std::move(manifest_cfg), mode, out_dataset);
+}
+
+// ---------------------------------------------------------------
+// open_dataset_from_config -- shared open path.
+//
+// Runs the factory-build + communicator-set + open_read/open_write +
+// DatasetRecord construction path that open_dataset used inline.  Both
+// the path-based open_dataset and the string-based
+// open_dataset_from_string (task 3.1) reach this helper after producing
+// a parsed `config` (backend key + read-path knobs) and a
+// `manifest_cfg` (the driver's dataset-level configuration).  The
+// `manifest_cfg` is taken by value and moved into the DatasetRecord so
+// it outlives the driver (Req 13.1, 13.3).
+//
+// On factory lookup failure -> AMIO_ERR_UNKNOWN_BACKEND, no handle.
+// On driver open failure     -> AMIO_ERR_BACKEND_FAILURE, no handle.
+// ---------------------------------------------------------------
+amio_status_t open_dataset_from_config(void *core_payload, const Config &config, conf::Config manifest_cfg, std::int32_t mode,
+                                       amio_dataset_handle *out_dataset) {
+    auto *core = static_cast<AMIO_Core *>(core_payload);
 
     // Extract backend key from configuration.
     const std::string &backend_key = config.backend;
@@ -253,12 +335,6 @@ amio_status_t open_dataset(void *core_payload, const char *config_path, std::int
         return static_cast<amio_status_t>(factory_err);
     }
 
-    // Build a conf::Config from the manifest file for the driver's
-    // open_write / open_read (Req 13.1, 13.2).  The dataset-level
-    // configuration (path / uri / data_model / codec / ...) is parsed
-    // by each driver directly from this Config.
-    conf::Config manifest_cfg = conf::Config::from_file(std::string(config_path));
-
 #ifdef AMIO_HAS_MPI
     try {
         if (core != nullptr) {
@@ -269,11 +345,10 @@ amio_status_t open_dataset(void *core_payload, const char *config_path, std::int
             }
         }
     } catch (const std::exception &e) {
-        std::cerr << "[AMIO ERROR] open_dataset failed while setting communicator for manifest '" << config_path << "': " << e.what() << std::endl;
+        std::cerr << "[AMIO ERROR] open_dataset failed while setting communicator: " << e.what() << std::endl;
         return AMIO_ERR_BACKEND_FAILURE;
     } catch (...) {
-        std::cerr << "[AMIO ERROR] open_dataset failed while setting communicator for manifest '" << config_path << "': unknown exception"
-                  << std::endl;
+        std::cerr << "[AMIO ERROR] open_dataset failed while setting communicator: unknown exception" << std::endl;
         return AMIO_ERR_BACKEND_FAILURE;
     }
 #endif
@@ -334,6 +409,52 @@ amio_status_t open_dataset(void *core_payload, const char *config_path, std::int
 
     *out_dataset = HandleTable::to_ptr(token);
     return AMIO_OK;
+}
+
+// ---------------------------------------------------------------
+// open_dataset_from_string -- task 3.1: open a dataset from an
+// in-memory config string.
+//
+// Behaves exactly like open_dataset(), except the dataset config is
+// supplied as a NUL-terminated string in `format` ("yaml"/"json")
+// rather than read from a file path.  It parses the backend key via
+// ConfigLoader::parse_string, builds the driver conf::Config via
+// conf::Config::from_string, then delegates to the shared
+// open_dataset_from_config helper so the factory-build +
+// communicator-set + open + DatasetRecord path is identical to the
+// file-based open_dataset (design §"Shared-body factoring").
+//
+//   * parse_string failure -> the loader's error code
+//     (AMIO_ERR_MANIFEST_INVALID for bad content); because there is no
+//     file, AMIO_ERR_MANIFEST_NOT_FOUND cannot occur.  No handle
+//     minted (Req 8.1).
+//   * factory lookup failure -> AMIO_ERR_UNKNOWN_BACKEND, no handle.
+//   * driver open failure     -> AMIO_ERR_BACKEND_FAILURE, no handle.
+//
+// Validates: R2.1, R2.2, R8.1
+// ---------------------------------------------------------------
+amio_status_t open_dataset_from_string(void *core_payload, const char *config_content, const char *format, std::int32_t mode,
+                                       amio_dataset_handle *out_dataset) {
+    // Parse the in-memory dataset configuration to extract the backend
+    // key.  Bad content maps to the loader's error code
+    // (AMIO_ERR_MANIFEST_INVALID); MANIFEST_NOT_FOUND cannot occur here
+    // because there is no file.
+    Config config{};
+    ValidationError verr{};
+    amio_err_t parse_rc = ConfigLoader::parse_string(std::string(config_content), std::string(format), config, verr);
+    if (parse_rc != AMIO_OK) {
+        return static_cast<amio_status_t>(parse_rc);
+    }
+
+    // Build a conf::Config from the in-memory config for the driver's
+    // open_write / open_read (Req 13.1, 13.2), mirroring open_dataset's
+    // conf::Config::from_file.
+    conf::Config manifest_cfg = conf::Config::from_string(std::string(config_content));
+
+    // Delegate the factory-build + communicator-set + open + record
+    // construction to the shared config-based helper so the path-based
+    // and string-based open variants share one body.
+    return open_dataset_from_config(core_payload, config, std::move(manifest_cfg), mode, out_dataset);
 }
 
 // ---------------------------------------------------------------
@@ -833,9 +954,11 @@ static VariableReadState *resolve_variable(DatasetRecord *record, const std::str
                                                    static_cast<std::int64_t>(record->dataset_config.prefetch.read_timeout_s), pool, workers,
                                                    record->driver.get(), record->dataset_id, var_name, info, info.total_timesteps);
 
-    // Kick off the initial min(depth, total_timesteps) look-ahead
-    // fetches for this variable (Req 5.1).
-    state->queue->schedule_initial();
+    // The initial look-ahead window is NOT scheduled here: the first
+    // get_buffer call self-kicks-off, so the window starts at the timestep
+    // the host actually requests and uses the caller's latched selection
+    // (bbox) rather than eagerly staging full records from timestep 0.
+    // (schedule_initial remains public for tests and explicit warm-up.)
 
     VariableReadState *raw = state.get();
     record->variables.emplace(var_name, std::move(state));
@@ -937,6 +1060,30 @@ amio_status_t get_var_attribute_double(void *dataset_payload, const char *var_na
 //
 // Validates: R2.3, R2.4, R3.1, R3.2, R4.5, R5.1, R5.2, R5.3, R6.4, R6.5, R6.6, R12.1, R12.2, R12.3, R12.4
 // ---------------------------------------------------------------
+amio_status_t describe(void *dataset_payload, const char *var_name, amio_shape_t *out_shape, std::int64_t *out_total_timesteps) {
+    auto *record = static_cast<DatasetRecord *>(dataset_payload);
+
+    if (var_name == nullptr || var_name[0] == '\0' || out_shape == nullptr || out_total_timesteps == nullptr) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+    if (record->mode != AMIO_MODE_READ) {
+        return AMIO_ERR_INVALID_INPUT;
+    }
+
+    // resolve_variable caches the driver's describe_variable result in the
+    // per-variable read state.  Since the look-ahead window now self-kicks-
+    // off on the first get_buffer (not at resolve time), calling describe
+    // resolves metadata WITHOUT staging any payload.
+    VariableReadState *vs = resolve_variable(record, var_name);
+    if (vs == nullptr) {
+        return AMIO_ERR_BACKEND_FAILURE;
+    }
+
+    *out_shape = vs->info.shape;
+    *out_total_timesteps = vs->info.total_timesteps;
+    return AMIO_OK;
+}
+
 amio_status_t read(void *dataset_payload, const char *var_name, std::int64_t timestep, const amio_bbox_t *bbox, amio_view_handle *out_view) {
     auto *record = static_cast<DatasetRecord *>(dataset_payload);
 

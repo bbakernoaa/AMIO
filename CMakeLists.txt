@@ -10,8 +10,8 @@
 # * `amio_public_headers` is the only target that downstream consumers of `libamio` ever see on their include path.  Its INTERFACE_INCLUDE_DIRECTORIES
 #   is restricted to the C99-only include tree (R10.1, R10.2, R13.6).
 #
-# * `amio_core` (SHARED, libamio.so) PRIVATE-links every C++ dependency (HELM::CONF, HELM::HALO, HELM::LOGS, kokkos/mdspan, MPI, optionally TensorStore, netCDF-cxx4,
-#   nceplibs-g2c).  None of those headers leak through the public surface.
+# * `amio_core` (SHARED, libamio.so) PRIVATE-links every C++ dependency (HELM::CONF, HELM::HALO, HELM::LOGS, kokkos/mdspan, MPI, optionally
+#   TensorStore, netCDF-cxx4, nceplibs-g2c).  None of those headers leak through the public surface.
 #
 # * `driver_netcdf`, `driver_zarr`, `driver_grib2` are STATIC archives that are PRIVATE-linked into `amio_core`.  They are never installed and never
 #   visible to consumers.
@@ -67,10 +67,14 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 option(AMIO_BUILD_TESTING "Build AMIO unit and property-based tests" OFF)
+# When AMIO is consumed as a subproject (e.g. CECE's top-level build), only the property-based test suite can be built cleanly -- the
+# unit/integration/ci subdirectories assume the standalone AMIO configure environment.  This option adds ONLY tests/pbt so a parent project can
+# build/run the AMIO PBT targets without enabling the full standalone test tree.
+option(AMIO_BUILD_PBT_ONLY "Build only the AMIO property-based (PBT) test suite" OFF)
 option(AMIO_BUILD_DOCS "Build Doxygen documentation" OFF)
 option(AMIO_BUILD_EXAMPLES "Build usage examples" OFF)
 
-if(AMIO_BUILD_TESTING)
+if(AMIO_BUILD_TESTING OR AMIO_BUILD_PBT_ONLY)
     enable_testing()
 endif()
 
@@ -99,22 +103,16 @@ find_package(netCDFCxx CONFIG QUIET)
 
 # Fallback discovery via nc-config.
 #
-# Many HPC deployments (e.g. spack-stack on Cray) install netCDF-c WITHOUT a
-# CMake package-config file, so the CONFIG-mode find_package above fails even
-# though a fully functional netCDF is on PATH.  In that case, fall back to the
-# `nc-config` helper that every netCDF-c install ships.  We query it for the
-# include directory and link libraries, build the canonical `netCDF::netcdf`
-# imported target, and set `netCDF_FOUND` so the rest of this file (including
-# the driver_netcdf target that defines AMIO_HAS_NETCDF) works unchanged.
+# Many HPC deployments (e.g. spack-stack on Cray) install netCDF-c WITHOUT a CMake package-config file, so the CONFIG-mode find_package above fails
+# even though a fully functional netCDF is on PATH.  In that case, fall back to the `nc-config` helper that every netCDF-c install ships.  We query it
+# for the include directory and link libraries, build the canonical `netCDF::netcdf` imported target, and set `netCDF_FOUND` so the rest of this file
+# (including the driver_netcdf target that defines AMIO_HAS_NETCDF) works unchanged.
 if(NOT netCDF_FOUND AND NOT netCDFCxx_FOUND)
     find_program(AMIO_NC_CONFIG NAMES nc-config)
     if(AMIO_NC_CONFIG)
-        execute_process(COMMAND ${AMIO_NC_CONFIG} --includedir
-                        OUTPUT_VARIABLE _amio_nc_incdir OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-        execute_process(COMMAND ${AMIO_NC_CONFIG} --prefix
-                        OUTPUT_VARIABLE _amio_nc_prefix OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-        execute_process(COMMAND ${AMIO_NC_CONFIG} --libs
-                        OUTPUT_VARIABLE _amio_nc_libs OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        execute_process(COMMAND ${AMIO_NC_CONFIG} --includedir OUTPUT_VARIABLE _amio_nc_incdir OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        execute_process(COMMAND ${AMIO_NC_CONFIG} --prefix OUTPUT_VARIABLE _amio_nc_prefix OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        execute_process(COMMAND ${AMIO_NC_CONFIG} --libs OUTPUT_VARIABLE _amio_nc_libs OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 
         find_path(AMIO_NETCDF_INCLUDE_DIR netcdf.h HINTS ${_amio_nc_incdir} ${_amio_nc_prefix}/include)
         find_library(AMIO_NETCDF_LIBRARY NAMES netcdf HINTS ${_amio_nc_prefix}/lib ${_amio_nc_prefix}/lib64)
@@ -122,9 +120,8 @@ if(NOT netCDF_FOUND AND NOT netCDFCxx_FOUND)
         if(AMIO_NETCDF_INCLUDE_DIR AND AMIO_NETCDF_LIBRARY)
             if(NOT TARGET netCDF::netcdf)
                 add_library(netCDF::netcdf UNKNOWN IMPORTED)
-                set_target_properties(netCDF::netcdf PROPERTIES
-                    IMPORTED_LOCATION "${AMIO_NETCDF_LIBRARY}"
-                    INTERFACE_INCLUDE_DIRECTORIES "${AMIO_NETCDF_INCLUDE_DIR}")
+                set_target_properties(netCDF::netcdf PROPERTIES IMPORTED_LOCATION "${AMIO_NETCDF_LIBRARY}" INTERFACE_INCLUDE_DIRECTORIES
+                                                                                                           "${AMIO_NETCDF_INCLUDE_DIR}")
             endif()
             set(netCDF_FOUND TRUE)
             set(netCDF_INCLUDE_DIRS "${AMIO_NETCDF_INCLUDE_DIR}")
@@ -273,8 +270,8 @@ endif()
 # Target 1: amio_public_headers (INTERFACE, C99-only)
 #
 # This target's INTERFACE_INCLUDE_DIRECTORIES exposes ONLY the `include/` tree, which is constrained to C99 headers.  No transitive include directory
-# from CONF, HALO, LOGS, TensorStore, netCDF, or g2c is allowed to reach this target -- the header-isolation CI check (task 1.4) verifies this with `gcc -std=c99
-# -pedantic -Werror -c amio.h` compiled with no other include flags.
+# from CONF, HALO, LOGS, TensorStore, netCDF, or g2c is allowed to reach this target -- the header-isolation CI check (task 1.4) verifies this with
+# `gcc -std=c99 -pedantic -Werror -c amio.h` compiled with no other include flags.
 # ####################################################################################################################################################
 
 add_library(amio_public_headers INTERFACE)
@@ -433,7 +430,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_options(amio_core PRIVATE "-Wl,--exclude-libs,ALL")
 endif()
 
-
 if(TARGET std::mdspan)
     target_link_libraries(amio_core PRIVATE std::mdspan)
 elseif(TARGET mdspan::mdspan)
@@ -446,7 +442,11 @@ endif()
 
 # Force the linker to include all object files from the static driver archives so their static-init factory registrations (task 6.2) fire at libamio
 # load time.  Without --whole-archive (or equivalent), unused-from-amio_core objects would be stripped.
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel" OR CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+   OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+   OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"
+   OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel"
+   OR CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_link_options(
         amio_core
         PRIVATE
@@ -482,6 +482,27 @@ target_link_libraries(amio_fortran PUBLIC amio_public_headers amio_core)
 
 if(AMIO_BUILD_TESTING)
     add_subdirectory(tests)
+elseif(AMIO_BUILD_PBT_ONLY)
+    # PBT-only path: add just tests/pbt.  Catch2 / RapidCheck are located by tests/pbt/CMakeLists.txt (reusing a parent-provided rapidcheck target
+    # when present).
+    if(NOT TARGET Catch2::Catch2)
+        find_package(Catch2 3 CONFIG QUIET)
+    endif()
+    # Catch2 v3 is not installed in every consumer environment (e.g. the cece-dev image ships RapidCheck but not Catch2).  Fetch it when missing so
+    # the PBT harness -- which uses Catch2 v3 TEST_CASE + rc::check -- can build.
+    if(NOT TARGET Catch2::Catch2 AND NOT Catch2_FOUND)
+        include(FetchContent)
+        FetchContent_Declare(Catch2 GIT_REPOSITORY https://github.com/catchorg/Catch2.git GIT_TAG v3.5.2)
+        FetchContent_MakeAvailable(Catch2)
+    endif()
+    if(NOT TARGET rapidcheck)
+        find_package(rapidcheck CONFIG QUIET)
+    endif()
+    if((Catch2_FOUND OR TARGET Catch2::Catch2) AND (rapidcheck_FOUND OR TARGET rapidcheck))
+        add_subdirectory(tests/pbt)
+    else()
+        message(STATUS "AMIO PBT: Catch2 or RapidCheck not found; skipping tests/pbt/")
+    endif()
 endif()
 
 if(AMIO_BUILD_EXAMPLES)
