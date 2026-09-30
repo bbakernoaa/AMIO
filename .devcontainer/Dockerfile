@@ -1,7 +1,7 @@
 # AMIO Development Container (full integration build)
 #
 # Builds the complete AMIO dependency stack:
-#   ecbuild → eckit → kokkos/mdspan → nceplibs-g2c → TensorStore
+#   kokkos/mdspan → nceplibs-g2c → TensorStore
 #   → Catch2 → RapidCheck
 #
 # netCDF-c (with NCZarr, parallel HDF5) and netCDF-cxx4 come from
@@ -43,38 +43,6 @@ ENV CXX=g++
 ENV FC=gfortran
 
 # ===================================================================
-# ecbuild (ECMWF CMake macros - required by eckit)
-# ===================================================================
-RUN git clone --depth 1 --branch 3.8.5 https://github.com/ecmwf/ecbuild.git /tmp/ecbuild-src \
-    && mkdir /tmp/ecbuild-build && cd /tmp/ecbuild-build \
-    && cmake /tmp/ecbuild-src -GNinja -DCMAKE_INSTALL_PREFIX=/opt/ecbuild \
-    && ninja install \
-    && rm -rf /tmp/ecbuild-src /tmp/ecbuild-build
-
-ENV PATH="/opt/ecbuild/bin:${PATH}"
-
-# ===================================================================
-# eckit (ECMWF toolkit - built with ecbuild)
-# ===================================================================
-RUN git clone --depth 1 --branch 1.26.2 https://github.com/ecmwf/eckit.git /tmp/eckit-src \
-    && mkdir /tmp/eckit-build && cd /tmp/eckit-build \
-    && cmake /tmp/eckit-src -GNinja \
-    -DCMAKE_INSTALL_PREFIX=/opt/eckit \
-    -DCMAKE_PREFIX_PATH=/opt/ecbuild \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DENABLE_MPI=ON \
-    -DENABLE_TESTS=OFF \
-    -DENABLE_ECKIT_SQL=OFF \
-    -DENABLE_ECKIT_CMD=OFF \
-    -DENABLE_BZIP2=OFF \
-    -DENABLE_CURL=OFF \
-    -DENABLE_JEMALLOC=OFF \
-    -DENABLE_LZ4=OFF \
-    -DENABLE_SNAPPY=OFF \
-    -DENABLE_AEC=OFF \
-    && ninja -j$(nproc) && ninja install \
-    && rm -rf /tmp/eckit-src /tmp/eckit-build
-
 # ===================================================================
 # kokkos/mdspan (header-only)
 # ===================================================================
@@ -158,9 +126,8 @@ RUN git clone --depth 1 https://github.com/emil-e/rapidcheck.git /tmp/rc-src \
 # ===================================================================
 # Environment
 # ===================================================================
-ENV CMAKE_PREFIX_PATH="/opt/ecbuild;/opt/eckit;/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck"
-ENV LD_LIBRARY_PATH="/opt/eckit/lib:/opt/jasper/lib:/opt/g2c/lib"
-ENV PATH="/opt/ecbuild/bin:${PATH}"
+ENV CMAKE_PREFIX_PATH="/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck"
+ENV LD_LIBRARY_PATH="/opt/jasper/lib:/opt/g2c/lib"
 
 # Verify NCZarr support in system netCDF
 RUN nc-config --has-nczarr || echo "WARNING: system netCDF may lack NCZarr"

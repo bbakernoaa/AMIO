@@ -31,7 +31,7 @@
 // do not need to link libmpi_cxx.
 #define OMPI_SKIP_MPICXX 1
 #define MPICH_SKIP_MPICXX 1
-#include <eckit/config/YAMLConfiguration.h>
+#include <conf/config.hpp>
 #include <mpi.h>
 
 #include <cstdio>
@@ -108,7 +108,7 @@ int main() {
                              "\n"
                              "data_model: classic\n";
 
-    eckit::YAMLConfiguration cfg{yaml};
+    conf::Config cfg = conf::Config::from_string(yaml);
 
     // ---- Write phase (tolerate an environment without parallel HDF5) ----
     bool functional = true;

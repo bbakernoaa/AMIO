@@ -13,7 +13,7 @@
 #
 # Phase 2 -- live consumer configure (best-effort): 2a. Configure AMIO with -DAMIO_FORCE_NCZARR=ON. 2b. Install AMIO into a temporary prefix. 2c.
 # Configure and build a tiny consumer that calls find_package(AMIO REQUIRED PATHS <prefix>) and links AMIO::amio_core. If any step in phase 2 fails
-# because of a missing AMIO runtime dependency (eckit, netCDF, MPI), the driver emits "[SKIP] ..." rather than failing -- such hosts cannot complete a
+# because of a missing AMIO runtime dependency (netCDF, MPI), the driver emits "[SKIP] ..." rather than failing -- such hosts cannot complete a
 # full AMIO configure regardless of the find_package machinery.
 #
 # Output markers: AMIO_FIND_PACKAGE_RESOLVES=OK   -- all enabled checks passed AMIO_FIND_PACKAGE_RESOLVES=FAIL -- any enabled check failed [SKIP] ...
@@ -102,7 +102,7 @@ endforeach()
 # ####################################################################################################################################################
 # Phase 2: live consumer configure.
 #
-# Best-effort -- a host without eckit / netCDF / MPI cannot run AMIO configure to completion, but that does not invalidate R13.1's claim about the
+# Best-effort -- a host without netCDF / MPI cannot run AMIO configure to completion, but that does not invalidate R13.1's claim about the
 # find_package interface.  We emit [SKIP] in that case and let CTest record SKIPPED.
 # ####################################################################################################################################################
 file(REMOVE_RECURSE "${AMIO_TEST_WORK_DIR}")
@@ -127,9 +127,9 @@ message(STATUS "AMIO configure rc=${_amio_cfg_rc}")
 message(STATUS "AMIO configure output:\n${_amio_cfg_combined}")
 
 if(NOT _amio_cfg_rc EQUAL 0)
-    # Inspect the failure reason.  If it is the documented "no Zarr backend available" FATAL_ERROR (no eckit / no netCDF / no NCZarr capability), this
+    # Inspect the failure reason.  If it is the documented "no Zarr backend available" FATAL_ERROR (no netCDF / no NCZarr capability), this
     # host genuinely cannot run a live consumer test -- skip it.  Any other failure mode counts as a genuine test failure.
-    set(_skip_markers "no Zarr backend available" "Could NOT find eckit" "Could NOT find netCDF" "Could NOT find MPI" "Could NOT find mdspan")
+    set(_skip_markers "no Zarr backend available" "Could NOT find netCDF" "Could NOT find MPI" "Could NOT find mdspan")
     set(_skip_matched FALSE)
     foreach(_marker IN LISTS _skip_markers)
         string(FIND "${_amio_cfg_combined}" "${_marker}" _h)

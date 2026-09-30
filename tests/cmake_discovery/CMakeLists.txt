@@ -22,7 +22,7 @@
 # and CMake's `.` does not match newlines, (b) the driver script can ensure all markers are present (AND semantics) instead of CTest's native OR
 # semantics.
 #
-# Probes are deliberately self-contained: they do not require eckit, netCDF, MPI, or any other AMIO runtime dependency to be installed. This makes the
+# Probes are deliberately self-contained: they do not require netCDF, MPI, or any other AMIO runtime dependency to be installed. This makes the
 # tests runnable on developer workstations and the minimal CI image that exercises only the configure-time flow.
 # ####################################################################################################################################################
 

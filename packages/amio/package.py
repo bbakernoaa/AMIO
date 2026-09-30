@@ -29,7 +29,7 @@ class Amio(CMakePackage):
     AMIO decouples scientific compute loops from physical storage
     architectures by exposing a flat C99 FFI surface plus a Fortran
     2003 iso_c_binding wrapper.  Internally it owns a staging memory
-    pool, a look-ahead prefetch queue, and an eckit-thread worker
+    pool, a look-ahead prefetch queue, and a worker
     pool that dispatches to one of three pluggable backend drivers:
 
       * NetCDF-4 (Parallel HDF5 + MPI-IO)
@@ -37,7 +37,7 @@ class Amio(CMakePackage):
                   air-gapped sites)
       * GRIB2    (nceplibs-g2c)
 
-    Public headers are C99-only and never transitively expose eckit,
+    Public headers are C99-only and never transitively expose
     TensorStore, netCDF-cxx4, or nceplibs-g2c headers to the host
     application's compile path.
     """
@@ -61,7 +61,7 @@ class Amio(CMakePackage):
     #
     # `+tensorstore` (default ON)  -> build with TensorStore Zarr v3
     # `~tensorstore`               -> NCZarr fallback only (air-gapped)
-    # `+mpi`         (default ON)  -> Parallel HDF5 / eckit::mpi splits
+    # `+mpi`         (default ON)  -> Parallel HDF5 / MPI communicator splits
     # `+shared`      (default ON)  -> build libamio.so (vs static)
     ####################################################################
 
@@ -80,7 +80,7 @@ class Amio(CMakePackage):
         default=True,
         description=(
             "Build with MPI support, required for Parallel HDF5 writes "
-            "and eckit::mpi communicator splits onto dedicated I/O ranks."
+            "and communicator splits onto dedicated I/O ranks."
         ),
     )
     variant(
@@ -100,7 +100,6 @@ class Amio(CMakePackage):
 
     depends_on("cmake@3.20:", type="build")
 
-    depends_on("eckit@1.24:")
     depends_on("kokkos-mdspan")                       # header-only Memory_View
     depends_on("netcdf-cxx4")
     depends_on("netcdf-c +nczarr +blosc +zstd")       # required for NCZarr path
@@ -112,7 +111,6 @@ class Amio(CMakePackage):
     # the NetCDF_Driver cannot open Parallel-HDF5 datasets (R7.1).
     depends_on("netcdf-c +mpi",    when="+mpi")
     depends_on("netcdf-cxx4 +mpi", when="+mpi")
-    depends_on("eckit +mpi",       when="+mpi")
 
     ####################################################################
     # Hard prohibitions (Requirement R13.2)

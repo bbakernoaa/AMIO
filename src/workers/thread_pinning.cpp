@@ -2,11 +2,8 @@
 //
 // Platform-specific implementation of thread affinity binding.
 //
-// When eckit is available (AMIO_HAS_ECKIT defined), delegates to
-// eckit resource binding facilities.  Otherwise uses:
-//   - Linux: pthread_setaffinity_np / sched_getaffinity
-//   - Other platforms: returns AMIO_ERR_INVALID_BINDING for
-//     non-default configs (graceful degradation).
+// Uses native platform APIs for CPU affinity. Unsupported platforms
+// return AMIO_ERR_INVALID_BINDING for non-default configurations.
 //
 // Validates: R3.2, R3.3
 

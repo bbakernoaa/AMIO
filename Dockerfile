@@ -5,7 +5,7 @@
 #
 # Stages:
 #   deps    - Ubuntu 24.04 + full dependency stack
-#             (ecbuild, eckit, mdspan, JasPer, nceplibs-g2c, Catch2,
+#             (mdspan, JasPer, nceplibs-g2c, Catch2,
 #              RapidCheck) plus system-packaged netCDF-c/NCZarr, HDF5-MPI.
 #   build   - configure + compile + test + install AMIO into /opt/amio.
 #   runtime - slim image carrying only the installed library and the
@@ -54,35 +54,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CC=gcc
 ENV CXX=g++
 ENV FC=gfortran
-
-# ecbuild (ECMWF CMake macros - required by eckit).
-RUN git clone --depth 1 --branch 3.8.5 https://github.com/ecmwf/ecbuild.git /tmp/ecbuild-src \
-    && mkdir /tmp/ecbuild-build && cd /tmp/ecbuild-build \
-    && cmake /tmp/ecbuild-src -GNinja -DCMAKE_INSTALL_PREFIX=/opt/ecbuild \
-    && ninja install \
-    && rm -rf /tmp/ecbuild-src /tmp/ecbuild-build
-
-ENV PATH="/opt/ecbuild/bin:${PATH}"
-
-# eckit (ECMWF toolkit - built with ecbuild).
-RUN git clone --depth 1 --branch 1.26.2 https://github.com/ecmwf/eckit.git /tmp/eckit-src \
-    && mkdir /tmp/eckit-build && cd /tmp/eckit-build \
-    && cmake /tmp/eckit-src -GNinja \
-    -DCMAKE_INSTALL_PREFIX=/opt/eckit \
-    -DCMAKE_PREFIX_PATH=/opt/ecbuild \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DENABLE_MPI=ON \
-    -DENABLE_TESTS=OFF \
-    -DENABLE_ECKIT_SQL=OFF \
-    -DENABLE_ECKIT_CMD=OFF \
-    -DENABLE_BZIP2=OFF \
-    -DENABLE_CURL=OFF \
-    -DENABLE_JEMALLOC=OFF \
-    -DENABLE_LZ4=OFF \
-    -DENABLE_SNAPPY=OFF \
-    -DENABLE_AEC=OFF \
-    && ninja -j$(nproc) && ninja install \
-    && rm -rf /tmp/eckit-src /tmp/eckit-build
 
 # kokkos/mdspan (header-only).
 RUN git clone --depth 1 --branch mdspan-0.6.0 https://github.com/kokkos/mdspan.git /tmp/mdspan-src \
@@ -138,8 +109,8 @@ RUN git clone --depth 1 https://github.com/emil-e/rapidcheck.git /tmp/rc-src \
     && ninja -j$(nproc) && ninja install \
     && rm -rf /tmp/rc-src /tmp/rc-build
 
-ENV CMAKE_PREFIX_PATH="/opt/ecbuild;/opt/eckit;/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck"
-ENV LD_LIBRARY_PATH="/opt/eckit/lib:/opt/jasper/lib:/opt/g2c/lib"
+ENV CMAKE_PREFIX_PATH="/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck"
+ENV LD_LIBRARY_PATH="/opt/jasper/lib:/opt/g2c/lib"
 
 # ===================================================================
 # Stage 2: build - configure, compile, test, and install AMIO
@@ -160,7 +131,6 @@ COPY . /src
 RUN cmake -S /src -B /src/build -GNinja \
     -DCMAKE_BUILD_TYPE=${AMIO_BUILD_TYPE} \
     -DCMAKE_INSTALL_PREFIX=/opt/amio \
-    -DAMIO_HAS_ECKIT=ON \
     -DAMIO_HAS_NETCDF=ON \
     -DAMIO_HAS_G2C=ON \
     -DAMIO_HAS_TENSORSTORE=${AMIO_HAS_TENSORSTORE} \
@@ -205,17 +175,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=build /opt/amio /opt/amio
 
 # Source-built shared libraries that libamio.so depends on at load time.
-COPY --from=build /opt/eckit/lib /opt/eckit/lib
 COPY --from=build /opt/jasper/lib /opt/jasper/lib
 COPY --from=build /opt/g2c/lib /opt/g2c/lib
 
-ENV LD_LIBRARY_PATH="/opt/amio/lib:/opt/eckit/lib:/opt/jasper/lib:/opt/g2c/lib"
+ENV LD_LIBRARY_PATH="/opt/amio/lib:/opt/jasper/lib:/opt/g2c/lib"
 ENV CMAKE_PREFIX_PATH="/opt/amio"
 
 # Register the library paths with the dynamic linker cache too.
 RUN printf '%s\n' \
     /opt/amio/lib \
-    /opt/eckit/lib \
     /opt/jasper/lib \
     /opt/g2c/lib > /etc/ld.so.conf.d/amio.conf \
     && ldconfig

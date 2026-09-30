@@ -15,7 +15,6 @@
             ],
             "settings": {
                 "cmake.configureArgs": [
-                    "-DAMIO_HAS_ECKIT=ON",
                     "-DAMIO_HAS_NETCDF=ON",
                     "-DAMIO_HAS_G2C=ON",
                     "-DAMIO_HAS_TENSORSTORE=OFF",
@@ -27,8 +26,8 @@
         }
     },
     "remoteEnv": {
-        "CMAKE_PREFIX_PATH": "/opt/ecbuild;/opt/eckit;/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck",
-        "LD_LIBRARY_PATH": "/opt/eckit/lib:/opt/jasper/lib:/opt/g2c/lib",
+        "CMAKE_PREFIX_PATH": "/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck",
+        "LD_LIBRARY_PATH": "/opt/jasper/lib:/opt/g2c/lib",
         "CC": "gcc",
         "CXX": "g++",
         "FC": "gfortran"
