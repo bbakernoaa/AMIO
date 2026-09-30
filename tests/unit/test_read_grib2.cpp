@@ -45,7 +45,6 @@
 // round trip).
 
 #include <conf/config.hpp>
-
 #include <cstdint>
 #include <cstdio>
 #include <cstring>

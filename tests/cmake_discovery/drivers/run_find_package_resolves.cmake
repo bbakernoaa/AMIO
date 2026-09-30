@@ -13,8 +13,8 @@
 #
 # Phase 2 -- live consumer configure (best-effort): 2a. Configure AMIO with -DAMIO_FORCE_NCZARR=ON. 2b. Install AMIO into a temporary prefix. 2c.
 # Configure and build a tiny consumer that calls find_package(AMIO REQUIRED PATHS <prefix>) and links AMIO::amio_core. If any step in phase 2 fails
-# because of a missing AMIO runtime dependency (netCDF, MPI), the driver emits "[SKIP] ..." rather than failing -- such hosts cannot complete a
-# full AMIO configure regardless of the find_package machinery.
+# because of a missing AMIO runtime dependency (netCDF, MPI), the driver emits "[SKIP] ..." rather than failing -- such hosts cannot complete a full
+# AMIO configure regardless of the find_package machinery.
 #
 # Output markers: AMIO_FIND_PACKAGE_RESOLVES=OK   -- all enabled checks passed AMIO_FIND_PACKAGE_RESOLVES=FAIL -- any enabled check failed [SKIP] ...
 # -- live half could not run
@@ -114,9 +114,10 @@ file(MAKE_DIRECTORY "${_amio_install}")
 file(MAKE_DIRECTORY "${_consumer_build}")
 
 execute_process(
-    COMMAND "${AMIO_TEST_CMAKE}" ${_cache_args} -S "${AMIO_SOURCE_DIR}" -B "${_amio_build}" ${_generator_args} -DAMIO_FORCE_NCZARR=ON
-            -DAMIO_BUILD_TESTING=OFF -DAMIO_BUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${_amio_install} -DBUILD_SHARED_LIBS=ON
-            -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON
+    COMMAND
+        "${AMIO_TEST_CMAKE}" ${_cache_args} -S "${AMIO_SOURCE_DIR}" -B "${_amio_build}" ${_generator_args} -DAMIO_FORCE_NCZARR=ON
+        -DAMIO_BUILD_TESTING=OFF -DAMIO_BUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${_amio_install} -DBUILD_SHARED_LIBS=ON
+        -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON
     OUTPUT_VARIABLE _amio_cfg_stdout
     ERROR_VARIABLE _amio_cfg_stderr
     RESULT_VARIABLE _amio_cfg_rc)
@@ -127,8 +128,8 @@ message(STATUS "AMIO configure rc=${_amio_cfg_rc}")
 message(STATUS "AMIO configure output:\n${_amio_cfg_combined}")
 
 if(NOT _amio_cfg_rc EQUAL 0)
-    # Inspect the failure reason.  If it is the documented "no Zarr backend available" FATAL_ERROR (no netCDF / no NCZarr capability), this
-    # host genuinely cannot run a live consumer test -- skip it.  Any other failure mode counts as a genuine test failure.
+    # Inspect the failure reason.  If it is the documented "no Zarr backend available" FATAL_ERROR (no netCDF / no NCZarr capability), this host
+    # genuinely cannot run a live consumer test -- skip it.  Any other failure mode counts as a genuine test failure.
     set(_skip_markers "no Zarr backend available" "Could NOT find netCDF" "Could NOT find MPI" "Could NOT find mdspan")
     set(_skip_matched FALSE)
     foreach(_marker IN LISTS _skip_markers)
@@ -175,8 +176,7 @@ else()
             if(_hit_consumer EQUAL -1)
                 list(APPEND _failures "consumer did not emit CONSUMER_RESOLVED_AMIO=OK")
             endif()
-            # Configure proves package resolution; compiling/linking proves the
-            # installed target is usable, without private include/link flags or
+            # Configure proves package resolution; compiling/linking proves the installed target is usable, without private include/link flags or
             # source-tree providers in the consumer.
             execute_process(
                 COMMAND "${AMIO_TEST_CMAKE}" --build "${_consumer_build}" ${_config_args}

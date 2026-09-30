@@ -59,9 +59,9 @@
 // THIS translation unit (the netcdf driver TU pulls them in separately).
 #define OMPI_SKIP_MPICXX 1
 #define MPICH_SKIP_MPICXX 1
-#include <conf/config.hpp>
 #include <mpi.h>
 
+#include <conf/config.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>

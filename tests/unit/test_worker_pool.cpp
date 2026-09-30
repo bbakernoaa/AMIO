@@ -510,9 +510,7 @@ void test_config_constructor_invalid_pinning() {
 
 void test_config_constructor_valid_pinning() {
 #if defined(__linux__)
-    amio_test::AffinityGuard affinity([](const std::string &context) {
-        report_failure("affinity fixture", __FILE__, __LINE__, context);
-    });
+    amio_test::AffinityGuard affinity([](const std::string &context) { report_failure("affinity fixture", __FILE__, __LINE__, context); });
     if (!affinity.valid()) {
         return;
     }

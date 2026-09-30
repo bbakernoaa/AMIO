@@ -616,8 +616,8 @@ set_tests_properties(unit.lifecycle_grib2 PROPERTIES LABELS "unit;lifecycle;grib
 # test_cf_attributes
 #
 # Integration test for CF/UGRID convention compliance + per-variable attributes.  Drives the real Zarr_Driver (NCZarr fallback, serial netCDF-c) end-
-# to-end and reads the produced store back with netCDF-c to assert the written attributes.  Only built when netCDF is available and the build
-# is in NCZarr fallback mode (the serial nc_create path needs no MPI).
+# to-end and reads the produced store back with netCDF-c to assert the written attributes.  Only built when netCDF is available and the build is in
+# NCZarr fallback mode (the serial nc_create path needs no MPI).
 # ####################################################################################################################################################
 if(netCDF_FOUND AND NOT AMIO_HAS_TENSORSTORE)
     add_executable(
@@ -644,16 +644,17 @@ endif()
 # read (nc_get_vars).  Compiles the netcdf driver and its deps directly into the test binary (mirroring how test_cf_attributes compiles the zarr
 # driver) so the real nc_inq_* / nc_get_vara / nc_get_vars paths are exercised.
 #
-# Only built when netCDF + MPI are available.  The NetCDF-4 driver issues nc_create_par / nc_open_par which require the host to have
-# initialized MPI; the test main does so, mirroring test_lifecycle_netcdf4.  The driver/test link the SAME parallel netCDF runtime
-# (AMIO_NETCDF_PAR_LIB) and parallel header path (AMIO_NETCDF_MPI_INCLUDE_DIR) that driver_netcdf uses.
+# Only built when netCDF + MPI are available.  The NetCDF-4 driver issues nc_create_par / nc_open_par which require the host to have initialized MPI;
+# the test main does so, mirroring test_lifecycle_netcdf4.  The driver/test link the SAME parallel netCDF runtime (AMIO_NETCDF_PAR_LIB) and parallel
+# header path (AMIO_NETCDF_MPI_INCLUDE_DIR) that driver_netcdf uses.
 #
 # Validates: Req 9.1, 9.2, 9.3, 9.4 (NetCDF-4 read end-to-end).
 # ####################################################################################################################################################
 if(netCDF_FOUND AND MPI_C_FOUND)
-    add_executable(test_read_netcdf4 test_read_netcdf4.cpp ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp
-                                     ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-                                     ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp)
+    add_executable(
+        test_read_netcdf4
+        test_read_netcdf4.cpp ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp
+        ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp)
 
     target_include_directories(test_read_netcdf4 PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_compile_definitions(test_read_netcdf4 PRIVATE AMIO_HAS_NETCDF=1)
@@ -767,9 +768,13 @@ endif()
 # ####################################################################################################################################################
 if(netCDF_FOUND AND g2c_FOUND AND MPI_C_FOUND)
     set(_amio_mixed_sources
-        test_read_mixed_format.cpp ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
-        ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-        ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp)
+        test_read_mixed_format.cpp
+        ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp
+        ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
+        ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp
+        ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
+        ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
+        ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp)
 
     # The Zarr (TensorStore) leg only compiles in the TensorStore build.
     if(AMIO_HAS_TENSORSTORE)
@@ -892,9 +897,7 @@ foreach(_target IN LISTS _amio_worker_test_targets)
     endif()
 endforeach()
 
-
-# These unit targets compile private AMIO implementation files directly. The
-# public C header target intentionally does not export CONF's C++ headers.
+# These unit targets compile private AMIO implementation files directly. The public C header target intentionally does not export CONF's C++ headers.
 # Keep CONF private to the test executables that need Backend_Driver.
 get_property(_amio_unit_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
 foreach(_target IN LISTS _amio_unit_targets)
@@ -905,9 +908,8 @@ foreach(_target IN LISTS _amio_unit_targets)
     get_target_property(_sources ${_target} SOURCES)
     string(JOIN ";" _source_text ${_sources})
     if(_source_text MATCHES "/factory/backend_factory[.]cpp")
-        # The factory's production force-link anchors now reference all three
-        # backends. Supply only absent backends in these isolated test binaries;
-        # a backend compiled into this test retains its real registration.
+        # The factory's production force-link anchors now reference all three backends. Supply only absent backends in these isolated test binaries; a
+        # backend compiled into this test retains its real registration.
         target_sources(${_target} PRIVATE amio_test_registration_anchors.cpp)
         foreach(_backend IN ITEMS netcdf zarr grib2)
             if(_source_text MATCHES "/drivers/${_backend}/${_backend}_driver[.]cpp")

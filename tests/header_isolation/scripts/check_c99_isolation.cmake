@@ -5,8 +5,8 @@
 #
 # ${AMIO_C_COMPILER} -std=c99 -pedantic -Werror -Wall -Wextra \ -I${AMIO_INCLUDE_DIR}                    \ -c -o /dev/null amio.h
 #
-# Any non-C99 token, any header outside {<stdint.h>, <stddef.h>, <stdbool.h>}, or any transitive include of a backend dependency header
-# path will cause the compile to fail.
+# Any non-C99 token, any header outside {<stdint.h>, <stddef.h>, <stdbool.h>}, or any transitive include of a backend dependency header path will
+# cause the compile to fail.
 #
 # Required CMake variables (set by the parent test): AMIO_C_COMPILER      absolute path to the C compiler AMIO_PUBLIC_HEADER   absolute path to
 # include/amio/amio.h AMIO_INCLUDE_DIR     absolute path to include/  (so #include "amio/amio.h" inside an in-tree probe TU resolves) AMIO_WORK_DIR

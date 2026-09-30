@@ -380,8 +380,7 @@ bool WorkerPool::try_execute_one(std::unique_lock<std::mutex> &lock) {
                         if (ptask.callback) {
                             ptask.callback();
                         }
-                    }
-                    catch (const std::exception &e) {
+                    } catch (const std::exception &e) {
                         emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
                     } catch (...) {
                         emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, "Unknown exception (non-std)");
@@ -424,8 +423,7 @@ bool WorkerPool::try_execute_one(std::unique_lock<std::mutex> &lock) {
                     if (task.callback) {
                         task.callback();
                     }
-                }
-                catch (const std::exception &e) {
+                } catch (const std::exception &e) {
                     emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
                 } catch (...) {
                     emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, "Unknown exception (non-std)");
@@ -464,8 +462,7 @@ bool WorkerPool::try_execute_one(std::unique_lock<std::mutex> &lock) {
                 if (task.callback) {
                     task.callback();
                 }
-            }
-            catch (const std::exception &e) {
+            } catch (const std::exception &e) {
                 emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, e.what());
             } catch (...) {
                 emit_parallel_stacktrace(io_comm_, AMIO_ERR_BACKEND_FAILURE, "Unknown exception (non-std)");

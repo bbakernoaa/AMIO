@@ -23,9 +23,9 @@
 // Validates: CF-1.10 / UGRID-1.0 convention compliance + variable
 // attributes for the netCDF-c-backed drivers.
 
-#include <conf/config.hpp>
 #include <netcdf.h>
 
+#include <conf/config.hpp>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>

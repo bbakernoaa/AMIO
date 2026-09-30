@@ -24,7 +24,6 @@
 // The GRIB2 driver does NOT use MPI, so no MPI initialization is required.
 
 #include <conf/config.hpp>
-
 #include <cstdio>
 #include <cstring>
 #include <optional>

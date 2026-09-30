@@ -17,9 +17,9 @@
 
 #define OMPI_SKIP_MPICXX 1
 #define MPICH_SKIP_MPICXX 1
-#include <conf/config.hpp>
 #include <mpi.h>
 
+#include <conf/config.hpp>
 #include <cstdio>
 #include <cstring>
 #include <optional>

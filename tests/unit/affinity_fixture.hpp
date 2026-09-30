@@ -3,13 +3,13 @@
 #define AMIO_TESTS_UNIT_AFFINITY_FIXTURE_HPP
 
 #if defined(__linux__)
+#include <pthread.h>
+#include <sched.h>
+
 #include <cerrno>
 #include <cstring>
 #include <string>
 #include <vector>
-
-#include <pthread.h>
-#include <sched.h>
 
 namespace amio_test {
 
@@ -35,7 +35,7 @@ inline std::vector<int> current_cpu_ids() {
 }
 
 class AffinityGuard {
-public:
+   public:
     using FailureReporter = void (*)(const std::string &);
 
     explicit AffinityGuard(FailureReporter report) : report_(report) {
@@ -68,10 +68,14 @@ public:
         }
     }
 
-    bool valid() const { return valid_; }
-    const std::vector<int> &allowed() const { return allowed_; }
+    bool valid() const {
+        return valid_;
+    }
+    const std::vector<int> &allowed() const {
+        return allowed_;
+    }
 
-private:
+   private:
     FailureReporter report_;
     cpu_set_t original_;
     std::vector<int> allowed_;

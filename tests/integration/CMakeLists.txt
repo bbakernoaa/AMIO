@@ -19,9 +19,10 @@ find_package(Threads QUIET)
 # ####################################################################################################################################################
 if(netCDF_FOUND AND MPI_C_FOUND)
     add_executable(
-        test_netcdf4_multistep test_netcdf4_multistep.cpp ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp
-                               ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
-                               ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp ${CMAKE_SOURCE_DIR}/tests/unit/amio_test_registration_anchors.cpp)
+        test_netcdf4_multistep
+        test_netcdf4_multistep.cpp ${CMAKE_SOURCE_DIR}/src/drivers/netcdf/netcdf_driver.cpp ${CMAKE_SOURCE_DIR}/src/drivers/common/var_attributes.cpp
+        ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp ${CMAKE_SOURCE_DIR}/src/workers/comm_split.cpp
+        ${CMAKE_SOURCE_DIR}/tests/unit/amio_test_registration_anchors.cpp)
 
     target_include_directories(test_netcdf4_multistep PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_compile_definitions(test_netcdf4_multistep PRIVATE AMIO_HAS_NETCDF=1 AMIO_TEST_REAL_NETCDF=1)
@@ -60,9 +61,10 @@ endif()
 # Requires: g2c.
 # ####################################################################################################################################################
 if(g2c_FOUND)
-    add_executable(test_grib2_multistep test_grib2_multistep.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
-                                        ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-                                        ${CMAKE_SOURCE_DIR}/tests/unit/amio_test_registration_anchors.cpp)
+    add_executable(
+        test_grib2_multistep
+        test_grib2_multistep.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp
+        ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp ${CMAKE_SOURCE_DIR}/tests/unit/amio_test_registration_anchors.cpp)
 
     target_include_directories(test_grib2_multistep PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_compile_definitions(test_grib2_multistep PRIVATE AMIO_HAS_G2C=1 AMIO_TEST_REAL_GRIB2=1)
@@ -86,9 +88,10 @@ endif()
 # ####################################################################################################################################################
 if(g2c_FOUND)
     add_executable(
-        test_grib2_composition_roundtrip test_grib2_composition_roundtrip.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
-                                         ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
-                                         ${CMAKE_SOURCE_DIR}/tests/unit/amio_test_registration_anchors.cpp)
+        test_grib2_composition_roundtrip
+        test_grib2_composition_roundtrip.cpp ${CMAKE_SOURCE_DIR}/src/drivers/grib2/grib2_driver.cpp
+        ${CMAKE_SOURCE_DIR}/src/factory/backend_factory.cpp ${CMAKE_SOURCE_DIR}/src/staging/staging_pool.cpp
+        ${CMAKE_SOURCE_DIR}/tests/unit/amio_test_registration_anchors.cpp)
 
     target_include_directories(test_grib2_composition_roundtrip PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_compile_definitions(test_grib2_composition_roundtrip PRIVATE AMIO_HAS_G2C=1 AMIO_TEST_REAL_GRIB2=1)

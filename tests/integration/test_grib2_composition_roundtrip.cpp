@@ -17,7 +17,6 @@
 #ifdef AMIO_HAS_G2C
 
 #include <conf/config.hpp>
-
 #include <cstdio>
 #include <cstring>
 #include <optional>

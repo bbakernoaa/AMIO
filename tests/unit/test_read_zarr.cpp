@@ -38,7 +38,6 @@
 // Validates: Req 10.1, 10.2, 10.3, 11.2, 11.3 (Zarr read + round trip).
 
 #include <conf/config.hpp>
-
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
