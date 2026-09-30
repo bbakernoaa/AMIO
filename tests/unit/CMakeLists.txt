@@ -894,3 +894,29 @@ foreach(_target IN LISTS _amio_worker_test_targets)
         endif()
     endif()
 endforeach()
+
+
+# These unit targets compile private AMIO implementation files directly. The
+# public C header target intentionally does not export CONF's C++ headers.
+# Keep CONF private to the test executables that need Backend_Driver.
+get_property(_amio_unit_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(_target IN LISTS _amio_unit_targets)
+    if(NOT _target MATCHES "^test_")
+        continue()
+    endif()
+    target_link_libraries(${_target} PRIVATE HELM::CONF)
+    get_target_property(_sources ${_target} SOURCES)
+    string(JOIN ";" _source_text ${_sources})
+    if(_source_text MATCHES "/factory/backend_factory[.]cpp")
+        # The factory's production force-link anchors now reference all three
+        # backends. Supply only absent backends in these isolated test binaries;
+        # a backend compiled into this test retains its real registration.
+        target_sources(${_target} PRIVATE amio_test_registration_anchors.cpp)
+        foreach(_backend IN ITEMS netcdf zarr grib2)
+            if(_source_text MATCHES "/drivers/${_backend}/${_backend}_driver[.]cpp")
+                string(TOUPPER "${_backend}" _backend_upper)
+                target_compile_definitions(${_target} PRIVATE "AMIO_TEST_REAL_${_backend_upper}=1")
+            endif()
+        endforeach()
+    endif()
+endforeach()
