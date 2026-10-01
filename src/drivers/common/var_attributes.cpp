@@ -121,7 +121,16 @@ DatasetAttributes parse_dataset_attributes(const conf::Config &config) {
                     std::string dotted = prefix + "." + key;
                     auto val = config.try_string(dotted);
                     if (val.has_value()) {
-                        attrs.set(key, parse_attr_value(*val));
+                        if (std::string(key) == "units") {
+                            // CF units are text, including the dimensionless unit "1".
+                            AttrValue units;
+                            units.text = *val;
+                            units.is_numeric = false;
+                            units.is_integer = false;
+                            attrs.set(key, units);
+                        } else {
+                            attrs.set(key, parse_attr_value(*val));
+                        }
                     }
                 }
                 if (has_ugrid_role(attrs)) {
