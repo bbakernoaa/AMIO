@@ -873,6 +873,7 @@ endif()
 set(_amio_worker_test_targets
     test_worker_pool
     test_exception_bridge
+    test_backend_factory
     test_write_snapshot
     test_read_prefetch
     test_read_bbox_validation

@@ -19,12 +19,32 @@
 #include <algorithm>
 #include <mutex>
 
-// Declarations of force-link driver functions to guarantee the linker pulls
-// in all backend driver translation units containing static initializers.
+// Optional force-link references to the backend driver translation units.
+//
+// Each driver static archive defines an (empty) `amio_register_*_driver`
+// symbol and a file-scope `BackendRegistrar<T>` whose constructor registers the
+// driver's factory key at static-init time.  Referencing those symbols from
+// instance() below makes the linker extract the driver archive members so their
+// static initializers fire even under `--gc-sections`/IPO or when the archives
+// are linked without `--whole-archive` (the libamio.so build and several PBT
+// targets respectively).
+//
+// The references are declared WEAK so that binaries which compile this
+// translation unit directly but never link the driver archives -- the hermetic
+// unit tests, which register mock drivers instead -- still link: a weak
+// undefined reference is not a link error, it simply resolves to null, and the
+// null-check in instance() skips the call.  When the drivers ARE linked the
+// weak reference resolves to the real symbol and still forces extraction.
+#if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
+#define AMIO_FORCE_LINK_WEAK __attribute__((weak))
+#else
+#define AMIO_FORCE_LINK_WEAK
+#endif
+
 extern "C" {
-void amio_register_netcdf_driver();
-void amio_register_zarr_driver();
-void amio_register_grib2_driver();
+AMIO_FORCE_LINK_WEAK void amio_register_netcdf_driver();
+AMIO_FORCE_LINK_WEAK void amio_register_zarr_driver();
+AMIO_FORCE_LINK_WEAK void amio_register_grib2_driver();
 }
 
 namespace amio::detail {
@@ -34,11 +54,22 @@ BackendFactory &BackendFactory::instance() {
     // Explicitly reference the driver registration functions to force the linker
     // to include the static initializers of all driver translation units,
     // preventing optimization stripping under aggressive compiler flags (e.g. IPO on Intel).
+    //
+    // Each reference is guarded by a null-check: the symbols are declared weak
+    // above, so a binary that does not link a driver archive resolves that symbol
+    // to null and the `!= nullptr` check below skips the call (see the comment
+    // on the declarations).
     static bool forced = false;
     if (!forced) {
-        amio_register_netcdf_driver();
-        amio_register_zarr_driver();
-        amio_register_grib2_driver();
+        if (amio_register_netcdf_driver != nullptr) {
+            amio_register_netcdf_driver();
+        }
+        if (amio_register_zarr_driver != nullptr) {
+            amio_register_zarr_driver();
+        }
+        if (amio_register_grib2_driver != nullptr) {
+            amio_register_grib2_driver();
+        }
         forced = true;
     }
 

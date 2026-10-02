@@ -87,6 +87,16 @@ RUN git clone --depth 1 --branch mdspan-0.6.0 https://github.com/kokkos/mdspan.g
     && ninja install \
     && rm -rf /tmp/mdspan-src /tmp/mdspan-build
 
+# kokkos/kokkos (for HALO (MPI))
+RUN git clone --depth 1 --branch release-candidate-5.2.2 https://github.com/kokkos/kokkos.git /tmp/kokkos-src \
+    && mkdir /tmp/kokkos-build \
+    && cmake -S /tmp/kokkos-src -B /tmp/kokkos-build -GNinja \
+      -DCMAKE_INSTALL_PREFIX=/opt/kokkos \
+      -DKokkos_ENABLE_CUDA=OFF \
+    && cmake --build /tmp/kokkos-build \
+    && cmake --install /tmp/kokkos-build --prefix /opt/kokkos \
+    && rm -rf /tmp/kokkos-src /tmp/kokkos-build
+
 # ===================================================================
 # JasPer (JPEG2000 library - required by nceplibs-g2c for GRIB2)
 # Not available as a system package on Ubuntu 24.04.
@@ -155,14 +165,31 @@ RUN git clone --depth 1 https://github.com/emil-e/rapidcheck.git /tmp/rc-src \
     && ninja -j$(nproc) && ninja install \
     && rm -rf /tmp/rc-src /tmp/rc-build
 
+# HELM Micro-libraries (configuration and MPI and logging)
+RUN git clone --depth 1 https://github.com/bbakerNOAA/HELM-Project.git /tmp/helm-src \
+    && for project in conf logs halo; do \
+      echo ${project} \
+      && mkdir /tmp/helm-${project}-build \
+      && cmake -S /tmp/helm-src/libs/${project} -B /tmp/helm-${project}-build -GNinja \
+         -DCMAKE_INSTALL_PREFIX=/opt/helm \
+         -DCMAKE_BUILD_TYPE=Release \
+         -DKokkos_DIR=/opt/kokkos \
+         -DBUILD_SHARED_LIBS=ON \
+      && cmake --build /tmp/helm-${project}-build \
+      && cmake --install /tmp/helm-${project}-build --prefix /opt/helm \
+      && rm -rf /tmp/helm-${project}-build ; \
+    done \
+    && rm -rf /tmp/helm-src
+
 # ===================================================================
 # Environment
 # ===================================================================
-ENV CMAKE_PREFIX_PATH="/opt/ecbuild;/opt/eckit;/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck"
-ENV LD_LIBRARY_PATH="/opt/eckit/lib:/opt/jasper/lib:/opt/g2c/lib"
+ENV CMAKE_PREFIX_PATH="/opt/ecbuild;/opt/eckit;/opt/mdspan;/opt/jasper;/opt/g2c;/opt/catch2;/opt/rapidcheck;/opt/helm;/opt/kokkos"
+ENV LD_LIBRARY_PATH="/opt/eckit/lib:/opt/jasper/lib:/opt/g2c/lib:/opt/helm/lib:/opt/kokkos/lib"
 ENV PATH="/opt/ecbuild/bin:${PATH}"
 
 # Verify NCZarr support in system netCDF
 RUN nc-config --has-nczarr || echo "WARNING: system netCDF may lack NCZarr"
+RUN ls -R /opt/helm || echo "WARNING: HELM libs not present"
 
 WORKDIR /workspace
