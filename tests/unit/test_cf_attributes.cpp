@@ -4,7 +4,7 @@
 // attribute support.  Drives the REAL Zarr_Driver in NCZarr fallback
 // mode (serial netCDF-c, no MPI) end-to-end:
 //
-//   parse manifest (eckit YAML) -> open_write -> write var -> close
+//   parse manifest -> open_write -> write var -> close
 //
 // then re-opens the produced store with netCDF-c and asserts:
 //
@@ -23,9 +23,9 @@
 // Validates: CF-1.10 / UGRID-1.0 convention compliance + variable
 // attributes for the netCDF-c-backed drivers.
 
-#include <eckit/config/YAMLConfiguration.h>
 #include <netcdf.h>
 
+#include <conf/config.hpp>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
@@ -88,6 +88,7 @@ int main() {
                              "shard_shape: [4, 5]\n"
                              "array_shape: [4, 5]\n"
                              "codec: blosc\n"
+                             "variable_names: [t2m, mesh]\n"
                              "global_attributes:\n"
                              "  title: AMIO CF/UGRID test\n"
                              "variables:\n"
@@ -102,7 +103,7 @@ int main() {
                              "      cf_role: mesh_topology\n"
                              "      topology_dimension: 2\n";
 
-    eckit::YAMLConfiguration cfg{yaml};
+    conf::Config cfg = conf::Config::from_string(yaml);
 
     // --- Drive the driver end-to-end ---
     try {

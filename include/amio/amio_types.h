@@ -9,8 +9,7 @@
  *   - Includes only `<stdint.h>`, `<stddef.h>`, `<stdbool.h>`, and the
  *     companion mdspan forward-declaration header.
  *   - No C++ types, no template, namespace, reference, or std:: symbol.
- *   - No third-party (eckit / TensorStore / netCDF / HDF5 / nceplibs-g2c)
- *     header.
+ *   - No third-party implementation headers.
  *   - All declarations wrapped in `extern "C"` for C++ inclusion (R10.3).
  *   - Compiles cleanly under
  *         `gcc -std=c99 -pedantic -Werror -c amio_types.h`
