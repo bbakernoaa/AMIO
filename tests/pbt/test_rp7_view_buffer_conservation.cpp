@@ -121,9 +121,12 @@ TEST_CASE("RP7: view-buffer conservation - held buffers never on free list, coun
             // (a) Buffers held by outstanding views are never on the
             // free list: free + (completed-but-unread) + held == total.
             // completed_count() are prefetched buffers still owned by
-            // the queue (not free, not held as a view).
+            // the queue (not free, not held as a view).  The pool's slot
+            // count auto-grows beyond the configured buffer_count when
+            // every slot is busy, so the conservation total is the live
+            // slot count, not the provisioning hint.
             std::size_t accounted = pool.free_buffer_count() + held.size() + pq.completed_count();
-            RC_ASSERT(accounted == buffer_count);
+            RC_ASSERT(accounted == pool.total_buffer_count());
 
             // (b) the counter equals the number of outstanding views.
             RC_ASSERT(outstanding_views == static_cast<std::int64_t>(held.size()));
@@ -140,9 +143,12 @@ TEST_CASE("RP7: view-buffer conservation - held buffers never on free list, coun
         held.clear();
         RC_ASSERT(outstanding_views == 0);
 
-        // Drain any completed-but-unread prefetched buffers.
+        // Drain any completed-but-unread prefetched buffers.  After every
+        // held and completed buffer is released, all live slots are free;
+        // compare against the pool's (possibly grown) total, not the
+        // configured buffer_count.
         pq.cancel_pending();
-        RC_ASSERT(pool.free_buffer_count() == buffer_count);
+        RC_ASSERT(pool.free_buffer_count() == pool.total_buffer_count());
     });
 
     REQUIRE(result);

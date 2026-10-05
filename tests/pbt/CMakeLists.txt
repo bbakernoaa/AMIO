@@ -43,6 +43,21 @@ target_include_directories(amio_pbt_common INTERFACE ${PBT_INCLUDE_DIR} ${AMIO_S
 
 target_link_libraries(amio_pbt_common INTERFACE AMIO::public_headers AMIO::amio_core Catch2::Catch2WithMain rapidcheck)
 
+# PBT targets compile AMIO private translation units (workers/, factory/, config/, c_boundary/, drivers/) directly into the test binary.  Those
+# sources include the HELM micro-library headers (<conf/...>, <logs/...>, <halo/...>), which are PRIVATE deps of amio_core and therefore do not
+# propagate through AMIO::amio_core (R7.2 - R7.6).  Propagate them here so every PBT target gets the include paths and link libraries, mirroring the
+# per-target HELM block in tests/unit/CMakeLists.txt.  CONF/HALO/LOGS are REQUIRED at the top level; the guards are defensive for partial
+# configurations.
+if(TARGET HELM::CONF)
+    target_link_libraries(amio_pbt_common INTERFACE HELM::CONF)
+endif()
+if(TARGET HELM::HALO)
+    target_link_libraries(amio_pbt_common INTERFACE HELM::HALO)
+endif()
+if(TARGET HELM::LOGS)
+    target_link_libraries(amio_pbt_common INTERFACE HELM::LOGS)
+endif()
+
 if(Threads_FOUND)
     target_link_libraries(amio_pbt_common INTERFACE Threads::Threads)
 endif()
@@ -460,6 +475,11 @@ add_executable(
 target_link_libraries(pbt_p21_snapshot_copy_correctness PRIVATE AMIO::pbt_common)
 if(MPI_C_FOUND)
     target_link_libraries(pbt_p21_snapshot_copy_correctness PRIVATE MPI::MPI_C)
+    # This target embeds its own copy of amio_core.cpp/comm_split.cpp and initializes MPI via mpi_test_listener.cpp.  Without AMIO_HAS_MPI the
+    # embedded amio_core configures the logger with MPI_COMM_NULL, which the logger then passes to MPI_Comm_rank once MPI is initialized, aborting the
+    # run.  Define it here so the embedded core mirrors the production amio_core build (which sets AMIO_HAS_MPI whenever MPI is linked) and uses the
+    # real parent communicator.
+    target_compile_definitions(pbt_p21_snapshot_copy_correctness PRIVATE AMIO_HAS_MPI=1)
 endif()
 
 add_test(NAME pbt.p21_snapshot_copy_correctness COMMAND pbt_p21_snapshot_copy_correctness)
@@ -495,6 +515,9 @@ add_executable(
 target_link_libraries(pbt_p22_synchronous_wait_totality PRIVATE AMIO::pbt_common)
 if(MPI_C_FOUND)
     target_link_libraries(pbt_p22_synchronous_wait_totality PRIVATE MPI::MPI_C)
+    # See pbt_p21: this target also embeds amio_core.cpp/comm_split.cpp and runs the MPI listener, so it needs AMIO_HAS_MPI to keep the embedded
+    # core's logger off MPI_COMM_NULL.
+    target_compile_definitions(pbt_p22_synchronous_wait_totality PRIVATE AMIO_HAS_MPI=1)
 endif()
 
 add_test(NAME pbt.p22_synchronous_wait_totality COMMAND pbt_p22_synchronous_wait_totality)
@@ -641,6 +664,9 @@ add_executable(
 target_link_libraries(pbt_p23_driver_failure_recorded PRIVATE AMIO::pbt_common)
 if(MPI_C_FOUND)
     target_link_libraries(pbt_p23_driver_failure_recorded PRIVATE MPI::MPI_C)
+    # See pbt_p21: this target also embeds amio_core.cpp/comm_split.cpp and runs the MPI listener, so it needs AMIO_HAS_MPI to keep the embedded
+    # core's logger off MPI_COMM_NULL.
+    target_compile_definitions(pbt_p23_driver_failure_recorded PRIVATE AMIO_HAS_MPI=1)
 endif()
 
 add_test(NAME pbt.p23_driver_failure_recorded COMMAND pbt_p23_driver_failure_recorded)
